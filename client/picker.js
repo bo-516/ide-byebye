@@ -4,17 +4,17 @@ const SWALLOWED_EVENTS = ['mousedown', 'pointerdown', 'mouseup', 'pointerup', 'd
 /**
  * Resolve the live page element used as the screenshot anchor.
  *
- * Boundary: source resolution still uses the nearest inspectable element, but screenshots should start from the real
- * clicked element when possible. Passing a plugin node or non-element target falls back to `inspectable` so capture does
- * not serialize inspector UI or crash on text/document nodes.
+ * Boundary: screenshots intentionally follow the same inspectable element shown by the overlay and sent for source
+ * resolution. Using the raw click target can crop to a nested text/icon node even though the selected DOM/source node is
+ * a larger component.
  *
  * @param {EventTarget | null} target Original browser event target.
  * @param {Element} inspectable Nearest source-mapped element used for code resolution.
  * @returns {Element} Element that screenshot modes should measure from.
  */
 function resolveScreenshotTarget(target, inspectable) {
-    if (target instanceof Element && !isPluginNode(target))
-        return target;
+    if (target instanceof Element && isPluginNode(target))
+        return inspectable;
     return inspectable;
 }
 
