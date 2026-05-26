@@ -47,11 +47,9 @@ export class Dialog {
             setBackdropHidden: (hidden) => {
                 if (this.backdrop)
                     this.backdrop.hidden = hidden;
+                this.setHostInteractive(!hidden);
             },
-            focusIntent: () => {
-                if (this.textarea)
-                    this.textarea.focus();
-            },
+            focusIntent: () => this.focusIntent(),
             reposition: () => {
                 if (this.dialogEl)
                     this.positionDialog(this.dialogEl, this.anchor);
@@ -95,7 +93,7 @@ export class Dialog {
         void this.screenshots.captureSelected();
         void this.resolve(selection);
         void this.loadAgents();
-        this.textarea.focus();
+        this.focusIntent({ retry: true });
     }
     /**
      * Close the dialog and tear down current intent state.
@@ -107,6 +105,7 @@ export class Dialog {
         if (!this.backdrop)
             return;
         this.references.clear();
+        this.setHostInteractive(false);
         this.parent.removeChild(this.backdrop);
         this.backdrop = null;
         this.dialogEl = null;
@@ -137,6 +136,7 @@ export class Dialog {
         this.textarea = el('textarea', 'cii-textarea');
         this.intentText.bind(this.textarea);
         this.textarea.setAttribute('aria-label', 'Change intent');
+        this.textarea.autofocus = true;
         this.textarea.placeholder = '例如：把这个按钮改成主按钮，并加 loading 状态';
         this.textarea.addEventListener('keydown', (event) => {
             if (this.closeFromEscape(event))
@@ -177,11 +177,60 @@ export class Dialog {
         this.parent.append(backdrop);
         this.backdrop = backdrop;
         this.dialogEl = dialog;
+        this.setHostInteractive(true);
         this.positionDialog(dialog, this.anchor);
         document.addEventListener('keydown', this.keyHandler, true);
         this.parent.addEventListener('keydown', this.keyHandler, true);
         window.addEventListener('resize', this.resizeHandler, true);
     }
+
+    /**
+     * Let the shadow host receive pointer events only while dialog UI is visible.
+     *
+     * Boundary: the host normally stays transparent so page picking works. Visible dialogs need this enabled, while the
+     * hidden reference picker turns it off again so page clicks reach the app.
+     *
+     * @param {boolean} interactive Whether the plugin host should receive pointer events.
+     * @returns {void}
+     */
+    setHostInteractive(interactive) {
+        const host = this.parent.host;
+        if (host instanceof HTMLElement)
+            host.style.pointerEvents = interactive ? 'auto' : 'none';
+    }
+
+    /**
+     * Focus the intent textarea after the dialog is attached.
+     *
+     * Boundary: the first focus can be lost while the shadow UI/popover settles, so newly opened dialogs retry briefly.
+     * This method only targets the current textarea and bails if the dialog has already closed or re-rendered.
+     *
+     * @param {{ retry?: boolean }} options Whether to retry on the next frame and short timers.
+     * @returns {void}
+     */
+    focusIntent(options = {}) {
+        const textarea = this.textarea;
+        if (!(textarea instanceof HTMLTextAreaElement))
+            return;
+        const focus = () => {
+            if (!this.backdrop || this.textarea !== textarea)
+                return;
+            try {
+                textarea.focus({ preventScroll: true });
+            }
+            catch {
+                textarea.focus();
+            }
+        };
+        focus();
+        if (!options.retry)
+            return;
+        if (typeof requestAnimationFrame === 'function')
+            requestAnimationFrame(focus);
+        window.setTimeout(focus, 0);
+        window.setTimeout(focus, 80);
+    }
+
     positionDialog(dialog, anchor) {
         const margin = 12;
         const offset = 14;
