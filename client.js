@@ -660,6 +660,17 @@ async function cloneViewport(width, height, cropLeft, cropTop, assetCache) {
         `transform:translate(${-cropLeft}px,${-cropTop}px)`,
         'transform-origin:top left',
     ].join(';');
+    const page = document.createElement('div');
+    page.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    page.style.cssText = [
+        `width:${Math.max(document.documentElement.scrollWidth, width)}px`,
+        `min-height:${Math.max(document.documentElement.scrollHeight, height)}px`,
+        'position:absolute',
+        `left:${-window.scrollX}px`,
+        `top:${-window.scrollY}px`,
+        'margin:0',
+        'padding:0',
+    ].join(';');
     const clone = document.createElement('div');
     clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
     await copyComputedStyles(document.body, clone, assetCache);
@@ -673,12 +684,8 @@ async function cloneViewport(width, height, cropLeft, cropTop, assetCache) {
         clone.append(childClone);
     }
     removePluginNodes(clone);
-    clone.style.position = 'absolute';
-    clone.style.left = `${-window.scrollX}px`;
-    clone.style.top = `${-window.scrollY}px`;
-    clone.style.width = `${Math.max(document.documentElement.scrollWidth, width)}px`;
-    clone.style.minHeight = `${Math.max(document.documentElement.scrollHeight, height)}px`;
-    viewport.append(clone);
+    page.append(clone);
+    viewport.append(page);
     wrapper.append(viewport);
     return wrapper;
 }
@@ -2608,8 +2615,15 @@ class Dialog {
     selectedElement = null;
     screenshotElement = null;
     anchor = null;
+    isFocusGuardActive = false;
     state = 'idle';
     availability = [];
+    focusGuardHandler = (event) => {
+        if (!this.isInspectorFocusEvent(event))
+            return;
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+    };
     keyHandler = (e) => {
         this.closeFromEscape(e);
     };
@@ -2684,6 +2698,7 @@ class Dialog {
         this.references.reset();
         this.intentText.reset();
         this.lastAgent = loadLastAgent(this.config);
+        this.enableFocusGuard();
         this.render(selection);
         void this.screenshots.captureSelected();
         void this.resolve(selection);
@@ -2702,6 +2717,7 @@ class Dialog {
         if (!this.backdrop)
             return;
         this.references.clear();
+        this.disableFocusGuard();
         this.setHostInteractive(false);
         this.parent.removeChild(this.backdrop);
         this.backdrop = null;
@@ -2796,6 +2812,51 @@ class Dialog {
         const host = this.parent.host;
         if (host instanceof HTMLElement)
             host.style.pointerEvents = interactive ? 'auto' : 'none';
+    }
+
+    /**
+     * Keep page-level modal focus traps from stealing focus back when the inspector textarea receives focus.
+     *
+     * Boundary: this only stops composed focusin events that originate inside our shadow UI, and only while the
+     * inspector dialog is open. It does not block pointer or keyboard events, so the textarea still receives normal
+     * browser input and the host page keeps its own modal behavior.
+     *
+     * @param {FocusEvent} event Focus event dispatched after focus moved into the inspector.
+     * @returns {boolean} True when the event came from the inspector UI.
+     */
+    isInspectorFocusEvent(event) {
+        const host = this.parent.host;
+        if (!(host instanceof HTMLElement))
+            return false;
+        const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+        if (path.includes(host) || path.includes(this.backdrop) || path.includes(this.dialogEl) || path.includes(this.textarea))
+            return true;
+        const target = event.target;
+        return target === host || target === this.backdrop || target === this.dialogEl || target === this.textarea;
+    }
+
+    /**
+     * Install a capture-phase focus guard ahead of document-level trap listeners such as MUI TrapFocus.
+     *
+     * @returns {void}
+     */
+    enableFocusGuard() {
+        if (this.isFocusGuardActive)
+            return;
+        window.addEventListener('focusin', this.focusGuardHandler, true);
+        this.isFocusGuardActive = true;
+    }
+
+    /**
+     * Remove the focus guard when the dialog closes.
+     *
+     * @returns {void}
+     */
+    disableFocusGuard() {
+        if (!this.isFocusGuardActive)
+            return;
+        window.removeEventListener('focusin', this.focusGuardHandler, true);
+        this.isFocusGuardActive = false;
     }
 
     /**
@@ -3029,8 +3090,9 @@ class Dialog {
     /**
      * Send the current intent to the selected app agent.
      *
-     * Boundary: empty intent, disabled agents, and unavailable agents are rejected before screenshots or references are
-     * sent. Successful validation stores the app so Enter repeats it next time.
+     * Boundary: disabled and unavailable agents are rejected before screenshots or references are sent. Empty intent is
+     * allowed so users can send source references alone. Successful validation stores the app so Enter repeats it next
+     * time.
      *
      * @param {string} agent App agent name requested by click or Enter.
      * @returns {Promise<void>} Resolves after the adapter response is rendered.
@@ -3040,10 +3102,6 @@ class Dialog {
             return;
         if (!this.selection)
             return;
-        if (!this.textarea.value.trim()) {
-            this.showError('Please describe the change you want before sending.');
-            return;
-        }
         const configured = this.config.enabledAgents.includes(agent);
         const unavailable = this.availability.find((a) => a.name === agent && !a.available);
         if (!configured) {

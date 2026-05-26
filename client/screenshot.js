@@ -505,6 +505,17 @@ async function cloneViewport(width, height, cropLeft, cropTop, assetCache) {
         `transform:translate(${-cropLeft}px,${-cropTop}px)`,
         'transform-origin:top left',
     ].join(';');
+    const page = document.createElement('div');
+    page.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    page.style.cssText = [
+        `width:${Math.max(document.documentElement.scrollWidth, width)}px`,
+        `min-height:${Math.max(document.documentElement.scrollHeight, height)}px`,
+        'position:absolute',
+        `left:${-window.scrollX}px`,
+        `top:${-window.scrollY}px`,
+        'margin:0',
+        'padding:0',
+    ].join(';');
     const clone = document.createElement('div');
     clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
     await copyComputedStyles(document.body, clone, assetCache);
@@ -518,12 +529,8 @@ async function cloneViewport(width, height, cropLeft, cropTop, assetCache) {
         clone.append(childClone);
     }
     removePluginNodes(clone);
-    clone.style.position = 'absolute';
-    clone.style.left = `${-window.scrollX}px`;
-    clone.style.top = `${-window.scrollY}px`;
-    clone.style.width = `${Math.max(document.documentElement.scrollWidth, width)}px`;
-    clone.style.minHeight = `${Math.max(document.documentElement.scrollHeight, height)}px`;
-    viewport.append(clone);
+    page.append(clone);
+    viewport.append(page);
     wrapper.append(viewport);
     return wrapper;
 }

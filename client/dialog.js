@@ -17,8 +17,15 @@ export class Dialog {
     selectedElement = null;
     screenshotElement = null;
     anchor = null;
+    isFocusGuardActive = false;
     state = 'idle';
     availability = [];
+    focusGuardHandler = (event) => {
+        if (!this.isInspectorFocusEvent(event))
+            return;
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+    };
     keyHandler = (e) => {
         this.closeFromEscape(e);
     };
@@ -89,6 +96,7 @@ export class Dialog {
         this.references.reset();
         this.intentText.reset();
         this.lastAgent = loadLastAgent(this.config);
+        this.enableFocusGuard();
         this.render(selection);
         void this.screenshots.captureSelected();
         void this.resolve(selection);
@@ -105,6 +113,7 @@ export class Dialog {
         if (!this.backdrop)
             return;
         this.references.clear();
+        this.disableFocusGuard();
         this.setHostInteractive(false);
         this.parent.removeChild(this.backdrop);
         this.backdrop = null;
@@ -197,6 +206,51 @@ export class Dialog {
         const host = this.parent.host;
         if (host instanceof HTMLElement)
             host.style.pointerEvents = interactive ? 'auto' : 'none';
+    }
+
+    /**
+     * Keep page-level modal focus traps from stealing focus back when the inspector textarea receives focus.
+     *
+     * Boundary: this only stops composed focusin events that originate inside our shadow UI, and only while the
+     * inspector dialog is open. It does not block pointer or keyboard events, so the textarea still receives normal
+     * browser input and the host page keeps its own modal behavior.
+     *
+     * @param {FocusEvent} event Focus event dispatched after focus moved into the inspector.
+     * @returns {boolean} True when the event came from the inspector UI.
+     */
+    isInspectorFocusEvent(event) {
+        const host = this.parent.host;
+        if (!(host instanceof HTMLElement))
+            return false;
+        const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+        if (path.includes(host) || path.includes(this.backdrop) || path.includes(this.dialogEl) || path.includes(this.textarea))
+            return true;
+        const target = event.target;
+        return target === host || target === this.backdrop || target === this.dialogEl || target === this.textarea;
+    }
+
+    /**
+     * Install a capture-phase focus guard ahead of document-level trap listeners such as MUI TrapFocus.
+     *
+     * @returns {void}
+     */
+    enableFocusGuard() {
+        if (this.isFocusGuardActive)
+            return;
+        window.addEventListener('focusin', this.focusGuardHandler, true);
+        this.isFocusGuardActive = true;
+    }
+
+    /**
+     * Remove the focus guard when the dialog closes.
+     *
+     * @returns {void}
+     */
+    disableFocusGuard() {
+        if (!this.isFocusGuardActive)
+            return;
+        window.removeEventListener('focusin', this.focusGuardHandler, true);
+        this.isFocusGuardActive = false;
     }
 
     /**
@@ -430,8 +484,9 @@ export class Dialog {
     /**
      * Send the current intent to the selected app agent.
      *
-     * Boundary: empty intent, disabled agents, and unavailable agents are rejected before screenshots or references are
-     * sent. Successful validation stores the app so Enter repeats it next time.
+     * Boundary: disabled and unavailable agents are rejected before screenshots or references are sent. Empty intent is
+     * allowed so users can send source references alone. Successful validation stores the app so Enter repeats it next
+     * time.
      *
      * @param {string} agent App agent name requested by click or Enter.
      * @returns {Promise<void>} Resolves after the adapter response is rendered.
@@ -441,10 +496,6 @@ export class Dialog {
             return;
         if (!this.selection)
             return;
-        if (!this.textarea.value.trim()) {
-            this.showError('Please describe the change you want before sending.');
-            return;
-        }
         const configured = this.config.enabledAgents.includes(agent);
         const unavailable = this.availability.find((a) => a.name === agent && !a.available);
         if (!configured) {
