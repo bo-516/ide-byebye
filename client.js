@@ -2063,6 +2063,7 @@ var STYLE_TEXT = `
   position: fixed;
   inset: 0;
   z-index: ${DIALOG_Z_INDEX};
+  pointer-events: auto;
   background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(4px);
   padding: 0;
@@ -2416,13 +2417,50 @@ var STYLE_TEXT = `
 function createUi() {
     const host = document.createElement('div');
     host.setAttribute(PLUGIN_NODE_ATTR, '');
-    host.style.cssText = 'all: initial; position: static;';
+    host.setAttribute('popover', 'manual');
+    host.style.cssText = [
+        'all: initial',
+        'position: fixed',
+        'inset: 0',
+        'width: 100vw',
+        'height: 100vh',
+        'margin: 0',
+        'padding: 0',
+        'border: 0',
+        'background: transparent',
+        'overflow: visible',
+        'pointer-events: none',
+        `z-index: ${DIALOG_Z_INDEX}`,
+    ].join(';');
     const root = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = STYLE_TEXT;
     root.appendChild(style);
     document.body.appendChild(host);
+    if (!showUiHost(host))
+        keepUiHostLast(host);
     return { host, root };
+}
+function showUiHost(host) {
+    if (typeof host.showPopover !== 'function')
+        return false;
+    try {
+        if (!host.matches(':popover-open'))
+            host.showPopover();
+        return host.matches(':popover-open');
+    }
+    catch {
+        // Fall back to the fixed z-index host when the Popover API is unavailable or blocked.
+        return false;
+    }
+}
+function keepUiHostLast(host) {
+    const ensureLast = () => {
+        if (host.parentNode === document.body && document.body.lastElementChild !== host)
+            document.body.appendChild(host);
+    };
+    ensureLast();
+    new MutationObserver(ensureLast).observe(document.body, { childList: true });
 }
 
 // client/overlay.js
