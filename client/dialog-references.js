@@ -18,7 +18,7 @@ export class DialogReferenceController {
         this.picker = new DialogReferencePicker(config, overlay, {
             onStart: () => this.setPicking(true),
             onCancel: () => this.setPicking(false),
-            onSelect: (selection) => this.addSelection(selection),
+            onSelect: (selection) => void this.addSelection(selection),
         });
     }
 
@@ -143,14 +143,32 @@ export class DialogReferenceController {
     }
 
     /**
+     * Resolve the inline text inserted for one selected reference.
+     *
+     * Boundary: the browser only knows `file:line` from `data-insp-path`; the server resolves the AST range and
+     * project-relative path, so normal labels become `@src/Button.jsx #12-45`.
+     *
+     * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
+     * @param {number} index Zero-based fallback index.
+     * @returns {Promise<string>} Text inserted into the intent textarea.
+     */
+    async resolveLabel(selection, index) {
+        const fallback = sourceReferenceLabel(selection, index);
+        const label = await this.host.resolveReferenceText?.(selection);
+        const text = String(label || '').trim();
+
+        return text || fallback;
+    }
+
+    /**
      * Add a selected page element as an extra source reference.
      *
      * Boundary: duplicate `data-insp-path` values are ignored to avoid repeated prompt lines and duplicate inline text.
      *
      * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
-     * @returns {void}
+     * @returns {Promise<void>}
      */
-    addSelection(selection) {
+    async addSelection(selection) {
         if (!selection?.inspPath) {
             this.setPicking(false);
             return;
@@ -159,7 +177,23 @@ export class DialogReferenceController {
             this.setPicking(false);
             return;
         }
-        const label = sourceReferenceLabel(selection, this.items.length);
+        let label;
+        try {
+            label = await this.resolveLabel(selection, this.items.length);
+        }
+        catch (err) {
+            if (this.host.isOpen?.() !== false) {
+                this.setPicking(false);
+                this.host.showError?.(err instanceof Error ? err.message : String(err));
+            }
+            return;
+        }
+        if (this.host.isOpen?.() === false)
+            return;
+        if (this.items.some((item) => item.selection?.inspPath === selection.inspPath)) {
+            this.setPicking(false);
+            return;
+        }
 
         this.items = [...this.items, { label, selection }];
         this.host.insertReferenceText?.(label);

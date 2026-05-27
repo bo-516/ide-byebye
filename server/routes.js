@@ -1,7 +1,7 @@
 import { ENDPOINTS, ROUTE_PREFIX, TOKEN_HEADER } from '../shared/constants.js';
 import { isLocalRequest, readToken, tokenMatches } from './security.js';
 import { buildIntentRequest, resolveSelection } from './pipeline.js';
-import { buildPrompt } from './prompt.js';
+import { buildPrompt, buildPromptReferenceLines } from './prompt.js';
 import { saveScreenshotPayloads } from './screenshot.js';
 import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
 function sendJson(res, status, body) {
@@ -192,6 +192,7 @@ export function registerIntentInspectorRoutes(deps) {
                         ok: true,
                         selection: resolved.selection,
                         source: resolved.source,
+                        reference: buildPromptReferenceLines(request)[0],
                         prompt: buildPrompt(request),
                     };
                     sendJson(res, 200, response);

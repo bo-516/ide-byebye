@@ -46,10 +46,10 @@ function readIntentTextRange(textarea, fallback = { start: 0, end: 0 }) {
 /**
  * createSpacedReferenceInsertText(label, value, start, end): 创建引用标签插入文本。
  *
- * 作用：让 `File.jsx:12` 被插入到自然语言句子中时前后有一个语义边界空格。
+ * 作用：让 `@src/File.jsx #12-45` 被插入到自然语言句子中时前后有一个语义边界空格。
  * 边界：已有空白不会重复补空格；label 为空时返回空字符串。
  *
- * @param {string} label 展示给用户的短引用标签。
+ * @param {string} label 展示给用户的引用标签。
  * @param {string} value textarea 当前完整文本。
  * @param {number} start 插入范围起点。
  * @param {number} end 插入范围终点。
@@ -127,7 +127,7 @@ export function createIntentTextController(getTextarea) {
          * 作用：把外部 chip 文本改为输入框内部文本，并把光标移动到插入内容之后。
          * 边界：label 为空或 textarea 不存在时不做处理；如果原来选中了一段文本，会用引用替换该范围。
          *
-         * @param {string} label 短引用标签，例如 `StoryInsightFooterView.jsx:125`。
+         * @param {string} label 引用标签，例如 `@src/StoryInsightFooterView.jsx #120-150`。
          * @returns {void}
          */
         insert(label) {

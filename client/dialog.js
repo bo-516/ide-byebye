@@ -51,12 +51,15 @@ export class Dialog {
         this.references = new DialogReferenceController(config, overlay, {
             captureIntentCursor: () => this.intentText.capture(),
             insertReferenceText: (label) => this.intentText.insert(label),
+            resolveReferenceText: (selection) => this.resolveReferenceText(selection),
             setBackdropHidden: (hidden) => {
                 if (this.backdrop)
                     this.backdrop.hidden = hidden;
                 this.setHostInteractive(!hidden);
             },
             focusIntent: () => this.focusIntent(),
+            isOpen: () => this.isOpen(),
+            showError: (text) => this.showError(text),
             reposition: () => {
                 if (this.dialogEl)
                     this.positionDialog(this.dialogEl, this.anchor);
@@ -450,6 +453,29 @@ export class Dialog {
             this.showError(err instanceof Error ? err.message : String(err));
         }
     }
+
+    /**
+     * Resolve the project-relative `@file #range` text for a newly picked extra code reference.
+     *
+     * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
+     * @returns {Promise<string | undefined>} Compact source reference returned by the server.
+     */
+    async resolveReferenceText(selection) {
+        const res = await this.api.resolve({
+            pageUrl: location.href,
+            intent: '',
+            agent: configuredActions()[0].name,
+            applyMode: 'agent-edit',
+            resume: true,
+            selection,
+        });
+        if (!res.ok) {
+            throw new Error(res.error ?? 'Failed to resolve source reference');
+        }
+
+        return typeof res.reference === 'string' ? res.reference : undefined;
+    }
+
     /**
      * Load app availability and decorate footer buttons.
      *

@@ -1044,18 +1044,19 @@ function screenshotScopeTitleLabel(scope) {
  * Build the compact link label for an additional source reference chip.
  *
  * Boundary: invalid or missing `data-insp-path` values fall back to a numbered generic label; callers should still
- * send the original selection so the server can perform authoritative validation.
+ * send the original selection so the server can perform authoritative validation. This is only a local fallback; the
+ * dialog asks the server for the project-relative `@path #range` label before inserting normal references.
  *
  * @param {Record<string, unknown>} selection Browser selection collected from a page element.
  * @param {number} index Zero-based reference index.
- * @returns {string} Short chip label such as `Button.jsx:42`.
+ * @returns {string} Compact fallback label such as `@Button.jsx #42`.
  */
 function sourceReferenceLabel(selection, index) {
     const parsed = parseInspPathLite(selection?.inspPath ?? '');
     if (!parsed.file)
         return `代码 ${index + 1}`;
-    const line = parsed.line != null ? `:${parsed.line}` : '';
-    return `${basename(parsed.file)}${line}`;
+    const line = parsed.line != null ? ` #${parsed.line}` : '';
+    return `@${basename(parsed.file)}${line}`;
 }
 
 // client/dialog-intent-text.js
@@ -1103,10 +1104,10 @@ function readIntentTextRange(textarea, fallback = { start: 0, end: 0 }) {
 /**
  * createSpacedReferenceInsertText(label, value, start, end): 创建引用标签插入文本。
  *
- * 作用：让 `File.jsx:12` 被插入到自然语言句子中时前后有一个语义边界空格。
+ * 作用：让 `@src/File.jsx #12-45` 被插入到自然语言句子中时前后有一个语义边界空格。
  * 边界：已有空白不会重复补空格；label 为空时返回空字符串。
  *
- * @param {string} label 展示给用户的短引用标签。
+ * @param {string} label 展示给用户的引用标签。
  * @param {string} value textarea 当前完整文本。
  * @param {number} start 插入范围起点。
  * @param {number} end 插入范围终点。
@@ -1397,7 +1398,7 @@ class DialogReferenceController {
         this.picker = new DialogReferencePicker(config, overlay, {
             onStart: () => this.setPicking(true),
             onCancel: () => this.setPicking(false),
-            onSelect: (selection) => this.addSelection(selection),
+            onSelect: (selection) => void this.addSelection(selection),
         });
     }
 
@@ -1521,14 +1522,31 @@ class DialogReferenceController {
     }
 
     /**
+     * Resolve the inline text inserted for one selected reference.
+     *
+     * Boundary: the browser only knows `file:line` from `data-insp-path`; the server resolves the AST range and
+     * project-relative path, so normal labels become `@src/Button.jsx #12-45`.
+     *
+     * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
+     * @param {number} index Zero-based fallback index.
+     * @returns {Promise<string>} Text inserted into the intent textarea.
+     */
+    async resolveLabel(selection, index) {
+        const fallback = sourceReferenceLabel(selection, index);
+        const label = await this.host.resolveReferenceText?.(selection);
+        const text = String(label || '').trim();
+        return text || fallback;
+    }
+
+    /**
      * Add a selected page element as an extra source reference.
      *
      * Boundary: duplicate `data-insp-path` values are ignored to avoid repeated prompt lines and duplicate inline text.
      *
      * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
-     * @returns {void}
+     * @returns {Promise<void>}
      */
-    addSelection(selection) {
+    async addSelection(selection) {
         if (!selection?.inspPath) {
             this.setPicking(false);
             return;
@@ -1537,7 +1555,23 @@ class DialogReferenceController {
             this.setPicking(false);
             return;
         }
-        const label = sourceReferenceLabel(selection, this.items.length);
+        let label;
+        try {
+            label = await this.resolveLabel(selection, this.items.length);
+        }
+        catch (err) {
+            if (this.host.isOpen?.() !== false) {
+                this.setPicking(false);
+                this.host.showError?.(err instanceof Error ? err.message : String(err));
+            }
+            return;
+        }
+        if (this.host.isOpen?.() === false)
+            return;
+        if (this.items.some((item) => item.selection?.inspPath === selection.inspPath)) {
+            this.setPicking(false);
+            return;
+        }
         this.items = [...this.items, { label, selection }];
         this.host.insertReferenceText?.(label);
         this.renderPreviews();
@@ -2651,12 +2685,15 @@ class Dialog {
         this.references = new DialogReferenceController(config, overlay, {
             captureIntentCursor: () => this.intentText.capture(),
             insertReferenceText: (label) => this.intentText.insert(label),
+            resolveReferenceText: (selection) => this.resolveReferenceText(selection),
             setBackdropHidden: (hidden) => {
                 if (this.backdrop)
                     this.backdrop.hidden = hidden;
                 this.setHostInteractive(!hidden);
             },
             focusIntent: () => this.focusIntent(),
+            isOpen: () => this.isOpen(),
+            showError: (text) => this.showError(text),
             reposition: () => {
                 if (this.dialogEl)
                     this.positionDialog(this.dialogEl, this.anchor);
@@ -3056,6 +3093,28 @@ class Dialog {
             this.showError(err instanceof Error ? err.message : String(err));
         }
     }
+
+    /**
+     * Resolve the project-relative `@file #range` text for a newly picked extra code reference.
+     *
+     * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
+     * @returns {Promise<string | undefined>} Compact source reference returned by the server.
+     */
+    async resolveReferenceText(selection) {
+        const res = await this.api.resolve({
+            pageUrl: location.href,
+            intent: '',
+            agent: configuredActions()[0].name,
+            applyMode: 'agent-edit',
+            resume: true,
+            selection,
+        });
+        if (!res.ok) {
+            throw new Error(res.error ?? 'Failed to resolve source reference');
+        }
+        return typeof res.reference === 'string' ? res.reference : undefined;
+    }
+
     /**
      * Load app availability and decorate footer buttons.
      *

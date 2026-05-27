@@ -229,16 +229,17 @@ export function screenshotScopeTitleLabel(scope) {
  * Build the compact link label for an additional source reference chip.
  *
  * Boundary: invalid or missing `data-insp-path` values fall back to a numbered generic label; callers should still
- * send the original selection so the server can perform authoritative validation.
+ * send the original selection so the server can perform authoritative validation. This is only a local fallback; the
+ * dialog asks the server for the project-relative `@path #range` label before inserting normal references.
  *
  * @param {Record<string, unknown>} selection Browser selection collected from a page element.
  * @param {number} index Zero-based reference index.
- * @returns {string} Short chip label such as `Button.jsx:42`.
+ * @returns {string} Compact fallback label such as `@Button.jsx #42`.
  */
 export function sourceReferenceLabel(selection, index) {
     const parsed = parseInspPathLite(selection?.inspPath ?? '');
     if (!parsed.file)
         return `代码 ${index + 1}`;
-    const line = parsed.line != null ? `:${parsed.line}` : '';
-    return `${basename(parsed.file)}${line}`;
+    const line = parsed.line != null ? ` #${parsed.line}` : '';
+    return `@${basename(parsed.file)}${line}`;
 }
