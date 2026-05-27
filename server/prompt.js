@@ -103,9 +103,10 @@ function sourceReferenceLine(selection, source, projectRoot) {
  * @returns {string[]} Prompt reference lines.
  */
 export function buildPromptReferenceLines(request) {
-    const refs = [
-        sourceReferenceLine(request.selection, request.source, request.projectRoot),
-    ];
+    const refs = [];
+    if (request.selection && request.source) {
+        refs.push(sourceReferenceLine(request.selection, request.source, request.projectRoot));
+    }
     if (Array.isArray(request.references)) {
         refs.push(...request.references.map((reference) => sourceReferenceLine(reference.selection, reference.source, request.projectRoot)));
     }
@@ -126,5 +127,10 @@ export function buildPromptReferenceLines(request) {
  * @returns {string} Final prompt text ending with a trailing newline.
  */
 export function buildPrompt(request) {
-    return [...buildPromptReferenceLines(request), '', request.intent.trim()].join('\n').trim() + '\n';
+    const refs = buildPromptReferenceLines(request);
+    const intent = String(request.intent ?? '').trim();
+    const mode = request.planMode === true
+        ? ['Plan mode: do not edit files or run mutating commands. Return a concise implementation plan and wait for approval.', '']
+        : [];
+    return [...mode, ...refs, ...(refs.length ? [''] : []), intent].join('\n').trim() + '\n';
 }

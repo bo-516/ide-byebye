@@ -1,9 +1,10 @@
 import { ENDPOINTS, ROUTE_PREFIX, TOKEN_HEADER } from '../shared/constants.js';
 import { isLocalRequest, readToken, tokenMatches } from './security.js';
-import { buildIntentRequest, resolveSelection } from './pipeline.js';
+import { buildCodexDockRequest, buildIntentRequest, resolveDockSelections, resolveSelection } from './pipeline.js';
 import { buildPrompt, buildPromptReferenceLines } from './prompt.js';
 import { saveScreenshotPayloads } from './screenshot.js';
 import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
+import { listProjectCodexSessions, parseCodexSessionMessages, resolveCodexProjectRoots } from './codex-sessions.js';
 function sendJson(res, status, body) {
     const text = JSON.stringify(body);
     res.statusCode = status;
@@ -42,6 +43,14 @@ function pathname(req) {
     }
     catch {
         return req.url ?? '';
+    }
+}
+function searchParam(req, name) {
+    try {
+        return new URL(req.url ?? '', 'http://localhost').searchParams.get(name);
+    }
+    catch {
+        return null;
     }
 }
 
@@ -179,6 +188,92 @@ export function registerIntentInspectorRoutes(deps) {
                 .catch((err) => sendJson(res, 500, { error: String(err) }));
             return;
         }
+        // --- GET /codex/sessions -----------------------------------------------
+        if (url === ENDPOINTS.codexSessions && req.method === 'GET') {
+            if (!guard(req, res))
+                return;
+            if (!options.codexDock?.enabled) {
+                sendJson(res, 200, { ok: false, sessions: [], error: 'Codex dock is disabled' });
+                return;
+            }
+            const requestedDays = Number(searchParam(req, 'days') ?? options.codexDock.days ?? 15);
+            const days = Number.isFinite(requestedDays) && requestedDays > 0
+                ? Math.min(Math.floor(requestedDays), 90)
+                : options.codexDock.days;
+            const projectRoot = typeof options.codexDock.projectRoot === 'string' && options.codexDock.projectRoot.trim()
+                ? options.codexDock.projectRoot.trim()
+                : deps.projectRoot;
+            const projectRoots = resolveCodexProjectRoots(projectRoot);
+            listProjectCodexSessions({
+                projectRoot,
+                sessionsRoot: options.codexDock.sessionsRoot,
+                days,
+            })
+                .then((sessions) => sendJson(res, 200, { ok: true, sessions, projectRoots }))
+                .catch((err) => sendJson(res, 200, {
+                ok: false,
+                sessions: [],
+                error: err instanceof Error ? err.message : String(err),
+            }));
+            return;
+        }
+        // --- GET /codex/session -----------------------------------------------
+        if (url === ENDPOINTS.codexSession && req.method === 'GET') {
+            if (!guard(req, res))
+                return;
+            if (!options.codexDock?.enabled) {
+                sendJson(res, 200, { ok: false, session: null, messages: [], error: 'Codex dock is disabled' });
+                return;
+            }
+            const threadId = searchParam(req, 'id');
+            if (!threadId) {
+                sendJson(res, 200, { ok: false, session: null, messages: [], error: 'Missing Codex session id' });
+                return;
+            }
+            const requestedDays = Number(searchParam(req, 'days') ?? options.codexDock.days ?? 15);
+            const days = Number.isFinite(requestedDays) && requestedDays > 0
+                ? Math.min(Math.floor(requestedDays), 90)
+                : options.codexDock.days;
+            const projectRoot = typeof options.codexDock.projectRoot === 'string' && options.codexDock.projectRoot.trim()
+                ? options.codexDock.projectRoot.trim()
+                : deps.projectRoot;
+            const projectRoots = resolveCodexProjectRoots(projectRoot);
+            listProjectCodexSessions({
+                projectRoot,
+                sessionsRoot: options.codexDock.sessionsRoot,
+                days,
+            })
+                .then(async (sessions) => {
+                const session = sessions.find((item) => item.id === threadId);
+                if (!session?.filePath) {
+                    sendJson(res, 200, {
+                        ok: false,
+                        session: null,
+                        messages: [],
+                        error: 'Codex session was not found for this project',
+                    });
+                    return;
+                }
+                const messages = await parseCodexSessionMessages(session.filePath, projectRoots);
+                if (!messages) {
+                    sendJson(res, 200, {
+                        ok: false,
+                        session: null,
+                        messages: [],
+                        error: 'Codex session is outside this project',
+                    });
+                    return;
+                }
+                sendJson(res, 200, { ok: true, session, messages });
+            })
+                .catch((err) => sendJson(res, 200, {
+                ok: false,
+                session: null,
+                messages: [],
+                error: err instanceof Error ? err.message : String(err),
+            }));
+            return;
+        }
         // --- POST /resolve ------------------------------------------------------
         if (url === ENDPOINTS.resolve && req.method === 'POST') {
             if (!guard(req, res))
@@ -281,6 +376,75 @@ export function registerIntentInspectorRoutes(deps) {
                     sendJson(res, 200, {
                         ok: false,
                         agent: payload?.agent,
+                        requestId: '',
+                        error,
+                    });
+                }
+            })
+                .catch((err) => sendJson(res, 400, { ok: false, error: String(err) }));
+            return;
+        }
+        // --- POST /codex/turn ---------------------------------------------------
+        if (url === ENDPOINTS.codexTurn && req.method === 'POST') {
+            if (!guard(req, res))
+                return;
+            if (!options.codexDock?.enabled) {
+                sendJson(res, 200, { ok: false, agent: 'codex-sdk', requestId: '', error: 'Codex dock is disabled' });
+                return;
+            }
+            readJsonBody(req)
+                .then(async (payload) => {
+                try {
+                    if (!registry.has('codex-sdk')) {
+                        throw new Error('Agent "codex-sdk" is not enabled');
+                    }
+                    cleanupNonScreenshotArtifacts(deps.outputDirAbs, deps.projectRoot);
+                    const resolved = resolveDockSelections(payload, deps.projectRoot, options);
+                    const request = buildCodexDockRequest(payload, resolved, deps.projectRoot, options);
+                    request.screenshots = saveScreenshotPayloads(payload.screenshots ?? (payload.screenshot ? [payload.screenshot] : undefined), request, deps.outputDirAbs);
+                    request.screenshot = request.screenshots?.[0];
+                    const prompt = buildPrompt(request);
+                    const events = [];
+                    const context = {
+                        projectRoot: deps.projectRoot,
+                        outputDir: deps.outputDirAbs,
+                        prompt,
+                        sessionStore,
+                        logger,
+                        emit: (event) => events.push(event),
+                    };
+                    logger.audit({
+                        kind: 'codex-turn',
+                        requestId: request.id,
+                        threadId: request.threadId,
+                        references: request.references.length,
+                        screenshots: request.screenshots?.length ?? 0,
+                    });
+                    const adapter = registry.get('codex-sdk');
+                    const availability = await adapter.isAvailable();
+                    if (!availability.available) {
+                        const reason = availability.reason ?? 'Codex SDK is currently unavailable';
+                        sendJson(res, 200, {
+                            ok: false,
+                            agent: 'codex-sdk',
+                            requestId: request.id,
+                            events: [{ type: 'failed', text: reason }],
+                            error: reason,
+                        });
+                        return;
+                    }
+                    const result = await adapter.send(request, context);
+                    sendJson(res, 200, {
+                        ...result,
+                        events: result.events && result.events.length ? result.events : events,
+                    });
+                }
+                catch (err) {
+                    const error = err instanceof Error ? err.message : String(err);
+                    logger.error('codex turn failed:', error);
+                    sendJson(res, 200, {
+                        ok: false,
+                        agent: 'codex-sdk',
                         requestId: '',
                         error,
                     });

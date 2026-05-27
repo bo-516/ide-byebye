@@ -8,6 +8,9 @@ export const ENDPOINTS = {
     agents: `${ROUTE_PREFIX}/agents`,
     resolve: `${ROUTE_PREFIX}/resolve`,
     send: `${ROUTE_PREFIX}/send`,
+    codexSessions: `${ROUTE_PREFIX}/codex/sessions`,
+    codexSession: `${ROUTE_PREFIX}/codex/session`,
+    codexTurn: `${ROUTE_PREFIX}/codex/turn`,
 };
 /** Header carrying the per-session dev token. */
 export const TOKEN_HEADER = 'x-intent-inspector-token';

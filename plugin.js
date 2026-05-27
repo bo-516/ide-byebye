@@ -202,6 +202,11 @@ function makeClientConfig(resolved, registry, token, server) {
         defaultAgent,
         applyMode: resolved.applyMode,
         apiOrigin: resolveInspectorApiOrigin(resolved, server),
+        codexDock: {
+            enabled: resolved.codexDock.enabled,
+            days: resolved.codexDock.days,
+            models: resolved.codexDock.models,
+        },
         enabledAgents: names,
         maxDomSnippetLength: resolved.maxDomSnippetLength,
     };

@@ -30,11 +30,17 @@ export class DialogScreenshotController {
      *
      * @returns {void}
      */
-    reset() {
-        this.choices = loadScreenshotChoices();
+    reset(loadPersistedChoices = true) {
+        this.choices = loadPersistedChoices ? loadScreenshotChoices() : new Set();
         this.captures = new Map();
         this.capturePromises = new Map();
         this.pending = new Set();
+    }
+
+    clearCaptures() {
+        this.captures.clear();
+        this.capturePromises.clear();
+        this.pending.clear();
     }
 
     /**
@@ -229,6 +235,7 @@ export class DialogScreenshotController {
             this.pending.clear();
             this.persistChoices();
             this.updatePicker();
+            this.host.onChange?.();
             return;
         }
         if (this.choices.has(choice)) {
@@ -238,11 +245,13 @@ export class DialogScreenshotController {
             this.pending.delete(choice);
             this.persistChoices();
             this.updatePicker();
+            this.host.onChange?.();
             return;
         }
         this.choices.add(choice);
         this.persistChoices();
         this.updatePicker();
+        this.host.onChange?.();
         try {
             await this.ensureCapture(choice);
         }
@@ -250,6 +259,7 @@ export class DialogScreenshotController {
             this.choices.delete(choice);
             this.persistChoices();
             this.updatePicker();
+            this.host.onChange?.();
             this.host.showError(err instanceof Error ? err.message : String(err));
         }
     }
@@ -381,6 +391,7 @@ export class DialogScreenshotController {
             this.capturePromises.delete(scope);
             this.pending.delete(scope);
             this.updatePicker();
+            this.host.onChange?.();
         });
         return remove;
     }

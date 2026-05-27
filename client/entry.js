@@ -2,6 +2,7 @@ import { CLIENT_CONFIG_GLOBAL } from '../shared/constants.js';
 import { createUi } from './style.js';
 import { Overlay } from './overlay.js';
 import { Dialog } from './dialog.js';
+import { CodexDock } from './codex-dock.js';
 import { createApi } from './api.js';
 import { PickerController } from './picker.js';
 import { matchHotkey, parseHotkey } from './hotkey.js';
@@ -19,6 +20,8 @@ function main() {
         const api = createApi(config);
         const overlay = new Overlay(root);
         const dialog = new Dialog(root, config, api, overlay);
+        const codexDock = config.codexDock?.enabled ? new CodexDock(root, config, api, overlay) : null;
+        codexDock?.start();
         const picker = new PickerController(config, overlay, dialog);
         const hotkey = parseHotkey(config.hotkey);
         const clickModifier = config.clickModifier;
@@ -35,11 +38,22 @@ function main() {
                     picker.hidePreview();
                     return;
                 }
+                if (codexDock) {
+                    codexDock.previewTarget(e.target);
+                    return;
+                }
                 picker.previewTarget(e.target);
             }, true);
             document.addEventListener('click', (e) => {
                 if (picker.isActive() || !matchesClickModifier(e, clickModifier))
                     return;
+                if (codexDock) {
+                    void codexDock.addCodeReferenceFromTarget(e.target);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    return;
+                }
                 if (!picker.selectTarget(e.target, { x: e.clientX, y: e.clientY }))
                     return;
                 e.preventDefault();

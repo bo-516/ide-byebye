@@ -27,7 +27,7 @@ function resolveEndpointUrl(config, endpoint) {
  * send requests to the wrong host.
  *
  * @param {Record<string, unknown>} config Browser config injected by the Vite plugin.
- * @returns {{ resolve: Function, send: Function, agents: Function }} Inspector API methods used by the picker dialog.
+ * @returns {{ resolve: Function, send: Function, agents: Function, codexSessions: Function, codexSession: Function, codexTurn: Function }} Inspector API methods used by the picker dialog.
  */
 export function createApi(config) {
     const headers = {
@@ -57,8 +57,29 @@ export function createApi(config) {
     return {
         resolve: (payload) => postJson(ENDPOINTS.resolve, payload),
         send: (payload) => postJson(ENDPOINTS.send, payload),
+        codexTurn: (payload) => postJson(ENDPOINTS.codexTurn, payload),
         async agents() {
             const res = await fetch(`${resolveEndpointUrl(config, ENDPOINTS.agents)}?token=${encodeURIComponent(config.token)}`, {
+                headers,
+                credentials: 'same-origin',
+            });
+            return (await res.json());
+        },
+        async codexSessions(days) {
+            const params = new URLSearchParams({ token: config.token });
+            if (days != null)
+                params.set('days', String(days));
+            const res = await fetch(`${resolveEndpointUrl(config, ENDPOINTS.codexSessions)}?${params.toString()}`, {
+                headers,
+                credentials: 'same-origin',
+            });
+            return (await res.json());
+        },
+        async codexSession(id, days) {
+            const params = new URLSearchParams({ token: config.token, id });
+            if (days != null)
+                params.set('days', String(days));
+            const res = await fetch(`${resolveEndpointUrl(config, ENDPOINTS.codexSession)}?${params.toString()}`, {
                 headers,
                 credentials: 'same-origin',
             });

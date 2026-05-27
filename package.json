@@ -1,5 +1,8 @@
 {
   "name": "code-intent-inspector-core",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
 }
