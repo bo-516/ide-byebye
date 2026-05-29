@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import test from 'node:test';
+import { resolveCodexAppProjectRoot } from './codex-app.js';
 import { buildCodexAppPrompt } from './codex-app-prompt.js';
 
 test('buildCodexAppPrompt uses markdown file links for code references', () => {
@@ -63,4 +65,22 @@ test('buildCodexAppPrompt rewrites inline webp screenshot refs without duplicati
     });
 
     assert.equal(prompt, '看一下 [.intent-inspector/screenshots/shwf3fq.webp](.intent-inspector/screenshots/shwf3fq.webp)\n');
+});
+
+test('resolveCodexAppProjectRoot prefers configured projectRoot', () => {
+    const resolved = resolveCodexAppProjectRoot(
+        { projectRoot: 'fixtures/app' },
+        { projectRoot: '/tmp/vite-root' },
+    );
+
+    assert.equal(resolved, path.resolve('fixtures/app'));
+});
+
+test('resolveCodexAppProjectRoot falls back to context projectRoot for blank config', () => {
+    const resolved = resolveCodexAppProjectRoot(
+        { projectRoot: '   ' },
+        { projectRoot: '/tmp/vite-root' },
+    );
+
+    assert.equal(resolved, '/tmp/vite-root');
 });

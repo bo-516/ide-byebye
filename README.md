@@ -92,6 +92,25 @@ npm install @anthropic-ai/claude-agent-sdk
 `ws` is only needed for the Codex App Server adapter on Node versions without a
 global `WebSocket`.
 
+## Codex App
+
+Set `agents.codexApp.projectRoot` to override the folder opened by Codex App
+deeplinks without enabling the in-page Codex dock or the Codex SDK adapter.
+
+```js
+codeIntentInspectorPlugin({
+  defaultAgent: 'codex-app',
+  codexDock: { enabled: false },
+  agents: {
+    codexApp: {
+      enabled: true,
+      projectRoot: '/absolute/path/to/project',
+    },
+    codexSdk: false,
+  },
+});
+```
+
 ## Codex Dock
 
 Set `codexDock: true` or `codexDock: { enabled: true }` and enable
