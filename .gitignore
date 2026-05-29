@@ -2,7 +2,10 @@
 node_modules/
 
 # Build output
-dist/
+dist/*
+!dist/
+!dist/client.js
+!dist/code-intent-inspector.js
 build/
 coverage/
 
@@ -40,4 +43,5 @@ Thumbs.db
 *.swo
 
 
-client.js
+# Legacy root browser bundle; generated artifacts live under dist/.
+/client.js

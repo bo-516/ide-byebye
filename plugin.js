@@ -60,7 +60,7 @@ function resolveInspectorEndpointUrl(origin, endpoint) {
  * Creates the Vite plugin that injects and serves the code-intent inspector.
  *
  * Boundary: this plugin only applies to `vite serve`. It injects a browser client configured with a local `apiOrigin`,
- * serves the browser runtime from either an embedded single-file bundle or `client.js`, and registers local inspector
+ * serves the browser runtime from either an embedded single-file bundle or `dist/client.js`, and registers local inspector
  * routes; passing malformed options can disable agents, point the browser at the wrong origin, or prevent route
  * resolution from reaching the dev server.
  *
@@ -138,7 +138,7 @@ export function codeIntentInspectorPlugin(options = {}) {
                 // Keep the API routes working even if the browser bundle is missing
                 // (e.g. during tests before a build); the page just gets a no-op script.
                 logger.warn(err instanceof Error ? err.message : String(err));
-                clientCode = `console.warn(${JSON.stringify('[code-intent-inspector] client bundle missing; expected core/client.js, dist/client.js, or an embedded single-file bundle.')});`;
+                clientCode = `console.warn(${JSON.stringify('[code-intent-inspector] client bundle missing; expected core/dist/client.js, legacy core/client.js, host dist/client.js, or an embedded single-file bundle.')});`;
             }
             registerIntentInspectorRoutes({
                 server,
