@@ -123,7 +123,9 @@ export function buildIntentRequest(payload, resolved, projectRoot, options) {
  *
  * Boundary: this request may not have a primary source selection. Prompt
  * generation and adapters must treat `selection/source` as optional while still
- * preserving resolved extra references and screenshots.
+ * preserving resolved extra references and screenshots. Dock requests always
+ * use `agent-edit`; stale plan-only fields from older clients are ignored here
+ * so they cannot change prompt or adapter behavior.
  *
  * @param {Record<string, unknown>} payload Browser payload from the Codex dock.
  * @param {{ selection?: Record<string, unknown>, source?: Record<string, unknown>, references?: Array<Record<string, unknown>> }} resolved Optional resolved source context.
@@ -132,6 +134,10 @@ export function buildIntentRequest(payload, resolved, projectRoot, options) {
  * @returns {Record<string, unknown>} Request consumed by prompt rendering and the Codex SDK adapter.
  */
 export function buildCodexDockRequest(payload, resolved, projectRoot, options) {
+    const rawThreadId = typeof payload.threadId === 'string' && payload.threadId ? payload.threadId : undefined;
+    const forceNewThread = payload.newThread === true || payload.resume === false || !rawThreadId;
+    const threadId = forceNewThread ? undefined : rawThreadId;
+
     return {
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
@@ -139,12 +145,13 @@ export function buildCodexDockRequest(payload, resolved, projectRoot, options) {
         pageUrl: payload.pageUrl,
         intent: payload.intent ?? '',
         agent: 'codex-sdk',
-        applyMode: payload.applyMode ?? options.applyMode,
-        resume: payload.resume ?? Boolean(payload.threadId),
-        threadId: typeof payload.threadId === 'string' && payload.threadId ? payload.threadId : undefined,
-        newThread: payload.newThread === true,
-        planMode: payload.planMode === true,
+        applyMode: 'agent-edit',
+        resume: Boolean(threadId),
+        threadId,
+        newThread: !threadId,
         model: typeof payload.model === 'string' && payload.model ? payload.model : undefined,
+        reasoningEffort: typeof payload.reasoningEffort === 'string' && payload.reasoningEffort ? payload.reasoningEffort : undefined,
+        speed: typeof payload.speed === 'string' && payload.speed ? payload.speed : undefined,
         selection: resolved.selection,
         source: resolved.source,
         references: resolved.references ?? [],

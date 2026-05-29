@@ -123,14 +123,16 @@ export function buildPromptReferenceLines(request) {
  * receive source references, visual references, and the user intent without
  * verbose wrapper instructions.
  *
+ * Boundary: execution-control flags are intentionally ignored so stale clients
+ * cannot inject wrapper instructions into the prompt. Missing `intent` becomes
+ * an empty trailing prompt line, while malformed references should have been
+ * rejected before this renderer is called.
+ *
  * @param {Record<string, unknown>} request Intent request with source references, screenshots, and user intent.
  * @returns {string} Final prompt text ending with a trailing newline.
  */
 export function buildPrompt(request) {
     const refs = buildPromptReferenceLines(request);
     const intent = String(request.intent ?? '').trim();
-    const mode = request.planMode === true
-        ? ['Plan mode: do not edit files or run mutating commands. Return a concise implementation plan and wait for approval.', '']
-        : [];
-    return [...mode, ...refs, ...(refs.length ? [''] : []), intent].join('\n').trim() + '\n';
+    return [...refs, ...(refs.length ? [''] : []), intent].join('\n').trim() + '\n';
 }

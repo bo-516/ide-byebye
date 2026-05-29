@@ -4,7 +4,7 @@ import { buildCodexDockRequest, buildIntentRequest, resolveDockSelections, resol
 import { buildPrompt, buildPromptReferenceLines } from './prompt.js';
 import { saveScreenshotPayloads } from './screenshot.js';
 import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
-import { listProjectCodexSessions, parseCodexSessionMessages, resolveCodexProjectRoots } from './codex-sessions.js';
+import { listProjectCodexSessions, parseCodexSessionMessages, parseCodexSessionMetrics, readLatestCodexSessionModel, resolveCodexProjectRoots } from './codex-sessions.js';
 function sendJson(res, status, body) {
     const text = JSON.stringify(body);
     res.statusCode = status;
@@ -12,6 +12,60 @@ function sendJson(res, status, body) {
     res.setHeader('Cache-Control', 'no-store');
     res.end(text);
 }
+
+/**
+ * Opens a POST-backed SSE response for long-running Codex turns.
+ *
+ * Boundary: this only sets headers and leaves token/origin validation to the caller. Calling it after writing JSON
+ * headers would make the browser stream parser fail.
+ *
+ * @param {import('node:http').ServerResponse} res Response that will carry event-stream frames.
+ * @returns {void}
+ */
+function startEventStream(res) {
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+}
+
+/**
+ * Writes one JSON payload as an SSE frame.
+ *
+ * Boundary: payloads must be JSON-serializable. Closed responses are ignored so disconnects do not throw while an agent
+ * is still unwinding.
+ *
+ * @param {import('node:http').ServerResponse} res Open event-stream response.
+ * @param {string} event Browser-visible SSE event name.
+ * @param {unknown} data JSON-serializable event payload.
+ * @returns {void}
+ */
+function writeEventStream(res, event, data) {
+    if (res.writableEnded)
+        return;
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data ?? {})}\n\n`);
+}
+
+/**
+ * Creates the abort signal passed down into streaming agents.
+ *
+ * Boundary: the signal aborts only when the response closes before normal completion; non-stream callers can omit it.
+ *
+ * @param {import('node:http').ServerResponse} res Response whose premature close should abort the agent turn.
+ * @returns {AbortSignal} Signal for agent SDK calls that support cancellation.
+ */
+function requestAbortSignal(res) {
+    const controller = new AbortController();
+    res.on('close', () => {
+        if (!res.writableEnded)
+            controller.abort();
+    });
+    return controller.signal;
+}
+
 function readJsonBody(req, limitBytes = 15_000_000) {
     return new Promise((resolve, reject) => {
         let size = 0;
@@ -119,6 +173,70 @@ function setTokenCorsHeaders(req, res, token) {
 }
 
 /**
+ * Runs the shared Codex dock turn pipeline for both JSON and streaming routes.
+ *
+ * Boundary: `emit` receives progress events as they happen, while the returned result preserves the legacy final JSON
+ * shape. Bad payloads or disabled agents throw/return exactly as the old route did.
+ *
+ * @param {{ payload: Record<string, unknown>, deps: Record<string, unknown>, options: Record<string, unknown>, registry: Record<string, unknown>, sessionStore: Record<string, unknown>, logger: Record<string, Function>, emit?: Function, signal?: AbortSignal }} args Turn execution dependencies.
+ * @returns {Promise<Record<string, unknown>>} Final adapter result with legacy `events` fallback merged in.
+ */
+async function executeCodexDockTurn({ payload, deps, options, registry, sessionStore, logger, emit, signal }) {
+    if (!registry.has('codex-sdk')) {
+        throw new Error('Agent "codex-sdk" is not enabled');
+    }
+    cleanupNonScreenshotArtifacts(deps.outputDirAbs, deps.projectRoot);
+    const resolved = resolveDockSelections(payload, deps.projectRoot, options);
+    const request = buildCodexDockRequest(payload, resolved, deps.projectRoot, options);
+    request.screenshots = saveScreenshotPayloads(payload.screenshots ?? (payload.screenshot ? [payload.screenshot] : undefined), request, deps.outputDirAbs);
+    request.screenshot = request.screenshots?.[0];
+    const prompt = buildPrompt(request);
+    const events = [];
+    const pushEvent = (event) => {
+        events.push(event);
+        emit?.(event);
+    };
+    const context = {
+        projectRoot: deps.projectRoot,
+        outputDir: deps.outputDirAbs,
+        prompt,
+        sessionStore,
+        logger,
+        signal,
+        emit: pushEvent,
+    };
+    pushEvent({ type: 'prompt', text: prompt });
+    logger.audit({
+        kind: 'codex-turn',
+        requestId: request.id,
+        threadId: request.threadId,
+        references: request.references.length,
+        screenshots: request.screenshots?.length ?? 0,
+    });
+    const adapter = registry.get('codex-sdk');
+    const availability = await adapter.isAvailable();
+    if (!availability.available) {
+        const reason = availability.reason ?? 'Codex SDK is currently unavailable';
+        const event = { type: 'failed', text: reason };
+        pushEvent(event);
+        return {
+            ok: false,
+            agent: 'codex-sdk',
+            requestId: request.id,
+            events: [event],
+            prompt,
+            error: reason,
+        };
+    }
+    const result = await adapter.send(request, context);
+    return {
+        ...result,
+        prompt,
+        events: result.events && result.events.length ? result.events : events,
+    };
+}
+
+/**
  * Registers local code-intent inspector HTTP routes on a Vite dev server.
  *
  * Boundary: routes are served only under `ROUTE_PREFIX`. API routes require the per-process token; cross-origin calls
@@ -204,12 +322,21 @@ export function registerIntentInspectorRoutes(deps) {
                 ? options.codexDock.projectRoot.trim()
                 : deps.projectRoot;
             const projectRoots = resolveCodexProjectRoots(projectRoot);
-            listProjectCodexSessions({
-                projectRoot,
-                sessionsRoot: options.codexDock.sessionsRoot,
-                days,
-            })
-                .then((sessions) => sendJson(res, 200, { ok: true, sessions, projectRoots }))
+            Promise.all([
+                listProjectCodexSessions({
+                    projectRoot,
+                    sessionsRoot: options.codexDock.sessionsRoot,
+                    days,
+                }),
+                readLatestCodexSessionModel(options.codexDock.sessionsRoot),
+            ])
+                .then(([sessions, latestModel]) => sendJson(res, 200, {
+                ok: true,
+                sessions,
+                projectRoots,
+                defaultModel: latestModel?.model || '',
+                defaultModelSessionId: latestModel?.id || '',
+            }))
                 .catch((err) => sendJson(res, 200, {
                 ok: false,
                 sessions: [],
@@ -254,7 +381,10 @@ export function registerIntentInspectorRoutes(deps) {
                     });
                     return;
                 }
-                const messages = await parseCodexSessionMessages(session.filePath, projectRoots);
+                const [messages, metrics] = await Promise.all([
+                    parseCodexSessionMessages(session.filePath, projectRoots),
+                    parseCodexSessionMetrics(session.filePath, projectRoots),
+                ]);
                 if (!messages) {
                     sendJson(res, 200, {
                         ok: false,
@@ -264,7 +394,7 @@ export function registerIntentInspectorRoutes(deps) {
                     });
                     return;
                 }
-                sendJson(res, 200, { ok: true, session, messages });
+                sendJson(res, 200, { ok: true, session, messages, metrics });
             })
                 .catch((err) => sendJson(res, 200, {
                 ok: false,
@@ -392,52 +522,68 @@ export function registerIntentInspectorRoutes(deps) {
                 sendJson(res, 200, { ok: false, agent: 'codex-sdk', requestId: '', error: 'Codex dock is disabled' });
                 return;
             }
+            const stream = searchParam(req, 'stream') === '1';
+            if (stream) {
+                startEventStream(res);
+                const signal = requestAbortSignal(res);
+                readJsonBody(req)
+                    .then(async (payload) => {
+                    try {
+                        const result = await executeCodexDockTurn({
+                            payload,
+                            deps,
+                            options,
+                            registry,
+                            sessionStore,
+                            logger,
+                            signal,
+                            emit: (event) => writeEventStream(res, 'progress', event),
+                        });
+                        writeEventStream(res, 'result', result);
+                        res.end();
+                    }
+                    catch (err) {
+                        const error = err instanceof Error ? err.message : String(err);
+                        logger.error('codex turn failed:', error);
+                        const result = {
+                            ok: false,
+                            agent: 'codex-sdk',
+                            requestId: '',
+                            events: [{ type: 'failed', text: error }],
+                            error,
+                        };
+                        writeEventStream(res, 'progress', result.events[0]);
+                        writeEventStream(res, 'result', result);
+                        res.end();
+                    }
+                })
+                    .catch((err) => {
+                    const error = err instanceof Error ? err.message : String(err);
+                    const result = {
+                        ok: false,
+                        agent: 'codex-sdk',
+                        requestId: '',
+                        events: [{ type: 'failed', text: error }],
+                        error,
+                    };
+                    writeEventStream(res, 'progress', result.events[0]);
+                    writeEventStream(res, 'result', result);
+                    res.end();
+                });
+                return;
+            }
             readJsonBody(req)
                 .then(async (payload) => {
                 try {
-                    if (!registry.has('codex-sdk')) {
-                        throw new Error('Agent "codex-sdk" is not enabled');
-                    }
-                    cleanupNonScreenshotArtifacts(deps.outputDirAbs, deps.projectRoot);
-                    const resolved = resolveDockSelections(payload, deps.projectRoot, options);
-                    const request = buildCodexDockRequest(payload, resolved, deps.projectRoot, options);
-                    request.screenshots = saveScreenshotPayloads(payload.screenshots ?? (payload.screenshot ? [payload.screenshot] : undefined), request, deps.outputDirAbs);
-                    request.screenshot = request.screenshots?.[0];
-                    const prompt = buildPrompt(request);
-                    const events = [];
-                    const context = {
-                        projectRoot: deps.projectRoot,
-                        outputDir: deps.outputDirAbs,
-                        prompt,
+                    const result = await executeCodexDockTurn({
+                        payload,
+                        deps,
+                        options,
+                        registry,
                         sessionStore,
                         logger,
-                        emit: (event) => events.push(event),
-                    };
-                    logger.audit({
-                        kind: 'codex-turn',
-                        requestId: request.id,
-                        threadId: request.threadId,
-                        references: request.references.length,
-                        screenshots: request.screenshots?.length ?? 0,
                     });
-                    const adapter = registry.get('codex-sdk');
-                    const availability = await adapter.isAvailable();
-                    if (!availability.available) {
-                        const reason = availability.reason ?? 'Codex SDK is currently unavailable';
-                        sendJson(res, 200, {
-                            ok: false,
-                            agent: 'codex-sdk',
-                            requestId: request.id,
-                            events: [{ type: 'failed', text: reason }],
-                            error: reason,
-                        });
-                        return;
-                    }
-                    const result = await adapter.send(request, context);
-                    sendJson(res, 200, {
-                        ...result,
-                        events: result.events && result.events.length ? result.events : events,
-                    });
+                    sendJson(res, 200, result);
                 }
                 catch (err) {
                     const error = err instanceof Error ? err.message : String(err);

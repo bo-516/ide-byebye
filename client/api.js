@@ -27,7 +27,7 @@ function resolveEndpointUrl(config, endpoint) {
  * send requests to the wrong host.
  *
  * @param {Record<string, unknown>} config Browser config injected by the Vite plugin.
- * @returns {{ resolve: Function, send: Function, agents: Function, codexSessions: Function, codexSession: Function, codexTurn: Function }} Inspector API methods used by the picker dialog.
+ * @returns {{ resolve: Function, send: Function, agents: Function, codexSessions: Function, codexSession: Function, codexTurn: Function, codexTurnStream: Function }} Inspector API methods used by the picker dialog.
  */
 export function createApi(config) {
     const headers = {
@@ -54,10 +54,91 @@ export function createApi(config) {
         });
         return (await res.json());
     }
+
+    /**
+     * Sends a JSON POST and consumes a server-sent event response.
+     *
+     * Boundary: this is used instead of EventSource because Codex turns need a POST body. Non-SSE responses fall back
+     * to JSON so disabled/older routes still surface their final error payload.
+     *
+     * @param {string} url Inspector endpoint path.
+     * @param {Record<string, unknown>} body JSON payload sent to the inspector server.
+     * @param {{ onEvent?: Function }} handlers Optional progress-event callbacks.
+     * @returns {Promise<Record<string, unknown>>} Final `result` event payload, or a JSON fallback response.
+     */
+    async function postEventStream(url, body, handlers = {}) {
+        const params = new URLSearchParams({ token: config.token, stream: '1' });
+        const res = await fetch(`${resolveEndpointUrl(config, url)}?${params.toString()}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            credentials: 'same-origin',
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.body || !contentType.includes('text/event-stream')) {
+            return (await res.json());
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let result = null;
+
+        const handleFrame = (frame) => {
+            let event = 'message';
+            const data = [];
+            for (const rawLine of frame.split(/\r?\n/)) {
+                const line = rawLine.trimEnd();
+                if (!line || line.startsWith(':'))
+                    continue;
+                if (line.startsWith('event:')) {
+                    event = line.slice(6).trim();
+                    continue;
+                }
+                if (line.startsWith('data:')) {
+                    data.push(line.slice(5).trimStart());
+                }
+            }
+            if (!data.length)
+                return;
+            let payload;
+            try {
+                payload = JSON.parse(data.join('\n'));
+            }
+            catch {
+                payload = { type: event, text: data.join('\n') };
+            }
+            if (event === 'progress') {
+                handlers.onEvent?.(payload);
+            }
+            else if (event === 'result') {
+                result = payload;
+            }
+        };
+
+        for (;;) {
+            const { value, done } = await reader.read();
+            if (done)
+                break;
+            buffer += decoder.decode(value, { stream: true });
+            let index = buffer.indexOf('\n\n');
+            while (index >= 0) {
+                handleFrame(buffer.slice(0, index));
+                buffer = buffer.slice(index + 2);
+                index = buffer.indexOf('\n\n');
+            }
+        }
+        buffer += decoder.decode();
+        if (buffer.trim())
+            handleFrame(buffer);
+        return result ?? { ok: false, agent: 'codex-sdk', requestId: '', error: 'Codex stream ended without a result' };
+    }
+
     return {
         resolve: (payload) => postJson(ENDPOINTS.resolve, payload),
         send: (payload) => postJson(ENDPOINTS.send, payload),
         codexTurn: (payload) => postJson(ENDPOINTS.codexTurn, payload),
+        codexTurnStream: (payload, handlers) => postEventStream(ENDPOINTS.codexTurn, payload, handlers),
         async agents() {
             const res = await fetch(`${resolveEndpointUrl(config, ENDPOINTS.agents)}?token=${encodeURIComponent(config.token)}`, {
                 headers,

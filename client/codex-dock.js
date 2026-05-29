@@ -3,14 +3,20 @@ import { collectSelection, findInspectableElement, isPluginNode } from './dom.js
 import { clamp, el, sourceReferenceLabel } from './dialog-utils.js';
 
 const DOCK_STATE_KEY = 'code-intent-inspector:codex-dock-state';
-const DEFAULT_WIDTH = 760;
-const DEFAULT_HEIGHT = 620;
+const DEFAULT_WIDTH = 960;
 const MIN_WIDTH = 560;
 const MIN_HEIGHT = 420;
 const DEFAULT_VISIBLE_SESSIONS_PER_PROJECT = 5;
-const DOCK_MODES = [
-    { value: 'build', label: 'Build', title: 'Let Codex edit the project' },
-    { value: 'plan', label: 'Plan', title: 'Ask Codex for a plan before edits' },
+const MAX_PROGRESS_EVENTS = 24;
+const REASONING_OPTIONS = [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra High' },
+];
+const SPEED_OPTIONS = [
+    { value: 'standard', label: 'Standard', detail: 'Default speed' },
+    { value: 'fast', label: 'Fast', detail: '1.5x speed, increased usage' },
 ];
 
 function normalizeModelOptions(config) {
@@ -56,9 +62,10 @@ function formatRelativeTime(value) {
     if (!Number.isFinite(time))
         return '';
     const diff = Math.max(0, Date.now() - time);
+    const seconds = Math.floor(diff / 1000);
+    if (seconds < 60)
+        return `${seconds}s`;
     const minutes = Math.floor(diff / 60_000);
-    if (minutes < 1)
-        return 'now';
     if (minutes < 60)
         return `${minutes}m`;
     const hours = Math.floor(minutes / 60);
@@ -80,8 +87,52 @@ function messageText(value) {
     }
 }
 
-function normalizeDockMode(value) {
-    return value === 'plan' ? 'plan' : 'build';
+function progressEventLabel(type) {
+    if (type === 'reasoning')
+        return 'Thinking';
+    if (type === 'tool')
+        return 'Tool';
+    if (type === 'file-change')
+        return 'Files';
+    if (type === 'assistant')
+        return 'Draft';
+    if (type === 'prompt')
+        return 'Prompt';
+    if (type === 'failed')
+        return 'Failed';
+    if (type === 'completed')
+        return 'Done';
+    if (type === 'started')
+        return 'Start';
+    return 'Event';
+}
+
+function progressEventKey(event) {
+    const itemId = event?.raw?.item?.id;
+    if (typeof itemId === 'string' && itemId)
+        return itemId;
+    return '';
+}
+
+function normalizeProgressEvent(event) {
+    const type = typeof event?.type === 'string' && event.type ? event.type : 'message';
+    const text = messageText(event?.text);
+    return {
+        type,
+        text,
+        key: progressEventKey(event),
+        raw: event?.raw,
+    };
+}
+
+function normalizeReasoning(value) {
+    if (value === 'extra-high')
+        return 'xhigh';
+    return REASONING_OPTIONS.some((item) => item.value === value) ? value : 'xhigh';
+}
+
+function normalizeSpeed(value) {
+    return value === 'fast' ? 'fast' : 'standard';
 }
 
 function maxDockWidth() {
@@ -90,6 +141,40 @@ function maxDockWidth() {
 
 function maxDockHeight() {
     return Math.max(MIN_HEIGHT, window.innerHeight - 16);
+}
+
+function defaultDockWidth() {
+    return clamp(DEFAULT_WIDTH, MIN_WIDTH, maxDockWidth());
+}
+
+function defaultDockHeight() {
+    return maxDockHeight();
+}
+
+function contextPercent(metrics) {
+    const percent = Number(metrics?.contextPercent);
+    if (!Number.isFinite(percent))
+        return calculatedContextPercent(metrics);
+    return Math.max(0, Math.min(100, Math.round(percent)));
+}
+
+function calculatedContextPercent(metrics) {
+    const tokensUsed = Number(metrics?.tokensUsed);
+    const contextWindow = Number(metrics?.contextWindow);
+    if (!Number.isFinite(tokensUsed) || !Number.isFinite(contextWindow) || contextWindow <= 0)
+        return 0;
+    return Math.max(0, Math.min(100, Math.round((tokensUsed / contextWindow) * 100)));
+}
+
+function compactNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number))
+        return '';
+    if (number >= 1_000_000)
+        return `${(number / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+    if (number >= 1_000)
+        return `${(number / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+    return String(Math.round(number));
 }
 
 function formatMetricRate(metrics) {
@@ -104,8 +189,40 @@ function formatContextUsage(metrics) {
     const percent = Number(metrics?.contextPercent);
     if (Number.isFinite(percent))
         return `${Math.max(0, Math.min(100, Math.round(percent)))}% used`;
+    const calculated = calculatedContextPercent(metrics);
+    if (calculated)
+        return `${calculated}% used`;
+    const tokens = compactNumber(metrics?.tokensUsed);
+    if (tokens)
+        return `${tokens} tokens`;
     const text = typeof metrics?.contextText === 'string' ? metrics.contextText.trim() : '';
-    return text || '-- used';
+    return text || '0% used';
+}
+
+function readableModelLabel(value) {
+    const text = String(value || '').trim();
+    if (!text)
+        return '';
+    if (/^gpt[-_]/i.test(text)) {
+        return text
+            .replace(/_/g, '-')
+            .replace(/^gpt/i, 'GPT')
+            .replace(/-mini\b/i, '-Mini')
+            .replace(/-codex\b/i, '-Codex')
+            .replace(/-spark\b/i, '-Spark');
+    }
+    return text
+        .split(/[-_\s]+/)
+        .filter(Boolean)
+        .map((part) => part.toLowerCase() === 'gpt' ? 'GPT' : part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
+function displayModelLabel(label) {
+    const text = String(label || '').trim();
+    if (!text || text === 'Default')
+        return 'Default';
+    return text.replace(/^GPT-/i, '');
 }
 
 function formatSessionCount(count) {
@@ -153,6 +270,8 @@ export class CodexDock {
     sendButton = null;
     refreshButton = null;
     modelSelect = null;
+    modelMenuOpen = false;
+    modelSubmenu = 'model';
     state;
     models;
     sessions = [];
@@ -166,8 +285,24 @@ export class CodexDock {
     busy = false;
     draft = '';
     metrics = {};
+    defaultModel = '';
     screenshots;
 
+    /**
+     * Create a dock controller bound to one host page.
+     *
+     * Boundary: `parent`, `api`, and `overlay` must be live objects from the
+     * client runtime; missing dependencies break rendering, route calls, or
+     * element picking before user interaction begins. Persisted unsupported
+     * fields are ignored so the dock always initializes with the current
+     * editing-only controls.
+     *
+     * @param {Element} parent Host element that receives the dock DOM.
+     * @param {Record<string, unknown>} config Browser inspector config.
+     * @param {Record<string, Function>} api Route client used for resolve/send calls.
+     * @param {Record<string, Function>} overlay Page overlay controller for picking.
+     * @returns {CodexDock} Constructed dock controller instance.
+     */
     constructor(parent, config, api, overlay) {
         this.parent = parent;
         this.config = config;
@@ -179,12 +314,13 @@ export class CodexDock {
             collapsed: stored.collapsed !== false,
             x: typeof stored.x === 'number' ? stored.x : null,
             y: typeof stored.y === 'number' ? stored.y : null,
-            width: clamp(Number(stored.width) || DEFAULT_WIDTH, MIN_WIDTH, maxDockWidth()),
-            height: clamp(Number(stored.height) || DEFAULT_HEIGHT, MIN_HEIGHT, maxDockHeight()),
+            width: clamp(Number(stored.width) || defaultDockWidth(), MIN_WIDTH, maxDockWidth()),
+            height: clamp(Number(stored.height) || defaultDockHeight(), MIN_HEIGHT, maxDockHeight()),
             sidebarCollapsed: stored.sidebarCollapsed === true,
             threadId: typeof stored.threadId === 'string' ? stored.threadId : null,
             model: typeof stored.model === 'string' ? stored.model : this.models[0]?.value ?? '',
-            mode: normalizeDockMode(stored.mode),
+            reasoningEffort: normalizeReasoning(stored.reasoningEffort),
+            speed: normalizeSpeed(stored.speed),
         };
         if (!this.models.some((model) => model.value === this.state.model)) {
             this.state.model = this.models[0]?.value ?? '';
@@ -206,6 +342,16 @@ export class CodexDock {
         void this.loadSessions();
     }
 
+    /**
+     * Persist user-adjustable dock state into local storage.
+     *
+     * Boundary: persisted values are UI conveniences only; stale unsupported
+     * fields from older builds are intentionally not written back. Passing no
+     * state to `writeDockState` would reset dock placement and session affinity
+     * for the next render.
+     *
+     * @returns {void}
+     */
     persistState() {
         writeDockState({
             collapsed: this.state.collapsed,
@@ -214,12 +360,22 @@ export class CodexDock {
             width: this.state.width,
             height: this.state.height,
             sidebarCollapsed: this.state.sidebarCollapsed,
-            threadId: this.currentThreadId,
+            threadId: this.isNewThread ? null : this.currentThreadId,
             model: this.state.model,
-            mode: this.state.mode,
+            reasoningEffort: this.state.reasoningEffort,
+            speed: this.state.speed,
         });
     }
 
+    /**
+     * Render the dock root into the plugin host element.
+     *
+     * Boundary: this method replaces the previous dock DOM and must preserve
+     * draft text before removal. Calling it before `screenshots` is constructed
+     * breaks screenshot menus and resize positioning.
+     *
+     * @returns {void}
+     */
     render() {
         if (this.textarea)
             this.draft = this.textarea.value;
@@ -230,6 +386,7 @@ export class CodexDock {
         dock.setAttribute('aria-label', 'Codex dock');
         dock.addEventListener('mousedown', (event) => {
             this.screenshots.closeMenuFromOutside(event.target);
+            this.closeModelMenuFromOutside(event.target);
         }, true);
 
         if (this.state.collapsed) {
@@ -253,30 +410,9 @@ export class CodexDock {
 
     renderShell() {
         const shell = el('div', 'cii-codex-shell');
-        const header = el('header', 'cii-codex-header');
-        header.addEventListener('mousedown', (event) => {
-            if (event.target instanceof HTMLElement && event.target.closest('button, textarea, input, select'))
-                return;
-            this.startDrag(event);
-        });
-
-        const title = el('div', 'cii-codex-title');
-        title.append(el('strong', undefined, 'Codex'), el('span', undefined, this.currentSessionTitle()));
-        const controls = el('div', 'cii-codex-controls');
-        this.refreshButton = el('button', 'cii-codex-icon-btn', '↻');
-        this.refreshButton.type = 'button';
-        this.refreshButton.title = 'Refresh sessions';
-        this.refreshButton.addEventListener('click', () => void this.loadSessions());
-        const collapse = el('button', 'cii-codex-icon-btn', '−');
-        collapse.type = 'button';
-        collapse.title = 'Collapse';
-        collapse.addEventListener('click', () => this.collapse());
-        controls.append(this.refreshButton, collapse);
-        header.append(title, controls);
-
         const main = el('div', `cii-codex-main${this.state.sidebarCollapsed ? ' cii-codex-main-sidebar-collapsed' : ''}`);
         main.append(this.renderSidebar(), this.renderChat());
-        shell.append(header, main, ...this.renderResizeHandles());
+        shell.append(main, ...this.renderResizeHandles());
         return shell;
     }
 
@@ -303,6 +439,25 @@ export class CodexDock {
             return sidebar;
         }
 
+        const brand = el('div', 'cii-codex-sidebar-brand');
+        brand.addEventListener('mousedown', (event) => {
+            if (event.target instanceof HTMLElement && event.target.closest('button'))
+                return;
+            this.startDrag(event);
+        });
+        brand.append(el('span', 'cii-codex-sidebar-title', 'Codex Dock'));
+        const brandControls = el('div', 'cii-codex-sidebar-controls');
+        this.refreshButton = el('button', 'cii-codex-sidebar-icon-btn', '↻');
+        this.refreshButton.type = 'button';
+        this.refreshButton.title = 'Refresh sessions';
+        this.refreshButton.addEventListener('click', () => void this.loadSessions());
+        const collapse = el('button', 'cii-codex-sidebar-icon-btn', '‹');
+        collapse.type = 'button';
+        collapse.title = 'Collapse dock';
+        collapse.addEventListener('click', () => this.collapse());
+        brandControls.append(this.refreshButton, collapse);
+        brand.append(brandControls);
+
         const toolbar = el('div', 'cii-codex-sidebar-toolbar');
         const newChat = el('button', 'cii-codex-new-chat', '+ New chat');
         newChat.type = 'button';
@@ -312,9 +467,8 @@ export class CodexDock {
         toggle.title = 'Hide sessions';
         toggle.addEventListener('click', () => this.toggleSidebar(true));
         toolbar.append(newChat, toggle);
-        const heading = el('div', 'cii-codex-sidebar-heading', 'Projects');
         this.sessionListEl = el('div', 'cii-codex-session-list');
-        sidebar.append(toolbar, heading, this.sessionListEl);
+        sidebar.append(brand, toolbar, this.sessionListEl);
         this.renderSessions();
         return sidebar;
     }
@@ -327,6 +481,15 @@ export class CodexDock {
         });
     }
 
+    /**
+     * Render the chat pane and composer controls.
+     *
+     * Boundary: the composer always sends editing requests now; UI controls
+     * should not alter request routing. Returning a detached element is expected
+     * because `renderShell` owns insertion into the dock.
+     *
+     * @returns {HTMLElement} Chat pane element containing messages and composer.
+     */
     renderChat() {
         const chat = el('div', 'cii-codex-chat');
         this.environmentEl = this.renderEnvironmentPanel();
@@ -346,9 +509,7 @@ export class CodexDock {
         attachmentTray.append(screenshotPreview, this.referencesEl);
         this.textarea = el('textarea', 'cii-codex-textarea');
         this.textarea.value = this.draft;
-        this.textarea.placeholder = this.state.mode === 'plan'
-            ? 'Ask Codex to plan the change'
-            : 'Ask Codex to change this project';
+        this.textarea.placeholder = 'Ask Codex to change this project';
         this.textarea.addEventListener('input', () => {
             this.draft = this.textarea?.value ?? '';
         });
@@ -361,11 +522,13 @@ export class CodexDock {
 
         const footer = el('div', 'cii-codex-composer-footer');
         const leftTools = el('div', 'cii-codex-tool-row');
-        leftTools.append(this.screenshots.renderPicker(), this.renderModeToggle(), this.renderModelSelect());
+        leftTools.append(this.screenshots.renderPicker());
+        const rightTools = el('div', 'cii-codex-send-row');
         this.sendButton = el('button', 'cii-codex-send', '↑');
         this.sendButton.type = 'submit';
         this.sendButton.title = 'Send';
-        footer.append(leftTools, this.sendButton);
+        rightTools.append(this.renderModelSelect(), this.sendButton);
+        footer.append(leftTools, rightTools);
         composer.append(attachmentTray, this.textarea, footer);
 
         chat.append(this.environmentEl, this.messageListEl, this.statusEl, composer);
@@ -375,19 +538,25 @@ export class CodexDock {
     }
 
     renderEnvironmentPanel() {
-        const panel = el('section', 'cii-codex-env-panel');
-        const header = el('div', 'cii-codex-env-header');
-        header.append(el('span', undefined, 'Environment'), el('span', 'cii-codex-env-dot', this.busy ? 'Running' : 'Ready'));
-
-        const rows = el('div', 'cii-codex-env-rows');
-        rows.append(this.renderEnvironmentRow('Mode', this.state.mode === 'plan' ? 'Plan first' : 'Agent edit'));
-        rows.append(this.renderEnvironmentRow('Model', this.currentModelLabel()));
-        rows.append(this.renderEnvironmentRow('Session', this.currentThreadId ? 'Continue thread' : 'New thread'));
-        rows.append(this.renderEnvironmentRow('Sources', this.environmentSourcesLabel()));
-
+        const panel = el('header', 'cii-codex-env-panel');
+        panel.addEventListener('mousedown', (event) => {
+            if (event.target instanceof HTMLElement && event.target.closest('button, textarea, input, select'))
+                return;
+            this.startDrag(event);
+        });
+        const model = el('div', 'cii-codex-env-model');
+        model.append(el('span', undefined, 'Model: '), el('strong', undefined, this.currentModelLabel()));
+        const right = el('div', 'cii-codex-env-right');
+        const state = el('div', 'cii-codex-run-state');
+        state.append(el('span', 'cii-codex-run-dot'), el('span', undefined, this.busy ? 'Running' : 'Ready'));
         const meter = el('div', 'cii-codex-env-meter');
-        meter.append(el('span', undefined, formatMetricRate(this.metrics)), el('span', undefined, formatContextUsage(this.metrics)));
-        panel.append(header, rows, meter);
+        const meterTrack = el('span', 'cii-codex-env-meter-track');
+        const meterFill = el('span', 'cii-codex-env-meter-fill');
+        meterFill.style.width = `${contextPercent(this.metrics)}%`;
+        meterTrack.append(meterFill);
+        meter.append(meterTrack, el('span', undefined, formatContextUsage(this.metrics)));
+        right.append(state, meter);
+        panel.append(model, right);
         return panel;
     }
 
@@ -416,47 +585,189 @@ export class CodexDock {
 
     currentModelLabel() {
         const model = this.models.find((item) => item.value === this.state.model);
+        if (model?.value)
+            return model.label;
+        const session = this.isNewThread ? null : this.sessions.find((item) => item.id === this.currentThreadId);
+        const sessionModel = typeof session?.model === 'string' ? session.model.trim() : '';
+        if (sessionModel) {
+            const configured = this.models.find((item) => item.value === sessionModel || item.label === sessionModel);
+            return configured?.label || readableModelLabel(sessionModel);
+        }
+        const defaultLabel = this.defaultModelLabel();
+        if (defaultLabel)
+            return defaultLabel;
         return model?.label || 'Default';
     }
 
-    renderModeToggle() {
-        const group = el('div', 'cii-codex-mode-toggle');
-        group.setAttribute('role', 'group');
-        group.setAttribute('aria-label', 'Codex mode');
-        for (const mode of DOCK_MODES) {
-            const button = el('button', `cii-codex-mode-option${this.state.mode === mode.value ? ' cii-codex-mode-option-active' : ''}`, mode.label);
-            button.type = 'button';
-            button.title = mode.title;
-            button.addEventListener('click', () => {
-                this.state.mode = mode.value;
-                this.persistState();
-                this.render();
-                this.focusComposer();
-            });
-            group.append(button);
-        }
-        return group;
+    defaultModelLabel() {
+        const defaultModel = String(this.defaultModel || '').trim();
+        if (!defaultModel)
+            return '';
+        const configured = this.models.find((item) => item.value === defaultModel || item.label === defaultModel);
+        return configured?.label || readableModelLabel(defaultModel);
     }
 
     renderModelSelect() {
-        const wrapper = el('label', 'cii-codex-model');
-        const marker = el('span', 'cii-codex-model-icon', '⚡');
-        this.modelSelect = document.createElement('select');
-        this.modelSelect.setAttribute('aria-label', 'Model');
-        for (const model of this.models) {
-            const option = document.createElement('option');
-            option.value = model.value;
-            option.textContent = model.label;
-            option.selected = model.value === this.state.model;
-            this.modelSelect.append(option);
-        }
-        this.modelSelect.addEventListener('change', () => {
-            this.state.model = this.modelSelect?.value ?? '';
-            this.persistState();
-            this.updateEnvironmentPanel();
+        const wrapper = el('div', 'cii-codex-model-picker');
+        const button = el('button', 'cii-codex-model-trigger');
+        button.type = 'button';
+        button.setAttribute('aria-haspopup', 'menu');
+        button.setAttribute('aria-expanded', this.modelMenuOpen ? 'true' : 'false');
+        if (this.isFastSpeed())
+            button.append(el('span', 'cii-codex-model-icon'));
+        button.append(el('span', 'cii-codex-model-trigger-text', this.modelControlLabel()), el('span', 'cii-codex-model-chevron', '⌄'));
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.modelMenuOpen = !this.modelMenuOpen;
+            this.modelSubmenu = this.modelSubmenu || 'model';
+            this.render();
         });
-        wrapper.append(marker, this.modelSelect);
+        wrapper.append(button);
+        if (this.modelMenuOpen)
+            wrapper.append(this.renderModelMenu());
         return wrapper;
+    }
+
+    modelControlLabel() {
+        const modelLabel = this.currentModelLabel();
+        if (modelLabel === 'Default')
+            return 'Default';
+        return `${displayModelLabel(modelLabel)} ${this.currentReasoningLabel()}`;
+    }
+
+    currentReasoningLabel() {
+        return REASONING_OPTIONS.find((item) => item.value === this.state.reasoningEffort)?.label ?? 'Extra High';
+    }
+
+    currentSpeedLabel() {
+        return SPEED_OPTIONS.find((item) => item.value === this.state.speed)?.label ?? 'Standard';
+    }
+
+    isFastSpeed() {
+        return this.state.speed === 'fast';
+    }
+
+    renderModelMenu() {
+        const menu = el('div', 'cii-codex-model-menu');
+        menu.setAttribute('role', 'menu');
+        menu.append(el('div', 'cii-codex-menu-title', 'Reasoning'));
+        for (const option of REASONING_OPTIONS) {
+            const item = this.renderModelMenuItem(option.label, {
+                active: this.state.reasoningEffort === option.value,
+                onClick: () => {
+                    this.state.reasoningEffort = option.value;
+                    this.closeModelMenu();
+                },
+            });
+            menu.append(item);
+        }
+        menu.append(el('div', 'cii-codex-menu-separator'));
+        menu.append(this.renderModelMenuItem(this.currentModelLabel(), {
+            icon: this.isFastSpeed() ? '⚡' : '',
+            submenu: true,
+            active: this.modelSubmenu === 'model',
+            onEnter: () => this.setModelSubmenu('model'),
+            onClick: () => this.setModelSubmenu('model'),
+        }));
+        menu.append(this.renderModelMenuItem('Speed', {
+            submenu: true,
+            active: this.modelSubmenu === 'speed',
+            onEnter: () => this.setModelSubmenu('speed'),
+            onClick: () => this.setModelSubmenu('speed'),
+        }));
+        menu.append(this.renderModelSubmenu());
+        return menu;
+    }
+
+    renderModelMenuItem(label, options = {}) {
+        const item = el('button', `cii-codex-menu-item${options.active ? ' cii-codex-menu-item-active' : ''}`);
+        item.type = 'button';
+        item.setAttribute('role', 'menuitem');
+        const text = el('span', 'cii-codex-menu-item-text');
+        if (options.icon)
+            text.append(el('span', 'cii-codex-menu-item-icon', options.icon));
+        if (options.detail) {
+            const copy = el('span', 'cii-codex-menu-item-copy');
+            copy.append(el('span', 'cii-codex-menu-item-label', label), el('span', 'cii-codex-menu-detail', options.detail));
+            text.append(copy);
+        }
+        else {
+            text.append(el('span', 'cii-codex-menu-item-label', label));
+        }
+        item.append(text);
+        if (options.submenu)
+            item.append(el('span', 'cii-codex-menu-item-chevron', '›'));
+        else if (options.active)
+            item.append(el('span', 'cii-codex-menu-check', '✓'));
+        item.addEventListener('mouseenter', () => options.onEnter?.());
+        item.addEventListener('click', (event) => {
+            event.stopPropagation();
+            options.onClick?.();
+        });
+        return item;
+    }
+
+    renderModelSubmenu() {
+        const submenu = el('div', 'cii-codex-model-submenu');
+        submenu.setAttribute('role', 'menu');
+        if (this.modelSubmenu === 'speed') {
+            submenu.append(el('div', 'cii-codex-menu-title', 'Speed'));
+            for (const option of SPEED_OPTIONS) {
+                const item = this.renderModelMenuItem(option.label, {
+                    icon: option.value === 'fast' ? '⚡' : '',
+                    active: this.state.speed === option.value,
+                    detail: option.detail,
+                    onClick: () => {
+                        this.state.speed = option.value;
+                        this.closeModelMenu();
+                    },
+                });
+                submenu.append(item);
+            }
+            return submenu;
+        }
+
+        submenu.append(el('div', 'cii-codex-menu-title', 'Model'));
+        const effectiveModel = this.effectiveModelValue();
+        for (const model of this.models) {
+            const item = this.renderModelMenuItem(model.label, {
+                icon: model.value && this.isFastSpeed() ? '⚡' : '',
+                active: model.value === effectiveModel,
+                onClick: () => {
+                    this.state.model = model.value;
+                    this.closeModelMenu();
+                    this.updateEnvironmentPanel();
+                },
+            });
+            submenu.append(item);
+        }
+        return submenu;
+    }
+
+    setModelSubmenu(value) {
+        if (this.modelSubmenu === value)
+            return;
+        this.modelSubmenu = value;
+        this.render();
+    }
+
+    closeModelMenu() {
+        this.modelMenuOpen = false;
+        this.persistState();
+        this.render();
+        this.focusComposer();
+    }
+
+    closeModelMenuFromOutside(target) {
+        if (!this.modelMenuOpen)
+            return;
+        if (target instanceof Node && this.dockEl?.contains(target)) {
+            const node = target instanceof HTMLElement ? target : target.parentElement;
+            if (node?.closest?.('.cii-codex-model-picker'))
+                return;
+        }
+        this.modelMenuOpen = false;
+        this.render();
     }
 
     positionDock() {
@@ -571,6 +882,7 @@ export class CodexDock {
             if (!res.ok)
                 throw new Error(res.error ?? 'Failed to load Codex sessions');
             this.sessions = Array.isArray(res.sessions) ? res.sessions : [];
+            this.defaultModel = typeof res.defaultModel === 'string' ? res.defaultModel.trim() : '';
             this.sessionProjectRoots = Array.isArray(res.projectRoots) ? res.projectRoots : [];
             if (this.currentThreadId && !this.sessions.some((session) => session.id === this.currentThreadId)) {
                 this.currentThreadId = null;
@@ -590,7 +902,7 @@ export class CodexDock {
     }
 
     currentSessionTitle() {
-        if (!this.currentThreadId)
+        if (this.isNewThread || !this.currentThreadId)
             return 'New chat';
         const session = this.sessions.find((item) => item.id === this.currentThreadId);
         return session?.title ? `Continue: ${session.title}` : 'Continue session';
@@ -610,50 +922,72 @@ export class CodexDock {
             return;
         }
         const groups = groupSessionsByProject(this.sessions);
-        groups.forEach((group, groupIndex) => {
+        groups.forEach((group) => {
             const section = el('section', 'cii-codex-project-group');
             const heading = el('div', 'cii-codex-project-heading');
-            heading.title = group.key;
             heading.append(el('span', 'cii-codex-project-icon'), el('span', 'cii-codex-project-name', group.label));
             section.append(heading);
 
             const expanded = this.expandedSessionGroups.has(group.key);
-            const visibleSessions = expanded
-                ? group.sessions
-                : group.sessions.slice(0, DEFAULT_VISIBLE_SESSIONS_PER_PROJECT);
+            section.classList.toggle('cii-codex-project-group-expanded', expanded);
+            const visibleCount = expanded
+                ? group.sessions.length
+                : Math.min(DEFAULT_VISIBLE_SESSIONS_PER_PROJECT, group.sessions.length);
+            const sessionStack = el('div', 'cii-codex-session-stack');
+            sessionStack.style.setProperty('--cii-session-visible', String(visibleCount));
 
-            visibleSessions.forEach((session, index) => {
+            group.sessions.forEach((session, index) => {
                 const button = el('button', 'cii-codex-session');
                 button.type = 'button';
-                const active = session.id === this.currentThreadId;
+                if (index >= DEFAULT_VISIBLE_SESSIONS_PER_PROJECT) {
+                    button.dataset.sessionExtra = 'true';
+                    if (!expanded)
+                        button.tabIndex = -1;
+                }
+                const active = !this.isNewThread && session.id === this.currentThreadId;
                 button.classList.toggle('cii-codex-session-active', active);
                 if (active)
                     button.setAttribute('aria-current', 'true');
                 const title = el('span', 'cii-codex-session-title', session.title || 'Untitled session');
-                const shortcut = groupIndex === 0 && index < DEFAULT_VISIBLE_SESSIONS_PER_PROJECT
-                    ? `⌘${index + 1}`
-                    : '';
-                const meta = el('span', shortcut ? 'cii-codex-session-shortcut' : 'cii-codex-session-meta', shortcut || formatRelativeTime(session.updatedAt));
+                const meta = el('span', 'cii-codex-session-meta', formatRelativeTime(session.updatedAt));
                 button.append(title, meta);
                 button.addEventListener('click', () => void this.selectSession(session));
-                section.append(button);
+                sessionStack.append(button);
             });
+            section.append(sessionStack);
 
             if (group.sessions.length > DEFAULT_VISIBLE_SESSIONS_PER_PROJECT) {
-                const showMore = el('button', 'cii-codex-session-more', expanded ? 'Show less' : 'Show more');
-                showMore.type = 'button';
-                showMore.addEventListener('click', () => {
-                    if (expanded)
-                        this.expandedSessionGroups.delete(group.key);
-                    else
-                        this.expandedSessionGroups.add(group.key);
-                    this.renderSessions();
-                });
-                section.append(showMore);
+                section.append(this.renderSessionMoreButton(group.key, expanded, group.sessions.length));
             }
 
             this.sessionListEl.append(section);
         });
+    }
+
+    renderSessionMoreButton(groupKey, expanded, totalCount) {
+        const showMore = el('button', 'cii-codex-session-more', expanded ? 'Show less' : 'Show more');
+        showMore.type = 'button';
+        showMore.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        showMore.addEventListener('click', () => {
+            const nextExpanded = !this.expandedSessionGroups.has(groupKey);
+            if (nextExpanded)
+                this.expandedSessionGroups.add(groupKey);
+            else
+                this.expandedSessionGroups.delete(groupKey);
+            this.persistState();
+            const section = showMore.closest('.cii-codex-project-group');
+            const stack = section?.querySelector?.('.cii-codex-session-stack');
+            section?.classList.toggle('cii-codex-project-group-expanded', nextExpanded);
+            if (stack instanceof HTMLElement)
+                stack.style.setProperty('--cii-session-visible', String(nextExpanded ? totalCount : DEFAULT_VISIBLE_SESSIONS_PER_PROJECT));
+            section?.querySelectorAll?.('[data-session-extra="true"]').forEach((button) => {
+                if (button instanceof HTMLElement)
+                    button.tabIndex = nextExpanded ? 0 : -1;
+            });
+            showMore.textContent = nextExpanded ? 'Show less' : 'Show more';
+            showMore.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
+        });
+        return showMore;
     }
 
     async selectSession(session) {
@@ -680,8 +1014,10 @@ export class CodexDock {
             this.messages = messages.length
                 ? messages
                 : [{ type: 'status', text: 'No messages found in this session' }];
+            this.metrics = res.metrics && typeof res.metrics === 'object' ? res.metrics : {};
             this.render();
             this.setStatus('');
+            this.scrollMessagesToBottom();
         }
         catch (err) {
             if (this.currentThreadId !== session.id)
@@ -689,16 +1025,19 @@ export class CodexDock {
             this.messages = [{ type: 'failed', text: err instanceof Error ? err.message : String(err) }];
             this.renderMessages();
             this.setStatus('');
+            this.scrollMessagesToBottom();
         }
     }
 
     startNewChat() {
         this.currentThreadId = null;
         this.isNewThread = true;
+        this.state.threadId = null;
         this.messages = [];
         this.references = [];
         this.selectedElement = null;
         this.draft = '';
+        this.metrics = {};
         this.screenshots.reset(false);
         if (this.textarea)
             this.textarea.value = '';
@@ -739,6 +1078,18 @@ export class CodexDock {
         return true;
     }
 
+    /**
+     * Add one source selection as a reusable composer reference chip.
+     *
+     * Boundary: `selection` must include an `inspPath` that the server can
+     * resolve; missing or duplicate selections are ignored, while invalid
+     * server responses surface as dock errors. Passing the wrong
+     * `selectedElement` only affects screenshot focus for later captures.
+     *
+     * @param {Record<string, unknown>} selection Browser source selection.
+     * @param {Element | null} selectedElement DOM element associated with the selection.
+     * @returns {Promise<void>} Resolves after the chip and screenshot preview state are updated.
+     */
     async addCodeReference(selection, selectedElement) {
         if (!selection?.inspPath)
             return;
@@ -755,8 +1106,7 @@ export class CodexDock {
                 pageUrl: location.href,
                 intent: '',
                 agent: 'codex-sdk',
-                applyMode: this.state.mode === 'plan' ? 'prompt-only' : 'agent-edit',
-                planMode: this.state.mode === 'plan',
+                applyMode: 'agent-edit',
                 resume: true,
                 selection,
             });
@@ -813,28 +1163,54 @@ export class CodexDock {
         return this.references.map((item) => item.selection);
     }
 
-    async buildPayload() {
+    /**
+     * Build the payload sent to the Codex dock route.
+     *
+     * Boundary: screenshot payload creation is asynchronous and may return no
+     * screenshots; thread fields must stay consistent so stale selected-thread
+     * ids are not resumed accidentally. Passing a non-string `intentValue`
+     * relies on server normalization and may produce an empty prompt.
+     *
+     * @param {string} intentValue Composer text to send to Codex.
+     * @returns {Promise<Record<string, unknown>>} Serialized dock request payload.
+     */
+    async buildPayload(intentValue = this.textarea?.value ?? '') {
         const screenshots = await this.screenshots.buildPayloadScreenshots();
+        const threadId = this.isNewThread ? undefined : this.currentThreadId || undefined;
         const payload = {
             pageUrl: location.href,
-            intent: this.textarea?.value ?? '',
-            applyMode: this.state.mode === 'plan' ? 'prompt-only' : 'agent-edit',
-            planMode: this.state.mode === 'plan',
+            intent: intentValue,
+            applyMode: 'agent-edit',
             references: this.payloadReferences(),
-            threadId: this.currentThreadId || undefined,
-            newThread: this.isNewThread,
-            resume: !this.isNewThread,
-            model: this.state.model || undefined,
+            threadId,
+            newThread: !threadId,
+            resume: Boolean(threadId),
+            model: this.effectiveModelValue() || undefined,
+            reasoningEffort: this.state.reasoningEffort,
+            speed: this.state.speed,
         };
         if (screenshots)
             payload.screenshots = screenshots;
         return payload;
     }
 
+    effectiveModelValue() {
+        return this.state.model || this.defaultModel || '';
+    }
+
+    restoreSubmittedDraft(value) {
+        if (!value || this.draft || this.textarea?.value)
+            return;
+        this.draft = value;
+        if (this.textarea)
+            this.textarea.value = value;
+    }
+
     async send() {
         if (this.busy)
             return;
-        const intent = (this.textarea?.value ?? '').trim();
+        const submittedText = this.textarea?.value ?? '';
+        const intent = submittedText.trim();
         const hasRefs = this.payloadReferences().length > 0;
         const hasScreenshots = this.screenshots.choices.size > 0;
         if (!intent && !hasRefs && !hasScreenshots) {
@@ -843,8 +1219,12 @@ export class CodexDock {
         }
 
         this.setBusy(true);
+        this.draft = '';
+        if (this.textarea)
+            this.textarea.value = '';
+        let progressId = '';
         try {
-            const payload = await this.buildPayload();
+            const payload = await this.buildPayload(submittedText);
             this.messages = [
                 ...this.messages,
                 {
@@ -854,8 +1234,14 @@ export class CodexDock {
                     screenshots: payload.screenshots ?? [],
                 },
             ];
-            this.renderMessages();
-            const result = await this.api.codexTurn(payload);
+            progressId = this.startLiveProgress();
+            const useStream = typeof this.api.codexTurnStream === 'function';
+            const result = useStream
+                ? await this.api.codexTurnStream(payload, {
+                    onEvent: (event) => this.appendProgressEvent(progressId, event),
+                })
+                : await this.api.codexTurn(payload);
+            this.finishLiveProgress(progressId);
             if (result.metrics)
                 this.metrics = result.metrics;
             if (result.threadId) {
@@ -863,7 +1249,8 @@ export class CodexDock {
                 this.isNewThread = false;
                 this.persistState();
             }
-            this.appendResult(result);
+            this.attachPromptToLastUserMessage(result.prompt);
+            this.appendResult(result, { includeEvents: !useStream });
             if (result.ok) {
                 this.draft = '';
                 if (this.textarea)
@@ -872,8 +1259,13 @@ export class CodexDock {
                 this.renderReferences();
                 void this.loadSessions();
             }
+            else {
+                this.restoreSubmittedDraft(submittedText);
+            }
         }
         catch (err) {
+            this.finishLiveProgress(progressId);
+            this.restoreSubmittedDraft(submittedText);
             this.messages = [...this.messages, { type: 'failed', text: err instanceof Error ? err.message : String(err) }];
             this.renderMessages();
         }
@@ -882,9 +1274,116 @@ export class CodexDock {
         }
     }
 
-    appendResult(result) {
+    /**
+     * Insert the temporary progress bubble shown while a Codex turn streams.
+     *
+     * Boundary: the returned id is local to the current render cycle; callers must remove it before appending the final
+     * response so progress text is replaced by the completed answer.
+     *
+     * @returns {string} Temporary progress message id.
+     */
+    startLiveProgress() {
+        const id = `progress-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        this.messages = [
+            ...this.messages,
+            {
+                id,
+                type: 'progress',
+                text: 'Working',
+                events: [],
+            },
+        ];
+        this.renderMessages();
+        return id;
+    }
+
+    /**
+     * Merge one streamed progress event into the temporary progress bubble.
+     *
+     * Boundary: item-level updates with the same SDK item id replace the prior row to avoid noisy command-output
+     * duplicates. Missing ids append a new row.
+     *
+     * @param {string} id Temporary progress message id from `startLiveProgress`.
+     * @param {Record<string, unknown>} event Normalized server progress event.
+     * @returns {void}
+     */
+    appendProgressEvent(id, event) {
+        if (!id)
+            return;
+        const nextEvent = normalizeProgressEvent(event);
+        if (!nextEvent.text && nextEvent.type !== 'completed')
+            return;
+        this.messages = this.messages.map((item) => {
+            if (item.id !== id)
+                return item;
+            const events = Array.isArray(item.events) ? [...item.events] : [];
+            const existingIndex = nextEvent.key
+                ? events.findIndex((entry) => entry.key === nextEvent.key)
+                : -1;
+            if (existingIndex >= 0)
+                events[existingIndex] = nextEvent;
+            else
+                events.push(nextEvent);
+            return {
+                ...item,
+                text: nextEvent.type === 'failed' ? 'Failed' : 'Working',
+                events: events.slice(-MAX_PROGRESS_EVENTS),
+            };
+        });
+        this.renderMessages();
+    }
+
+    /**
+     * Remove the temporary progress bubble.
+     *
+     * Boundary: this does not append final output; callers should invoke `appendResult` after removal.
+     *
+     * @param {string} id Temporary progress message id.
+     * @returns {void}
+     */
+    finishLiveProgress(id) {
+        if (!id)
+            return;
+        this.messages = this.messages.filter((item) => item.id !== id);
+        this.renderMessages();
+    }
+
+    /**
+     * Attach the authoritative server-built prompt to the latest user message.
+     *
+     * Boundary: the browser payload is only a draft; this stores the prompt after the server resolves code references
+     * and screenshots. Missing/empty prompts leave the message unchanged.
+     *
+     * @param {unknown} prompt Final prompt text returned by the server.
+     * @returns {void}
+     */
+    attachPromptToLastUserMessage(prompt) {
+        const text = typeof prompt === 'string' ? prompt.trimEnd() : '';
+        if (!text)
+            return;
+        for (let index = this.messages.length - 1; index >= 0; index -= 1) {
+            const message = this.messages[index];
+            if (message?.type !== 'user')
+                continue;
+            this.messages = this.messages.map((item, itemIndex) => itemIndex === index ? { ...item, prompt: text } : item);
+            return;
+        }
+    }
+
+    /**
+     * Append the final Codex turn result.
+     *
+     * Boundary: streaming calls pass `includeEvents: false` so progress rows are replaced by the complete response.
+     * Non-stream calls still render legacy final events.
+     *
+     * @param {Record<string, unknown>} result Adapter result returned by the server.
+     * @param {{ includeEvents?: boolean }} options Rendering options for progress/event history.
+     * @returns {void}
+     */
+    appendResult(result, options = {}) {
+        const includeEvents = options.includeEvents !== false;
         const next = [];
-        if (Array.isArray(result.events)) {
+        if (includeEvents && Array.isArray(result.events)) {
             for (const event of result.events) {
                 const text = messageText(event.text);
                 if (!text)
@@ -892,8 +1391,12 @@ export class CodexDock {
                 next.push({ type: event.type || 'message', text });
             }
         }
-        if (result.output && !next.some((item) => item.text === result.output)) {
-            next.push({ type: 'assistant', text: result.output });
+        const finalOutput = result.output ||
+            (Array.isArray(result.events)
+                ? [...result.events].reverse().find((event) => event?.type === 'completed' && event?.text)?.text
+                : '');
+        if (finalOutput && !next.some((item) => item.text === finalOutput)) {
+            next.push({ type: 'assistant', text: finalOutput });
         }
         if (!result.ok) {
             next.push({ type: 'failed', text: result.error ?? 'Codex turn failed' });
@@ -903,25 +1406,108 @@ export class CodexDock {
         this.updateEnvironmentPanel();
     }
 
+    /**
+     * Render the chat transcript from the local message models.
+     *
+     * Boundary: user messages may carry a server-built prompt that is exposed only
+     * through the hover action; progress messages render through their dedicated
+     * live card. Missing `messageListEl` means the dock is not mounted yet and no
+     * DOM update should be attempted.
+     *
+     * @returns {void}
+     */
     renderMessages() {
         if (!this.messageListEl)
             return;
         this.messageListEl.innerHTML = '';
-        if (!this.messages.length) {
+        if (!this.messages.length && !this.busy) {
             const empty = el('div', 'cii-codex-empty', 'What should we build?');
             this.messageListEl.append(empty);
             return;
         }
         for (const item of this.messages) {
             const row = el('div', `cii-codex-msg cii-codex-msg-${item.type || 'message'}`);
-            this.renderMessageAttachments(row, item);
+            if (item.type === 'progress') {
+                row.append(this.renderProgressMessage(item));
+                this.messageListEl.append(row);
+                continue;
+            }
             const text = el('div', 'cii-codex-msg-text', messageText(item.text));
             row.append(text);
+            const prompt = typeof item.prompt === 'string' && item.prompt.trim() ? item.prompt : '';
+            if (item.type === 'user' && prompt)
+                row.append(this.renderPromptHoverAction(prompt));
+            this.renderMessageAttachments(row, item);
             this.messageListEl.append(row);
         }
-        this.messageListEl.scrollTop = this.messageListEl.scrollHeight;
+        if (this.busy && !this.messages.some((item) => item.type === 'progress'))
+            this.messageListEl.append(this.renderBusyMessage());
+        this.scrollMessagesToBottom();
     }
 
+    scrollMessagesToBottom() {
+        const list = this.messageListEl;
+        if (!list)
+            return;
+        const scroll = () => {
+            list.scrollTop = list.scrollHeight;
+        };
+        scroll();
+        window.requestAnimationFrame(() => {
+            scroll();
+            window.requestAnimationFrame(scroll);
+        });
+        window.setTimeout(scroll, 80);
+    }
+
+    renderBusyMessage() {
+        const row = el('div', 'cii-codex-msg cii-codex-msg-assistant cii-codex-msg-busy');
+        const card = el('div', 'cii-codex-progress-card');
+        const title = el('div', 'cii-codex-progress-title');
+        title.append(el('span', 'cii-codex-spinner'), el('span', undefined, 'Generating'));
+        card.append(title);
+        row.append(card);
+        return row;
+    }
+
+    /**
+     * Render the temporary progress log bubble.
+     *
+     * Boundary: this view is intentionally transient; the completed response replaces it once the server sends the
+     * final result event.
+     *
+     * @param {Record<string, unknown>} item Progress message model.
+     * @returns {HTMLElement} Progress card element.
+     */
+    renderProgressMessage(item) {
+        const card = el('div', 'cii-codex-progress-card cii-codex-progress-card-live');
+        const title = el('div', 'cii-codex-progress-title');
+        title.append(el('span', 'cii-codex-spinner'), el('span', undefined, item.text || 'Working'));
+        card.append(title);
+        const events = Array.isArray(item.events) ? item.events : [];
+        if (events.length) {
+            const log = el('div', 'cii-codex-progress-log');
+            for (const event of events) {
+                const row = el('div', `cii-codex-progress-entry cii-codex-progress-entry-${event.type || 'message'}`);
+                row.append(el('span', 'cii-codex-progress-kind', progressEventLabel(event.type)), el('span', 'cii-codex-progress-body', messageText(event.text)));
+                log.append(row);
+            }
+            card.append(log);
+        }
+        return card;
+    }
+
+    /**
+     * Append static message attachments such as screenshots and source chips.
+     *
+     * Boundary: prompt text is intentionally excluded here because it is exposed
+     * by the user-message hover action. Missing or malformed attachment payloads
+     * are skipped so historical session rows cannot break transcript rendering.
+     *
+     * @param {HTMLElement} row Message row receiving attachment DOM.
+     * @param {Record<string, unknown>} item Message model.
+     * @returns {void}
+     */
     renderMessageAttachments(row, item) {
         const screenshots = Array.isArray(item.screenshots) ? item.screenshots : [];
         const references = Array.isArray(item.references) ? item.references : [];
@@ -947,6 +1533,29 @@ export class CodexDock {
         row.append(attachments);
     }
 
+    /**
+     * Render the hover action that reveals the server-built final prompt.
+     *
+     * Boundary: the prompt is plain text and is inserted via textContent helpers,
+     * so prompt content cannot execute as HTML inside the inspected page. The
+     * wrapper stays hidden until the parent user row is hovered or focused.
+     *
+     * @param {string} prompt Server-built prompt text.
+     * @returns {HTMLElement} Prompt hover action wrapper.
+     */
+    renderPromptHoverAction(prompt) {
+        const wrapper = el('div', 'cii-codex-prompt-action');
+        const button = el('button', 'cii-codex-prompt-button');
+        button.type = 'button';
+        button.title = 'View assembled prompt';
+        button.setAttribute('aria-label', 'View assembled prompt');
+        button.append(el('span', 'cii-codex-prompt-button-icon'));
+        const preview = el('div', 'cii-codex-prompt-popover');
+        preview.append(el('div', 'cii-codex-prompt-popover-title', 'Prompt'), el('pre', undefined, prompt));
+        wrapper.append(button, preview);
+        return wrapper;
+    }
+
     setBusy(busy) {
         this.busy = busy;
         if (this.sendButton)
@@ -954,6 +1563,7 @@ export class CodexDock {
         this.screenshots.setDisabled(busy);
         this.updateEnvironmentPanel();
         this.setStatus(busy ? 'Codex is working' : '');
+        this.renderMessages();
     }
 
     setStatus(text) {

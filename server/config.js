@@ -72,9 +72,12 @@ function normalizeCodexDock(value) {
 function defaultCodexDockModels() {
     return [
         { label: 'Default', value: '' },
-        { label: '5.5 Extra High', value: 'gpt-5.5-codex' },
-        { label: '5.5 Fast', value: 'gpt-5.5-codex-spark' },
-        { label: 'GPT-5 Codex', value: 'gpt-5-codex' },
+        { label: 'GPT-5.5', value: 'gpt-5.5' },
+        { label: 'GPT-5.4', value: 'gpt-5.4' },
+        { label: 'GPT-5.4-Mini', value: 'gpt-5.4-mini' },
+        { label: 'GPT-5.3-Codex', value: 'gpt-5.3-codex' },
+        { label: 'GPT-5.3-Codex-Spark', value: 'gpt-5.3-codex-spark' },
+        { label: 'GPT-5.2', value: 'gpt-5.2' },
     ];
 }
 

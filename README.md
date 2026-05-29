@@ -83,12 +83,11 @@ source block as a highlighted `@file #range` attachment in the dock composer.
 Screenshot choices render above the prompt text only after they are selected in
 the dock, and reuse the same capture pipeline as the intent dialog. The model
 picker uses the built-in model list unless `codexDock.models` is supplied. The
-composer also includes a Build/Plan mode toggle: Build sends an editing request,
-while Plan asks Codex to return a plan without mutating files. The dock surfaces
-session state, selected sources, tokens/s, and context usage when the SDK returns
-those metrics. Its position, width, height, collapsed state, selected model, and
-session-sidebar state are persisted locally; the session sidebar can collapse
-into a narrow rail when you need more chat space.
+dock sends editing requests through the Codex SDK, surfaces native reasoning
+progress when the SDK returns it, and shows session state, selected sources,
+tokens/s, and context usage. Its position, width, height, collapsed state,
+selected model, and session-sidebar state are persisted locally; the session
+sidebar can collapse into a narrow rail when you need more chat space.
 
 ## Files
 

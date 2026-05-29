@@ -1,11 +1,21 @@
 import { CLIENT_CONFIG_GLOBAL } from '../shared/constants.js';
 import { createUi } from './style.js';
+import { installCodexDockModelControlStyle } from './codex-dock-model-control-style.js';
 import { Overlay } from './overlay.js';
 import { Dialog } from './dialog.js';
 import { CodexDock } from './codex-dock.js';
 import { createApi } from './api.js';
 import { PickerController } from './picker.js';
 import { matchHotkey, parseHotkey } from './hotkey.js';
+/**
+ * Start the browser-side inspector runtime from the injected page config.
+ * Purpose: creates the isolated UI root, installs supplemental dock styles, and wires picker, dialog, dock, and hotkey
+ * listeners for the current host page.
+ * Boundary: requires a browser document with `CLIENT_CONFIG_GLOBAL` already injected; missing config logs and exits,
+ * while repeated calls after installation are ignored to avoid duplicate event listeners.
+ *
+ * @returns {void}
+ */
 function main() {
     const config = window[CLIENT_CONFIG_GLOBAL];
     if (!config) {
@@ -17,6 +27,7 @@ function main() {
     window.__CII_INSTALLED__ = true;
     const boot = () => {
         const { root } = createUi();
+        installCodexDockModelControlStyle(root);
         const api = createApi(config);
         const overlay = new Overlay(root);
         const dialog = new Dialog(root, config, api, overlay);
@@ -75,6 +86,16 @@ function main() {
         window.addEventListener('DOMContentLoaded', boot, { once: true });
 }
 main();
+/**
+ * Check whether a mouse event includes the configured click modifier.
+ * Purpose: lets the picker distinguish ordinary page clicks from inspector selection clicks.
+ * Boundary: `modifier` is normalized through `normalizeClickModifier`; missing or unsupported values always return
+ * `false`, and passing a non-mouse-like event without modifier booleans also behaves as not matched.
+ *
+ * @param {{ altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, shiftKey?: boolean }} e Mouse-like event object.
+ * @param {string | null | undefined} modifier Configured modifier name.
+ * @returns {boolean} Whether the event currently has the normalized modifier pressed.
+ */
 function matchesClickModifier(e, modifier) {
     switch (normalizeClickModifier(modifier)) {
         case 'alt':
@@ -89,6 +110,16 @@ function matchesClickModifier(e, modifier) {
             return false;
     }
 }
+/**
+ * Check whether a keyup event released the configured click modifier key.
+ * Purpose: hides the hover preview as soon as the user releases the modifier that enabled selection mode.
+ * Boundary: unsupported modifier names return `false`; passing a non-string `key` would fail because keyboard events
+ * always provide a string and this helper expects that browser contract.
+ *
+ * @param {string} key Keyboard event key value.
+ * @param {string | null | undefined} modifier Configured modifier name.
+ * @returns {boolean} Whether `key` is the release key for the normalized modifier.
+ */
 function isClickModifierKey(key, modifier) {
     const normalized = normalizeClickModifier(modifier);
     const eventKey = key.toLowerCase();
@@ -97,6 +128,15 @@ function isClickModifierKey(key, modifier) {
         (normalized === 'meta' && (eventKey === 'meta' || eventKey === 'os')) ||
         (normalized === 'shift' && eventKey === 'shift'));
 }
+/**
+ * Normalize configured click modifier aliases to browser event modifier names.
+ * Purpose: keeps config-friendly names like `cmd` and `ctrl` working with DOM event properties.
+ * Boundary: only `alt`, `control`, `meta`, and `shift` are supported; missing or misspelled values return `null`, which
+ * disables modifier-click picking rather than guessing.
+ *
+ * @param {string | null | undefined} modifier Raw configured modifier value.
+ * @returns {'alt' | 'control' | 'meta' | 'shift' | null} Normalized modifier name, or `null` when unsupported.
+ */
 function normalizeClickModifier(modifier) {
     const value = String(modifier ?? '').toLowerCase();
     if (value === 'command' || value === 'cmd')

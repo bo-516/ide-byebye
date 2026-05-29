@@ -242,6 +242,31 @@ function codexSessionIndexPath(sessionsRoot) {
     return path.join(path.dirname(resolveCodexSessionsRoot(sessionsRoot)), 'session_index.jsonl');
 }
 
+function normalizeModelName(value) {
+    const text = String(value ?? '').trim();
+    if (!text || text.toLowerCase() === 'default')
+        return '';
+    return text;
+}
+
+function extractRecordModel(record) {
+    const payload = record?.payload ?? {};
+    const settings = payload.collaboration_mode?.settings ?? payload.collaborationMode?.settings ?? {};
+    return [
+        payload.model,
+        payload.model_slug,
+        payload.modelSlug,
+        payload.model_name,
+        payload.modelName,
+        payload.default_model,
+        payload.defaultModel,
+        settings.model,
+        record?.model,
+    ]
+        .map(normalizeModelName)
+        .find(Boolean) ?? '';
+}
+
 function readCodexSessionIndex(sessionsRoot) {
     const indexPath = codexSessionIndexPath(sessionsRoot);
     let text;
@@ -275,6 +300,61 @@ function readCodexSessionIndex(sessionsRoot) {
     }
 
     return entries;
+}
+
+function readLatestCodexSessionIndexEntry(sessionsRoot) {
+    const indexPath = codexSessionIndexPath(sessionsRoot);
+    let text;
+    try {
+        text = fs.readFileSync(indexPath, 'utf8');
+    }
+    catch {
+        return null;
+    }
+
+    let latest = null;
+    for (const line of text.split(/\r?\n/)) {
+        if (!line.trim())
+            continue;
+        let record;
+        try {
+            record = JSON.parse(line);
+        }
+        catch {
+            continue;
+        }
+        const id = typeof record?.id === 'string' && record.id.trim()
+            ? record.id.trim()
+            : '';
+        if (!id)
+            continue;
+        const updatedAt = typeof record.updated_at === 'string'
+            ? record.updated_at
+            : (typeof record.updatedAt === 'string' ? record.updatedAt : '');
+        if (!latest || String(updatedAt).localeCompare(String(latest.updatedAt ?? '')) > 0) {
+            latest = {
+                id,
+                title: compactIndexTitle(record.thread_name ?? record.title),
+                updatedAt,
+            };
+        }
+    }
+
+    return latest;
+}
+
+function findCodexSessionFileById(root, id) {
+    const filenameSuffix = `${id}.jsonl`;
+    const recentDirs = existingSessionDateDirs(recentSessionDateDirs(root, DEFAULT_DAYS, new Date()));
+    for (const file of recentDirs.flatMap((dir) => collectJsonlFiles(dir))) {
+        if (file.endsWith(filenameSuffix))
+            return file;
+    }
+    for (const file of collectJsonlFiles(root)) {
+        if (file.endsWith(filenameSuffix))
+            return file;
+    }
+    return '';
 }
 
 function applySessionIndex(records, sessionsRoot) {
@@ -376,6 +456,33 @@ function extractHistoryMessage(record) {
     return null;
 }
 
+function numberFromPath(value, keys) {
+    for (const key of keys) {
+        const next = Number(value?.[key]);
+        if (Number.isFinite(next))
+            return next;
+    }
+    return undefined;
+}
+
+function extractSessionMetrics(record) {
+    const payload = record?.payload;
+    if (record?.type !== 'event_msg' || payload?.type !== 'token_count')
+        return null;
+    const info = payload.info ?? {};
+    const usage = info.last_token_usage ?? info.lastTokenUsage ?? info.total_token_usage ?? info.totalTokenUsage ?? {};
+    const tokensUsed = numberFromPath(usage, ['total_tokens', 'totalTokens']);
+    const contextWindow = numberFromPath(info, ['model_context_window', 'modelContextWindow', 'context_window', 'contextWindow']);
+    const contextPercent = tokensUsed != null && contextWindow
+        ? Math.round((tokensUsed / contextWindow) * 1000) / 10
+        : undefined;
+    return {
+        contextPercent,
+        tokensUsed,
+        contextWindow,
+    };
+}
+
 function pushHistoryMessage(messages, message) {
     if (!message?.text)
         return;
@@ -388,6 +495,98 @@ function pushHistoryMessage(messages, message) {
     if (messages.length > MAX_HISTORY_MESSAGES) {
         messages.splice(0, messages.length - MAX_HISTORY_MESSAGES);
     }
+}
+
+export async function parseCodexSessionMetrics(filePath, projectRoot) {
+    const allowedRoots = new Set(normalizeProjectRoots(projectRoot));
+    let meta = null;
+    let metrics = null;
+
+    const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+    const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+    try {
+        for await (const line of lines) {
+            if (!line.trim())
+                continue;
+
+            let record;
+            try {
+                record = JSON.parse(line);
+            }
+            catch {
+                continue;
+            }
+
+            if (record?.type === 'session_meta') {
+                meta = record.payload ?? {};
+                if (!allowedRoots.has(normalizedMetaCwd(meta))) {
+                    lines.close();
+                    stream.destroy();
+                    return null;
+                }
+                continue;
+            }
+            if (!meta)
+                continue;
+
+            const next = extractSessionMetrics(record);
+            if (next)
+                metrics = next;
+        }
+    }
+    finally {
+        lines.close();
+        stream.destroy();
+    }
+
+    if (!meta || !allowedRoots.has(normalizedMetaCwd(meta)))
+        return null;
+    return metrics;
+}
+
+export async function parseCodexSessionModel(filePath) {
+    let model = '';
+    const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+    const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+    try {
+        for await (const line of lines) {
+            if (!line.trim())
+                continue;
+            let record;
+            try {
+                record = JSON.parse(line);
+            }
+            catch {
+                continue;
+            }
+            const next = extractRecordModel(record);
+            if (next)
+                model = next;
+        }
+    }
+    finally {
+        lines.close();
+        stream.destroy();
+    }
+
+    return model;
+}
+
+export async function readLatestCodexSessionModel(sessionsRoot) {
+    const root = resolveCodexSessionsRoot(sessionsRoot);
+    const latest = readLatestCodexSessionIndexEntry(root);
+    if (!latest)
+        return null;
+    const filePath = findCodexSessionFileById(root, latest.id);
+    if (!filePath)
+        return { ...latest, model: '' };
+    return {
+        ...latest,
+        filePath,
+        model: await parseCodexSessionModel(filePath),
+    };
 }
 
 function idFromFilename(filePath) {
@@ -423,6 +622,7 @@ export async function parseCodexSessionFile(filePath, projectRoot) {
     const allowedRoots = new Set(normalizeProjectRoots(projectRoot));
     let meta = null;
     let title = '';
+    let model = '';
     let lineCount = 0;
 
     const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
@@ -454,8 +654,11 @@ export async function parseCodexSessionFile(filePath, projectRoot) {
             if (!title) {
                 title = extractUserTitle(record);
             }
+            if (!model) {
+                model = extractRecordModel(record);
+            }
 
-            if (meta && title)
+            if (meta && title && model)
                 break;
             if (meta && lineCount >= MAX_TITLE_LINES)
                 break;
@@ -486,7 +689,7 @@ export async function parseCodexSessionFile(filePath, projectRoot) {
         updatedAt: stat ? stat.mtime.toISOString() : startedAt,
         cwd: meta.cwd,
         source: meta.originator ?? meta.source,
-        model: meta.model ?? meta.model_provider,
+        model,
         filePath,
     };
 }

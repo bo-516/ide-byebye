@@ -38,3 +38,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+
+client.js

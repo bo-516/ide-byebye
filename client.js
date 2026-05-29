@@ -435,13 +435,13 @@ const STYLE_TEXT = `
 .cii-codex-dock {
   position: fixed;
   z-index: ${DIALOG_Z_INDEX};
-  width: min(760px, calc(100vw - 32px));
-  height: min(620px, calc(100vh - 32px));
+  width: min(960px, calc(100vw - 32px));
+  height: calc(100vh - 32px);
   min-width: 560px;
   min-height: 420px;
   pointer-events: auto;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
-  color: #eceff1;
+  font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  color: #dae2fd;
 }
 .cii-codex-dock-collapsed {
   min-width: 0;
@@ -452,15 +452,13 @@ const STYLE_TEXT = `
 .cii-codex-orb {
   width: 56px;
   height: 56px;
-  border: 1px solid rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.10);
   border-radius: 18px;
-  background: rgba(18,20,22,0.78);
-  backdrop-filter: blur(22px) saturate(1.18);
-  -webkit-backdrop-filter: blur(22px) saturate(1.18);
-  color: #f4f7f8;
-  font: 700 20px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #09090b;
+  color: #ffffff;
+  font: 700 20px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
   cursor: grab;
-  box-shadow: 0 18px 54px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.08);
+  box-shadow: 0 22px 64px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .cii-codex-orb:active { cursor: grabbing; }
 .cii-codex-shell {
@@ -470,50 +468,10 @@ const STYLE_TEXT = `
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 22px;
-  background: rgba(15,17,19,0.84);
-  backdrop-filter: blur(26px) saturate(1.18);
-  -webkit-backdrop-filter: blur(26px) saturate(1.18);
-  box-shadow: 0 28px 82px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06);
-}
-.cii-codex-header {
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 10px 0 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.10);
-  background: rgba(24,26,29,0.66);
-  cursor: grab;
-  user-select: none;
-}
-.cii-codex-header:active { cursor: grabbing; }
-.cii-codex-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
-.cii-codex-title strong {
-  font-size: 13px;
-  line-height: 1;
-  letter-spacing: 0;
-}
-.cii-codex-title span {
-  max-width: 180px;
-  overflow: hidden;
-  color: #879099;
-  font-size: 12px;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cii-codex-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 24px;
+  background: #09090b;
+  box-shadow: 0 28px 82px rgba(0,0,0,0.48);
 }
 .cii-codex-icon-btn,
 .cii-codex-send {
@@ -523,15 +481,15 @@ const STYLE_TEXT = `
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px;
-  background: rgba(35,38,43,0.78);
-  color: #d9dee2;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  color: #dae2fd;
   cursor: pointer;
   font: 600 14px/1 system-ui, sans-serif;
 }
 .cii-codex-icon-btn:hover:not(:disabled),
 .cii-codex-send:hover:not(:disabled) {
-  background: rgba(51,55,61,0.92);
+  background: rgba(255,255,255,0.13);
   color: #ffffff;
 }
 .cii-codex-icon-btn:disabled,
@@ -541,40 +499,92 @@ const STYLE_TEXT = `
 }
 .cii-codex-main {
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
   flex: 1;
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
 }
 .cii-codex-main-sidebar-collapsed {
   grid-template-columns: 52px minmax(0, 1fr);
 }
 .cii-codex-sidebar {
   min-width: 0;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(168, 190, 198, 0.10);
-  background: linear-gradient(180deg, rgba(32, 57, 66, 0.94), rgba(27, 48, 55, 0.96));
+  overflow: hidden;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  background: #09090b;
+}
+.cii-codex-sidebar-brand {
+  flex: 0 0 auto;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px 14px;
+  cursor: grab;
+  user-select: none;
+}
+.cii-codex-sidebar-brand:active { cursor: grabbing; }
+.cii-codex-sidebar-title {
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font: 700 18px/24px Geist, Inter, system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cii-codex-sidebar-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cii-codex-sidebar-icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #a1a1aa;
+  cursor: pointer;
+  font: 700 17px/1 system-ui, sans-serif;
+}
+.cii-codex-sidebar-icon-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.05);
+  color: #ffffff;
+}
+.cii-codex-sidebar-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .cii-codex-sidebar-toolbar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 10px 8px;
+  padding: 0 16px 22px;
 }
 .cii-codex-new-chat {
   flex: 1;
   height: 38px;
   margin: 0;
-  border: 1px solid rgba(174, 198, 207, 0.12);
-  border-radius: 12px;
-  background: rgba(42, 68, 77, 0.62);
-  color: #e7eef1;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #ffffff;
   cursor: pointer;
-  font: 600 13px/1 system-ui, sans-serif;
+  font: 500 14px/20px Geist, Inter, system-ui, sans-serif;
   text-align: left;
   padding: 0 12px;
 }
-.cii-codex-new-chat:hover { background: rgba(57, 84, 94, 0.78); }
+.cii-codex-new-chat:hover { background: rgba(255,255,255,0.05); }
 .cii-codex-sidebar-toggle,
 .cii-codex-sidebar-rail-btn {
   width: 36px;
@@ -584,16 +594,16 @@ const STYLE_TEXT = `
   align-items: center;
   justify-content: center;
   position: relative;
-  border: 1px solid rgba(174, 198, 207, 0.12);
-  border-radius: 12px;
-  background: rgba(42, 68, 77, 0.56);
-  color: #c4d0d5;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #a1a1aa;
   cursor: pointer;
   font: 700 16px/1 system-ui, sans-serif;
 }
 .cii-codex-sidebar-toggle:hover,
 .cii-codex-sidebar-rail-btn:hover {
-  background: rgba(57, 84, 94, 0.78);
+  background: rgba(255,255,255,0.05);
   color: #ffffff;
 }
 .cii-codex-sidebar-collapsed {
@@ -616,53 +626,87 @@ const STYLE_TEXT = `
   justify-content: center;
   border: 1px solid rgba(16,18,20,0.92);
   border-radius: 999px;
-  background: #7fb7ff;
-  color: #0b1117;
+  background: #89ceff;
+  color: #001e2f;
   padding: 0 4px;
   font: 700 9px/1 system-ui, sans-serif;
 }
 .cii-codex-sidebar-heading {
-  padding: 8px 12px 12px;
-  color: rgba(205, 216, 221, 0.55);
-  font: 500 15px/1.1 system-ui, sans-serif;
+  padding: 0 16px 8px;
+  color: #a1a1aa;
+  font: 600 11px/14px JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 .cii-codex-session-list {
   min-height: 0;
+  height: 100%;
   flex: 1;
-  overflow: auto;
-  padding: 0 8px 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 8px 16px;
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+.cii-codex-session-list:hover {
+  scrollbar-color: #3f3f46 transparent;
+}
+.cii-codex-session-list::-webkit-scrollbar {
+  width: 4px;
+}
+.cii-codex-session-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cii-codex-session-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+.cii-codex-session-list:hover::-webkit-scrollbar-thumb {
+  background: #3f3f46;
 }
 .cii-codex-project-group {
-  margin: 0 0 12px;
+  min-height: 0;
+  margin: 0 0 14px;
 }
 .cii-codex-project-heading {
   min-width: 0;
-  height: 28px;
+  min-height: 28px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  color: rgba(220, 228, 232, 0.74);
-  font: 500 13px/1 system-ui, sans-serif;
+  gap: 9px;
+  padding: 0 10px 8px;
+  color: #a1a1aa;
+  font: 500 17px/22px Geist, Inter, system-ui, sans-serif;
 }
 .cii-codex-project-icon {
   position: relative;
-  width: 17px;
-  height: 12px;
+  width: 16px;
+  height: 11px;
   flex: 0 0 auto;
-  border: 1.5px solid rgba(215, 225, 229, 0.76);
-  border-radius: 4px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  transform: translateY(1px);
 }
 .cii-codex-project-icon::before {
   content: "";
   position: absolute;
   left: 1px;
-  top: -6px;
-  width: 9px;
-  height: 5px;
-  border: 1.5px solid rgba(215, 225, 229, 0.76);
+  top: -4px;
+  width: 8px;
+  height: 4px;
+  border: 1.5px solid currentColor;
   border-bottom: 0;
-  border-radius: 4px 4px 0 0;
+  border-radius: 3px 3px 0 0;
+}
+.cii-codex-project-icon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2px;
+  border-top: 1.5px solid currentColor;
+  opacity: 0.85;
 }
 .cii-codex-project-name {
   min-width: 0;
@@ -670,9 +714,16 @@ const STYLE_TEXT = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.cii-codex-session-stack {
+  --cii-session-visible: 5;
+  overflow: hidden;
+  max-height: calc(var(--cii-session-visible) * 36px);
+  transition: max-height 260ms cubic-bezier(.22,1,.36,1);
+  will-change: max-height;
+}
 .cii-codex-session {
   width: 100%;
-  min-height: 30px;
+  height: 36px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -680,231 +731,369 @@ const STYLE_TEXT = `
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: rgba(233, 240, 243, 0.88);
+  color: #a1a1aa;
   cursor: pointer;
-  padding: 0 8px 0 35px;
+  padding: 0 10px;
   text-align: left;
 }
 .cii-codex-session:hover {
-  background: rgba(59, 86, 96, 0.52);
+  background: rgba(255,255,255,0.05);
   color: #ffffff;
 }
 .cii-codex-session-active,
 .cii-codex-session-active:hover {
-  background: rgba(68, 97, 108, 0.74);
+  background: rgba(255,255,255,0.10);
   color: #ffffff;
 }
 .cii-codex-session-title {
   grid-column: 1;
   min-width: 0;
   overflow: hidden;
-  font: 650 13px/1.2 system-ui, sans-serif;
+  font: 500 13px/18px Geist, Inter, system-ui, sans-serif;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .cii-codex-session-meta {
   grid-column: 2;
-  color: rgba(203, 214, 219, 0.66);
-  font: 500 12px/1 system-ui, sans-serif;
-}
-.cii-codex-session-shortcut {
-  grid-column: 2;
-  min-width: 26px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(69, 96, 107, 0.80);
-  color: rgba(226, 236, 240, 0.76);
-  font: 600 12px/1 system-ui, sans-serif;
-}
-.cii-codex-session:hover .cii-codex-session-shortcut,
-.cii-codex-session-active .cii-codex-session-shortcut {
-  background: rgba(82, 112, 124, 0.90);
-  color: rgba(247, 250, 251, 0.92);
+  color: rgba(161,161,170,0.72);
+  font: 500 12px/16px JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
 }
 .cii-codex-session-more {
   height: 30px;
-  margin: 3px 0 0;
+  margin: 4px 0 6px;
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: rgba(205, 216, 221, 0.62);
+  color: #a1a1aa;
   cursor: pointer;
-  padding: 0 8px 0 35px;
+  padding: 0 10px;
   text-align: left;
-  font: 500 13px/1 system-ui, sans-serif;
+  font: 500 12px/16px Geist, Inter, system-ui, sans-serif;
+  transition: background-color 150ms cubic-bezier(.2,.8,.2,1), color 150ms cubic-bezier(.2,.8,.2,1), transform 150ms cubic-bezier(.2,.8,.2,1);
 }
 .cii-codex-session-more:hover {
-  background: rgba(59, 86, 96, 0.38);
-  color: rgba(238, 244, 246, 0.86);
+  background: rgba(255,255,255,0.05);
+  color: #ffffff;
+  transform: translateX(1px);
 }
 .cii-codex-session-empty {
-  padding: 0 8px 0 35px;
-  color: rgba(205, 216, 221, 0.60);
-  font: 13px/1.4 system-ui, sans-serif;
+  padding: 8px 12px;
+  color: #a1a1aa;
+  font: 13px/18px Geist, Inter, system-ui, sans-serif;
 }
 .cii-codex-session-empty-detail {
   display: block;
   margin-top: 6px;
-  color: rgba(205, 216, 221, 0.44);
+  color: rgba(161,161,170,0.70);
   font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow-wrap: anywhere;
 }
 .cii-codex-chat {
   min-width: 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: rgba(12,14,16,0.48);
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
+  background: #09090b;
 }
 .cii-codex-env-panel {
-  margin: 12px 14px 0;
-  padding: 12px;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 18px;
-  background: rgba(41,43,46,0.58);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-}
-.cii-codex-env-header {
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  color: #f1f3f4;
-  font: 600 12px/1 system-ui, sans-serif;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: #09090b;
+  cursor: grab;
+  user-select: none;
 }
-.cii-codex-env-dot {
-  color: #929ba3;
-  font-weight: 500;
-}
-.cii-codex-env-rows {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px 12px;
-  margin-top: 11px;
-}
-.cii-codex-env-row {
+.cii-codex-env-panel:active { cursor: grabbing; }
+.cii-codex-env-model,
+.cii-codex-env-right,
+.cii-codex-run-state {
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  color: #cbd2d7;
-  font: 12px/1.2 system-ui, sans-serif;
 }
-.cii-codex-env-label {
-  color: #8c949b;
+.cii-codex-env-model {
+  color: #a1a1aa;
+  font: 500 12px/16px JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-.cii-codex-env-value {
+.cii-codex-env-model strong {
   min-width: 0;
   overflow: hidden;
-  color: #e3e7ea;
+  color: #ffffff;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.cii-codex-env-right {
+  justify-content: flex-end;
+  color: #a1a1aa;
+  font: 500 12px/16px JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cii-codex-run-state {
+  color: #ffffff;
+}
+.cii-codex-run-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.14);
+  animation: cii-codex-pulse 1.55s ease-in-out infinite;
 }
 .cii-codex-env-meter {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  color: #9aa3aa;
-  font: 12px/1 system-ui, sans-serif;
+  gap: 8px;
+  color: #a1a1aa;
+  white-space: nowrap;
+}
+.cii-codex-env-meter-track {
+  width: 64px;
+  height: 6px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.10);
+}
+.cii-codex-env-meter-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: #3b82f6;
 }
 .cii-codex-messages {
   min-height: 0;
-  flex: 1;
-  overflow: auto;
-  padding: 14px 18px 18px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 24px 14px;
+  scrollbar-color: #3f3f46 transparent;
+  scrollbar-width: thin;
+}
+.cii-codex-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.cii-codex-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cii-codex-messages::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #3f3f46;
 }
 .cii-codex-empty {
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #e7ebee;
-  font-size: 24px;
+  color: #dae2fd;
+  font: 600 20px/28px Geist, Inter, system-ui, sans-serif;
 }
 .cii-codex-msg {
-  max-width: 92%;
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 15px;
-  background: rgba(28,31,34,0.76);
-  color: #dce2e6;
-  font: 13px/1.5 system-ui, sans-serif;
+  position: relative;
+  max-width: 85%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  color: #dae2fd;
+  font: 14px/20px Geist, Inter, system-ui, sans-serif;
   overflow-wrap: anywhere;
+}
+.cii-codex-prompt-action {
+  position: absolute;
+  left: -42px;
+  top: 50%;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+.cii-codex-msg-user:hover .cii-codex-prompt-action,
+.cii-codex-msg-user:focus-within .cii-codex-prompt-action,
+.cii-codex-prompt-action:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+.cii-codex-prompt-button {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  background: #18181b;
+  color: #dae2fd;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.26);
+}
+.cii-codex-prompt-button:hover,
+.cii-codex-prompt-button:focus-visible {
+  outline: 0;
+  border-color: rgba(137,206,255,0.38);
+  background: #27272a;
+  color: #ffffff;
+}
+.cii-codex-prompt-button-icon {
+  position: relative;
+  width: 14px;
+  height: 16px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+.cii-codex-prompt-button-icon::before,
+.cii-codex-prompt-button-icon::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.cii-codex-prompt-button-icon::before { top: 5px; }
+.cii-codex-prompt-button-icon::after { top: 9px; }
+.cii-codex-prompt-popover {
+  position: absolute;
+  left: 0;
+  top: 30px;
+  width: min(440px, calc(100vw - 96px));
+  max-height: 320px;
+  display: none;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  background: #18181b;
+  color: #e2e6f3;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.42);
+}
+.cii-codex-prompt-action:hover .cii-codex-prompt-popover,
+.cii-codex-prompt-action:focus-within .cii-codex-prompt-popover {
+  display: block;
+}
+.cii-codex-prompt-popover-title {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 9px 11px;
+  color: #c8ccd7;
+  font: 650 12px/16px JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cii-codex-prompt-popover pre {
+  max-height: 268px;
+  overflow: auto;
+  margin: 0;
+  padding: 11px;
+  color: #e2e6f3;
+  white-space: pre-wrap;
+  font: 12px/18px JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cii-codex-msg-user {
+  margin-bottom: 20px;
+}
+.cii-codex-msg-assistant,
+.cii-codex-msg-message,
+.cii-codex-msg-status {
+  margin-bottom: 8px;
 }
 .cii-codex-msg-text {
   white-space: pre-wrap;
 }
+.cii-codex-msg-assistant,
+.cii-codex-msg-message {
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  color: #e2e6f3;
+}
+.cii-codex-msg-status {
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  color: #c8ccd7;
+}
 .cii-codex-msg-user {
   margin-left: auto;
-  background: rgba(32,49,47,0.82);
-  border-color: rgba(104, 211, 187, 0.18);
+  border-color: rgba(255,255,255,0.10);
+  border-radius: 16px 16px 4px 16px;
+  background: #27272a;
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.18);
 }
 .cii-codex-msg-tool,
 .cii-codex-msg-file-change {
-  background: rgba(22,26,32,0.78);
-  color: #b6c0c8;
+  border-color: rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: #a1a1aa;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
 }
 .cii-codex-msg-failed {
-  background: rgba(47,29,29,0.82);
-  border-color: rgba(255, 120, 120, 0.22);
-  color: #ffd2d2;
+  background: rgba(147,0,10,0.22);
+  border-color: rgba(255,180,171,0.22);
+  color: #ffdad6;
 }
 .cii-codex-msg-status,
 .cii-codex-status {
-  color: #8f989f;
   font-size: 12px;
 }
 .cii-codex-status {
-  min-height: 24px;
-  padding: 0 18px 8px;
+  flex: 0 0 auto;
+  min-height: 20px;
+  padding: 0 24px 8px;
+  color: #a1a1aa;
 }
 .cii-codex-status[hidden] { display: none; }
 .cii-codex-composer {
-  margin: 0 14px 14px;
-  border: 1px solid rgba(255,255,255,0.13);
+  flex: 0 0 auto;
+  margin: 0 24px 24px;
+  border: 1px solid rgba(255,255,255,0.10);
   border-radius: 24px;
-  background: rgba(36,39,43,0.86);
-  box-shadow: 0 16px 44px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.05);
+  background: #18181b;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.28);
   overflow: visible;
+  transition: border-color 140ms ease;
+}
+.cii-codex-composer:focus-within {
+  border-color: rgba(255,255,255,0.20);
 }
 .cii-codex-attachments {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 0;
 }
 .cii-codex-attachments:empty {
   display: none;
 }
 .cii-codex-textarea {
   width: 100%;
-  min-height: 84px;
+  min-height: 58px;
   max-height: 160px;
   resize: none;
   border: 0;
   outline: 0;
   background: transparent;
-  color: #f4f7f8;
-  padding: 12px 14px 8px;
-  font: 14px/1.45 system-ui, sans-serif;
+  color: #ffffff;
+  padding: 12px 16px 8px;
+  font: 15px/22px Geist, Inter, system-ui, sans-serif;
   scrollbar-width: thin;
 }
-.cii-codex-textarea::placeholder { color: #737b83; }
+.cii-codex-textarea::placeholder { color: #a1a1aa; }
 .cii-codex-ref-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 .cii-codex-ref-row[hidden],
 .cii-codex-shot-preview[hidden] {
@@ -917,10 +1106,10 @@ const STYLE_TEXT = `
   align-items: center;
   gap: 7px;
   overflow: hidden;
-  border: 1px solid rgba(122, 177, 255, 0.34);
-  border-radius: 999px;
-  background: rgba(122, 177, 255, 0.13);
-  color: #aad0ff;
+  border: 1px solid rgba(59,130,246,0.30);
+  border-radius: 8px;
+  background: rgba(59,130,246,0.14);
+  color: #89ceff;
   padding: 4px 7px 4px 9px;
   font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -945,7 +1134,7 @@ const STYLE_TEXT = `
   height: 5px;
   border-left: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
-  background: rgba(34,48,65,0.96);
+  background: #18181b;
 }
 .cii-codex-ref-text {
   min-width: 0;
@@ -969,19 +1158,19 @@ const STYLE_TEXT = `
   opacity: 0.72;
 }
 .cii-codex-ref-remove:hover {
-  background: rgba(159, 203, 255, 0.16);
+  background: rgba(137,206,255,0.16);
   opacity: 1;
 }
 .cii-codex-shot-preview {
-  gap: 8px;
+  gap: 10px;
   padding: 0;
 }
 .cii-codex-shot-preview .cii-screenshot-thumb {
-  width: 96px;
-  height: 72px;
-  border-color: rgba(255,255,255,0.16);
-  border-radius: 14px;
-  background: rgba(17,19,21,0.86);
+  width: 56px;
+  height: 56px;
+  border-color: rgba(255,255,255,0.10);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.50);
 }
 .cii-codex-composer-footer {
   display: flex;
@@ -989,113 +1178,249 @@ const STYLE_TEXT = `
   justify-content: space-between;
   gap: 8px;
   min-height: 42px;
-  padding: 6px 8px 8px;
+  padding: 6px 12px 10px;
 }
-.cii-codex-tool-row {
+.cii-codex-tool-row,
+.cii-codex-send-row {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
 }
-.cii-codex-mode-toggle {
-  height: 32px;
+.cii-codex-send-row {
+  justify-content: flex-end;
+}
+.cii-codex-model-picker {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 13px;
-  background: rgba(17,19,21,0.52);
 }
-.cii-codex-mode-option {
-  height: 26px;
-  min-width: 48px;
+.cii-codex-model-icon {
+  position: relative;
+  width: 16px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: transparent;
+}
+.cii-codex-model-icon::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 11px;
+  height: 15px;
+  background: #facc15;
+  clip-path: polygon(55% 0, 18% 52%, 43% 52%, 33% 100%, 82% 38%, 54% 38%);
+  transform: translateY(-50%);
+}
+.cii-codex-model-trigger {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0 7px;
+  font: 650 13px/18px Geist, Inter, system-ui, sans-serif;
+  transition: background-color 150ms cubic-bezier(.2,.8,.2,1);
+}
+.cii-codex-model-trigger:hover,
+.cii-codex-model-trigger[aria-expanded="true"] {
+  background: rgba(255,255,255,0.06);
+}
+.cii-codex-model-trigger-text {
+  max-width: 148px;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cii-codex-model-chevron {
+  color: #ffffff;
+  width: 14px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 18px;
+}
+.cii-codex-model-menu,
+.cii-codex-model-submenu {
+  position: absolute;
+  z-index: 5;
+  bottom: 40px;
+  min-width: 248px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  background: #2b2b2c;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.38);
+  padding: 10px 8px;
+  color: #f4f4f5;
+  transform-origin: 50% 100%;
+  animation: cii-codex-menu-pop 150ms cubic-bezier(.16,1,.3,1);
+}
+.cii-codex-model-menu {
+  right: 264px;
+}
+.cii-codex-model-submenu {
+  left: calc(100% + 8px);
+  bottom: 0;
+  transform-origin: 0 100%;
+}
+.cii-codex-menu-title {
+  color: #a1a1aa;
+  padding: 0 10px 8px;
+  font: 500 13px/18px Geist, Inter, system-ui, sans-serif;
+}
+.cii-codex-menu-separator {
+  height: 1px;
+  margin: 7px 10px;
+  background: rgba(255,255,255,0.10);
+}
+.cii-codex-menu-item {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   border: 0;
   border-radius: 10px;
   background: transparent;
-  color: #9aa3aa;
+  color: #ffffff;
   cursor: pointer;
-  padding: 0 9px;
-  font: 600 12px/1 system-ui, sans-serif;
+  padding: 5px 10px;
+  text-align: left;
+  font: 500 13px/18px Geist, Inter, system-ui, sans-serif;
+  transition: background-color 130ms cubic-bezier(.2,.8,.2,1);
 }
-.cii-codex-mode-option-active {
-  background: rgba(255,255,255,0.12);
-  color: #f4f7f8;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+.cii-codex-menu-item:hover,
+.cii-codex-menu-item-active {
+  background: rgba(255,255,255,0.10);
 }
-.cii-codex-model {
-  height: 32px;
+.cii-codex-menu-item-text {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 13px;
-  background: rgba(17,19,21,0.34);
-  color: #b9c1c7;
-  padding: 0 6px 0 8px;
+  gap: 8px;
+  overflow: hidden;
 }
-.cii-codex-model-icon {
-  font-size: 14px;
-  line-height: 1;
+.cii-codex-menu-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.cii-codex-model select {
-  max-width: 142px;
-  border: 0;
-  outline: 0;
+.cii-codex-menu-item-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cii-codex-menu-item-icon {
+  position: relative;
+  width: 16px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  color: #d9dee2;
-  font: 600 13px/1 system-ui, sans-serif;
-  cursor: pointer;
+  color: transparent;
+  font-size: 0;
 }
-.cii-codex-model select option {
-  background: #202327;
-  color: #edf1f3;
+.cii-codex-menu-item-icon::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 11px;
+  height: 15px;
+  background: #facc15;
+  clip-path: polygon(55% 0, 18% 52%, 43% 52%, 33% 100%, 82% 38%, 54% 38%);
+  transform: translateY(-50%);
+}
+.cii-codex-menu-check,
+.cii-codex-menu-item-chevron {
+  flex: 0 0 auto;
+  color: #d4d4d8;
+  font-size: 15px;
+  line-height: 18px;
+}
+.cii-codex-menu-detail {
+  display: block;
+  min-width: 0;
+  color: #a1a1aa;
+  overflow: hidden;
+  padding: 1px 0 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 12px/16px Geist, Inter, system-ui, sans-serif;
 }
 .cii-codex-composer .cii-icon-btn {
-  color: #b9c1c7;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #a1a1aa;
 }
 .cii-codex-composer .cii-icon-btn:hover:not(:disabled),
 .cii-codex-composer .cii-icon-btn-active {
-  background: rgba(51,55,61,0.92);
+  background: rgba(255,255,255,0.08);
   color: #ffffff;
 }
 .cii-codex-composer .cii-screenshot-menu {
-  background: rgba(32,35,39,0.96);
-  border-color: rgba(255,255,255,0.12);
-  color: #edf1f3;
+  left: 0;
+  right: auto;
+  background: #18181b;
+  border-color: rgba(255,255,255,0.10);
+  color: #ffffff;
 }
 .cii-codex-composer .cii-screenshot-choice {
-  color: #edf1f3;
+  color: #ffffff;
 }
 .cii-codex-composer .cii-screenshot-choice:hover,
 .cii-codex-composer .cii-choice-active {
-  background: rgba(51,55,61,0.92);
+  background: rgba(255,255,255,0.08);
 }
 .cii-codex-composer .cii-choice-mark {
-  color: #68d3bb;
+  color: #89ceff;
 }
 .cii-codex-send {
+  width: 32px;
+  height: 32px;
+  border: 0;
   border-radius: 999px;
-  background: #e8ecef;
-  color: #101112;
+  background: #e4e4e7;
+  color: #000000;
+  font-size: 18px;
 }
 .cii-codex-send:hover:not(:disabled) {
   background: #ffffff;
-  color: #101112;
+  color: #000000;
 }
 .cii-codex-msg-attachments {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-top: 10px;
 }
 .cii-codex-msg-shot {
-  width: 82px;
-  height: 62px;
-  border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 12px;
-  background: rgba(15,17,19,0.86);
+  width: 72px;
+  height: 54px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.50);
   padding: 0;
   overflow: hidden;
   cursor: pointer;
@@ -1112,9 +1437,9 @@ const STYLE_TEXT = `
 }
 .cii-codex-resize-left,
 .cii-codex-resize-right {
-  top: 42px;
+  top: 18px;
   width: 8px;
-  height: calc(100% - 54px);
+  height: calc(100% - 34px);
   cursor: ew-resize;
 }
 .cii-codex-resize-left {
@@ -1161,6 +1486,97 @@ const STYLE_TEXT = `
   left: 7px;
   transform: scaleX(-1);
 }
+.cii-codex-progress-card {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.05);
+  padding: 10px 12px;
+  color: #ffffff;
+}
+.cii-codex-progress-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #ffffff;
+  font: 600 14px/20px Geist, Inter, system-ui, sans-serif;
+}
+.cii-codex-progress-card-live {
+  width: min(620px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.cii-codex-progress-log {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+.cii-codex-progress-entry {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  color: #c8ccd7;
+}
+.cii-codex-progress-kind {
+  color: #8ea0bd;
+  font: 600 11px/18px JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+}
+.cii-codex-progress-body {
+  min-width: 0;
+  max-height: 92px;
+  overflow: hidden;
+  color: #e2e6f3;
+  white-space: pre-wrap;
+  font: 12px/18px JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cii-codex-progress-entry-reasoning .cii-codex-progress-kind {
+  color: #c4b5fd;
+}
+.cii-codex-progress-entry-tool .cii-codex-progress-kind {
+  color: #93c5fd;
+}
+.cii-codex-progress-entry-file-change .cii-codex-progress-kind {
+  color: #86efac;
+}
+.cii-codex-progress-entry-failed .cii-codex-progress-kind {
+  color: #fca5a5;
+}
+.cii-codex-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(96,165,250,0.28);
+  border-top-color: #60a5fa;
+  border-radius: 999px;
+  animation: cii-codex-spin 900ms linear infinite;
+}
+@keyframes cii-codex-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes cii-codex-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@keyframes cii-codex-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 @media (max-width: 720px) {
   .cii-codex-dock {
     min-width: 0;
@@ -1169,16 +1585,59 @@ const STYLE_TEXT = `
     height: calc(100vh - 24px) !important;
   }
   .cii-codex-main {
-    grid-template-columns: 150px minmax(0, 1fr);
-  }
-  .cii-codex-main-sidebar-collapsed {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-  .cii-codex-env-rows {
     grid-template-columns: minmax(0, 1fr);
   }
-  .cii-codex-model select {
-    max-width: 96px;
+  .cii-codex-main-sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cii-codex-sidebar {
+    display: none;
+  }
+  .cii-codex-env-panel {
+    min-height: 52px;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 8px 14px;
+  }
+  .cii-codex-env-model {
+    flex: 1 1 120px;
+  }
+  .cii-codex-env-right {
+    flex: 1 1 150px;
+    justify-content: flex-end;
+  }
+  .cii-codex-env-meter-track {
+    width: 56px;
+  }
+  .cii-codex-messages {
+    padding: 16px;
+  }
+  .cii-codex-msg {
+    max-width: 100%;
+  }
+  .cii-codex-composer {
+    margin: 0 12px 12px;
+  }
+  .cii-codex-composer-footer {
+    flex-wrap: wrap;
+  }
+  .cii-codex-tool-row,
+  .cii-codex-send-row {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .cii-codex-model-trigger-text {
+    max-width: 126px;
+  }
+  .cii-codex-model-menu {
+    right: -38px;
+    min-width: min(248px, calc(100vw - 52px));
+  }
+  .cii-codex-model-submenu {
+    left: auto;
+    right: 0;
+    bottom: calc(100% + 8px);
+    min-width: min(248px, calc(100vw - 52px));
   }
   .cii-codex-empty {
     font-size: 18px;
@@ -3638,19 +4097,37 @@ var Dialog = class {
 //#endregion
 //#region client/codex-dock.js
 const DOCK_STATE_KEY = "code-intent-inspector:codex-dock-state";
-const DEFAULT_WIDTH = 760;
-const DEFAULT_HEIGHT = 620;
+const DEFAULT_WIDTH = 960;
 const MIN_WIDTH = 560;
 const MIN_HEIGHT = 420;
 const DEFAULT_VISIBLE_SESSIONS_PER_PROJECT = 5;
-const DOCK_MODES = [{
-	value: "build",
-	label: "Build",
-	title: "Let Codex edit the project"
+const MAX_PROGRESS_EVENTS = 24;
+const REASONING_OPTIONS = [
+	{
+		value: "low",
+		label: "Low"
+	},
+	{
+		value: "medium",
+		label: "Medium"
+	},
+	{
+		value: "high",
+		label: "High"
+	},
+	{
+		value: "xhigh",
+		label: "Extra High"
+	}
+];
+const SPEED_OPTIONS = [{
+	value: "standard",
+	label: "Standard",
+	detail: "Default speed"
 }, {
-	value: "plan",
-	label: "Plan",
-	title: "Ask Codex for a plan before edits"
+	value: "fast",
+	label: "Fast",
+	detail: "1.5x speed, increased usage"
 }];
 function normalizeModelOptions(config) {
 	const normalized = (Array.isArray(config?.codexDock?.models) ? config.codexDock.models : []).map((entry) => {
@@ -3687,8 +4164,9 @@ function formatRelativeTime(value) {
 	const time = new Date(value).getTime();
 	if (!Number.isFinite(time)) return "";
 	const diff = Math.max(0, Date.now() - time);
+	const seconds = Math.floor(diff / 1e3);
+	if (seconds < 60) return `${seconds}s`;
 	const minutes = Math.floor(diff / 6e4);
-	if (minutes < 1) return "now";
 	if (minutes < 60) return `${minutes}m`;
 	const hours = Math.floor(minutes / 60);
 	if (hours < 24) return `${hours}h`;
@@ -3703,8 +4181,36 @@ function messageText(value) {
 		return String(value);
 	}
 }
-function normalizeDockMode(value) {
-	return value === "plan" ? "plan" : "build";
+function progressEventLabel(type) {
+	if (type === "reasoning") return "Thinking";
+	if (type === "tool") return "Tool";
+	if (type === "file-change") return "Files";
+	if (type === "assistant") return "Draft";
+	if (type === "prompt") return "Prompt";
+	if (type === "failed") return "Failed";
+	if (type === "completed") return "Done";
+	if (type === "started") return "Start";
+	return "Event";
+}
+function progressEventKey(event) {
+	const itemId = event?.raw?.item?.id;
+	if (typeof itemId === "string" && itemId) return itemId;
+	return "";
+}
+function normalizeProgressEvent(event) {
+	return {
+		type: typeof event?.type === "string" && event.type ? event.type : "message",
+		text: messageText(event?.text),
+		key: progressEventKey(event),
+		raw: event?.raw
+	};
+}
+function normalizeReasoning(value) {
+	if (value === "extra-high") return "xhigh";
+	return REASONING_OPTIONS.some((item) => item.value === value) ? value : "xhigh";
+}
+function normalizeSpeed(value) {
+	return value === "fast" ? "fast" : "standard";
 }
 function maxDockWidth() {
 	return Math.max(MIN_WIDTH, window.innerWidth - 16);
@@ -3712,27 +4218,59 @@ function maxDockWidth() {
 function maxDockHeight() {
 	return Math.max(MIN_HEIGHT, window.innerHeight - 16);
 }
-function formatMetricRate(metrics) {
-	const value = Number(metrics?.tokensPerSecond);
-	if (!Number.isFinite(value) || value <= 0) return "0 tokens/s";
-	return `${value < 10 ? value.toFixed(1) : String(Math.round(value))} tokens/s`;
+function defaultDockWidth() {
+	return clamp(DEFAULT_WIDTH, MIN_WIDTH, maxDockWidth());
+}
+function defaultDockHeight() {
+	return maxDockHeight();
+}
+function contextPercent(metrics) {
+	const percent = Number(metrics?.contextPercent);
+	if (!Number.isFinite(percent)) return calculatedContextPercent(metrics);
+	return Math.max(0, Math.min(100, Math.round(percent)));
+}
+function calculatedContextPercent(metrics) {
+	const tokensUsed = Number(metrics?.tokensUsed);
+	const contextWindow = Number(metrics?.contextWindow);
+	if (!Number.isFinite(tokensUsed) || !Number.isFinite(contextWindow) || contextWindow <= 0) return 0;
+	return Math.max(0, Math.min(100, Math.round(tokensUsed / contextWindow * 100)));
+}
+function compactNumber(value) {
+	const number = Number(value);
+	if (!Number.isFinite(number)) return "";
+	if (number >= 1e6) return `${(number / 1e6).toFixed(1).replace(/\.0$/, "")}M`;
+	if (number >= 1e3) return `${(number / 1e3).toFixed(1).replace(/\.0$/, "")}k`;
+	return String(Math.round(number));
 }
 function formatContextUsage(metrics) {
 	const percent = Number(metrics?.contextPercent);
 	if (Number.isFinite(percent)) return `${Math.max(0, Math.min(100, Math.round(percent)))}% used`;
-	return (typeof metrics?.contextText === "string" ? metrics.contextText.trim() : "") || "-- used";
+	const calculated = calculatedContextPercent(metrics);
+	if (calculated) return `${calculated}% used`;
+	const tokens = compactNumber(metrics?.tokensUsed);
+	if (tokens) return `${tokens} tokens`;
+	return (typeof metrics?.contextText === "string" ? metrics.contextText.trim() : "") || "0% used";
+}
+function readableModelLabel(value) {
+	const text = String(value || "").trim();
+	if (!text) return "";
+	if (/^gpt[-_]/i.test(text)) return text.replace(/_/g, "-").replace(/^gpt/i, "GPT").replace(/-mini\b/i, "-Mini").replace(/-codex\b/i, "-Codex").replace(/-spark\b/i, "-Spark");
+	return text.split(/[-_\s]+/).filter(Boolean).map((part) => part.toLowerCase() === "gpt" ? "GPT" : part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+function displayModelLabel(label) {
+	const text = String(label || "").trim();
+	if (!text || text === "Default") return "Default";
+	return text.replace(/^GPT-/i, "");
 }
 function formatSessionCount(count) {
 	if (!count) return "";
 	return count > 99 ? "99+" : String(count);
 }
 function basenameFromPath(value) {
-	const normalized = String(value || "").replace(/[\\/]+$/g, "");
-	const parts = normalized.split(/[\\/]/).filter(Boolean);
-	return parts.at(-1) || "Project";
+	return String(value || "").replace(/[\\/]+$/g, "").split(/[\\/]/).filter(Boolean).at(-1) || "Project";
 }
 function groupSessionsByProject(sessions) {
-	const groups = new Map();
+	const groups = /* @__PURE__ */ new Map();
 	for (const session of sessions) {
 		const cwd = typeof session?.cwd === "string" && session.cwd.trim() ? session.cwd.trim() : "Unknown project";
 		if (!groups.has(cwd)) groups.set(cwd, {
@@ -3759,11 +4297,13 @@ var CodexDock = class {
 	sendButton = null;
 	refreshButton = null;
 	modelSelect = null;
+	modelMenuOpen = false;
+	modelSubmenu = "model";
 	state;
 	models;
 	sessions = [];
 	sessionProjectRoots = [];
-	expandedSessionGroups = new Set();
+	expandedSessionGroups = /* @__PURE__ */ new Set();
 	messages = [];
 	references = [];
 	currentThreadId = null;
@@ -3772,7 +4312,23 @@ var CodexDock = class {
 	busy = false;
 	draft = "";
 	metrics = {};
+	defaultModel = "";
 	screenshots;
+	/**
+	* Create a dock controller bound to one host page.
+	*
+	* Boundary: `parent`, `api`, and `overlay` must be live objects from the
+	* client runtime; missing dependencies break rendering, route calls, or
+	* element picking before user interaction begins. Persisted unsupported
+	* fields are ignored so the dock always initializes with the current
+	* editing-only controls.
+	*
+	* @param {Element} parent Host element that receives the dock DOM.
+	* @param {Record<string, unknown>} config Browser inspector config.
+	* @param {Record<string, Function>} api Route client used for resolve/send calls.
+	* @param {Record<string, Function>} overlay Page overlay controller for picking.
+	* @returns {CodexDock} Constructed dock controller instance.
+	*/
 	constructor(parent, config, api, overlay) {
 		this.parent = parent;
 		this.config = config;
@@ -3784,12 +4340,13 @@ var CodexDock = class {
 			collapsed: stored.collapsed !== false,
 			x: typeof stored.x === "number" ? stored.x : null,
 			y: typeof stored.y === "number" ? stored.y : null,
-			width: clamp(Number(stored.width) || DEFAULT_WIDTH, MIN_WIDTH, maxDockWidth()),
-			height: clamp(Number(stored.height) || DEFAULT_HEIGHT, MIN_HEIGHT, maxDockHeight()),
+			width: clamp(Number(stored.width) || defaultDockWidth(), MIN_WIDTH, maxDockWidth()),
+			height: clamp(Number(stored.height) || defaultDockHeight(), MIN_HEIGHT, maxDockHeight()),
 			sidebarCollapsed: stored.sidebarCollapsed === true,
 			threadId: typeof stored.threadId === "string" ? stored.threadId : null,
 			model: typeof stored.model === "string" ? stored.model : this.models[0]?.value ?? "",
-			mode: normalizeDockMode(stored.mode)
+			reasoningEffort: normalizeReasoning(stored.reasoningEffort),
+			speed: normalizeSpeed(stored.speed)
 		};
 		if (!this.models.some((model) => model.value === this.state.model)) this.state.model = this.models[0]?.value ?? "";
 		this.currentThreadId = this.state.threadId;
@@ -3807,6 +4364,16 @@ var CodexDock = class {
 		this.render();
 		this.loadSessions();
 	}
+	/**
+	* Persist user-adjustable dock state into local storage.
+	*
+	* Boundary: persisted values are UI conveniences only; stale unsupported
+	* fields from older builds are intentionally not written back. Passing no
+	* state to `writeDockState` would reset dock placement and session affinity
+	* for the next render.
+	*
+	* @returns {void}
+	*/
 	persistState() {
 		writeDockState({
 			collapsed: this.state.collapsed,
@@ -3815,11 +4382,21 @@ var CodexDock = class {
 			width: this.state.width,
 			height: this.state.height,
 			sidebarCollapsed: this.state.sidebarCollapsed,
-			threadId: this.currentThreadId,
+			threadId: this.isNewThread ? null : this.currentThreadId,
 			model: this.state.model,
-			mode: this.state.mode
+			reasoningEffort: this.state.reasoningEffort,
+			speed: this.state.speed
 		});
 	}
+	/**
+	* Render the dock root into the plugin host element.
+	*
+	* Boundary: this method replaces the previous dock DOM and must preserve
+	* draft text before removal. Calling it before `screenshots` is constructed
+	* breaks screenshot menus and resize positioning.
+	*
+	* @returns {void}
+	*/
 	render() {
 		if (this.textarea) this.draft = this.textarea.value;
 		if (this.dockEl) this.dockEl.remove();
@@ -3827,6 +4404,7 @@ var CodexDock = class {
 		dock.setAttribute("aria-label", "Codex dock");
 		dock.addEventListener("mousedown", (event) => {
 			this.screenshots.closeMenuFromOutside(event.target);
+			this.closeModelMenuFromOutside(event.target);
 		}, true);
 		if (this.state.collapsed) {
 			const button = el("button", "cii-codex-orb", "C");
@@ -3846,27 +4424,9 @@ var CodexDock = class {
 	}
 	renderShell() {
 		const shell = el("div", "cii-codex-shell");
-		const header = el("header", "cii-codex-header");
-		header.addEventListener("mousedown", (event) => {
-			if (event.target instanceof HTMLElement && event.target.closest("button, textarea, input, select")) return;
-			this.startDrag(event);
-		});
-		const title = el("div", "cii-codex-title");
-		title.append(el("strong", void 0, "Codex"), el("span", void 0, this.currentSessionTitle()));
-		const controls = el("div", "cii-codex-controls");
-		this.refreshButton = el("button", "cii-codex-icon-btn", "↻");
-		this.refreshButton.type = "button";
-		this.refreshButton.title = "Refresh sessions";
-		this.refreshButton.addEventListener("click", () => void this.loadSessions());
-		const collapse = el("button", "cii-codex-icon-btn", "−");
-		collapse.type = "button";
-		collapse.title = "Collapse";
-		collapse.addEventListener("click", () => this.collapse());
-		controls.append(this.refreshButton, collapse);
-		header.append(title, controls);
 		const main = el("div", `cii-codex-main${this.state.sidebarCollapsed ? " cii-codex-main-sidebar-collapsed" : ""}`);
 		main.append(this.renderSidebar(), this.renderChat());
-		shell.append(header, main, ...this.renderResizeHandles());
+		shell.append(main, ...this.renderResizeHandles());
 		return shell;
 	}
 	renderSidebar() {
@@ -3890,6 +4450,23 @@ var CodexDock = class {
 			sidebar.append(newChat, expand, refresh);
 			return sidebar;
 		}
+		const brand = el("div", "cii-codex-sidebar-brand");
+		brand.addEventListener("mousedown", (event) => {
+			if (event.target instanceof HTMLElement && event.target.closest("button")) return;
+			this.startDrag(event);
+		});
+		brand.append(el("span", "cii-codex-sidebar-title", "Codex Dock"));
+		const brandControls = el("div", "cii-codex-sidebar-controls");
+		this.refreshButton = el("button", "cii-codex-sidebar-icon-btn", "↻");
+		this.refreshButton.type = "button";
+		this.refreshButton.title = "Refresh sessions";
+		this.refreshButton.addEventListener("click", () => void this.loadSessions());
+		const collapse = el("button", "cii-codex-sidebar-icon-btn", "‹");
+		collapse.type = "button";
+		collapse.title = "Collapse dock";
+		collapse.addEventListener("click", () => this.collapse());
+		brandControls.append(this.refreshButton, collapse);
+		brand.append(brandControls);
 		const toolbar = el("div", "cii-codex-sidebar-toolbar");
 		const newChat = el("button", "cii-codex-new-chat", "+ New chat");
 		newChat.type = "button";
@@ -3899,9 +4476,8 @@ var CodexDock = class {
 		toggle.title = "Hide sessions";
 		toggle.addEventListener("click", () => this.toggleSidebar(true));
 		toolbar.append(newChat, toggle);
-		const heading = el("div", "cii-codex-sidebar-heading", "Projects");
 		this.sessionListEl = el("div", "cii-codex-session-list");
-		sidebar.append(toolbar, heading, this.sessionListEl);
+		sidebar.append(brand, toolbar, this.sessionListEl);
 		this.renderSessions();
 		return sidebar;
 	}
@@ -3918,6 +4494,15 @@ var CodexDock = class {
 			return handle;
 		});
 	}
+	/**
+	* Render the chat pane and composer controls.
+	*
+	* Boundary: the composer always sends editing requests now; UI controls
+	* should not alter request routing. Returning a detached element is expected
+	* because `renderShell` owns insertion into the dock.
+	*
+	* @returns {HTMLElement} Chat pane element containing messages and composer.
+	*/
 	renderChat() {
 		const chat = el("div", "cii-codex-chat");
 		this.environmentEl = this.renderEnvironmentPanel();
@@ -3935,7 +4520,7 @@ var CodexDock = class {
 		attachmentTray.append(screenshotPreview, this.referencesEl);
 		this.textarea = el("textarea", "cii-codex-textarea");
 		this.textarea.value = this.draft;
-		this.textarea.placeholder = this.state.mode === "plan" ? "Ask Codex to plan the change" : "Ask Codex to change this project";
+		this.textarea.placeholder = "Ask Codex to change this project";
 		this.textarea.addEventListener("input", () => {
 			this.draft = this.textarea?.value ?? "";
 		});
@@ -3947,11 +4532,13 @@ var CodexDock = class {
 		});
 		const footer = el("div", "cii-codex-composer-footer");
 		const leftTools = el("div", "cii-codex-tool-row");
-		leftTools.append(this.screenshots.renderPicker(), this.renderModeToggle(), this.renderModelSelect());
+		leftTools.append(this.screenshots.renderPicker());
+		const rightTools = el("div", "cii-codex-send-row");
 		this.sendButton = el("button", "cii-codex-send", "↑");
 		this.sendButton.type = "submit";
 		this.sendButton.title = "Send";
-		footer.append(leftTools, this.sendButton);
+		rightTools.append(this.renderModelSelect(), this.sendButton);
+		footer.append(leftTools, rightTools);
 		composer.append(attachmentTray, this.textarea, footer);
 		chat.append(this.environmentEl, this.messageListEl, this.statusEl, composer);
 		this.renderMessages();
@@ -3959,17 +4546,24 @@ var CodexDock = class {
 		return chat;
 	}
 	renderEnvironmentPanel() {
-		const panel = el("section", "cii-codex-env-panel");
-		const header = el("div", "cii-codex-env-header");
-		header.append(el("span", void 0, "Environment"), el("span", "cii-codex-env-dot", this.busy ? "Running" : "Ready"));
-		const rows = el("div", "cii-codex-env-rows");
-		rows.append(this.renderEnvironmentRow("Mode", this.state.mode === "plan" ? "Plan first" : "Agent edit"));
-		rows.append(this.renderEnvironmentRow("Model", this.currentModelLabel()));
-		rows.append(this.renderEnvironmentRow("Session", this.currentThreadId ? "Continue thread" : "New thread"));
-		rows.append(this.renderEnvironmentRow("Sources", this.environmentSourcesLabel()));
+		const panel = el("header", "cii-codex-env-panel");
+		panel.addEventListener("mousedown", (event) => {
+			if (event.target instanceof HTMLElement && event.target.closest("button, textarea, input, select")) return;
+			this.startDrag(event);
+		});
+		const model = el("div", "cii-codex-env-model");
+		model.append(el("span", void 0, "Model: "), el("strong", void 0, this.currentModelLabel()));
+		const right = el("div", "cii-codex-env-right");
+		const state = el("div", "cii-codex-run-state");
+		state.append(el("span", "cii-codex-run-dot"), el("span", void 0, this.busy ? "Running" : "Ready"));
 		const meter = el("div", "cii-codex-env-meter");
-		meter.append(el("span", void 0, formatMetricRate(this.metrics)), el("span", void 0, formatContextUsage(this.metrics)));
-		panel.append(header, rows, meter);
+		const meterTrack = el("span", "cii-codex-env-meter-track");
+		const meterFill = el("span", "cii-codex-env-meter-fill");
+		meterFill.style.width = `${contextPercent(this.metrics)}%`;
+		meterTrack.append(meterFill);
+		meter.append(meterTrack, el("span", void 0, formatContextUsage(this.metrics)));
+		right.append(state, meter);
+		panel.append(model, right);
 		return panel;
 	}
 	renderEnvironmentRow(label, value) {
@@ -3990,45 +4584,157 @@ var CodexDock = class {
 		return pieces.length ? pieces.join(", ") : "Page context";
 	}
 	currentModelLabel() {
-		return this.models.find((item) => item.value === this.state.model)?.label || "Default";
+		const model = this.models.find((item) => item.value === this.state.model);
+		if (model?.value) return model.label;
+		const session = this.isNewThread ? null : this.sessions.find((item) => item.id === this.currentThreadId);
+		const sessionModel = typeof session?.model === "string" ? session.model.trim() : "";
+		if (sessionModel) return this.models.find((item) => item.value === sessionModel || item.label === sessionModel)?.label || readableModelLabel(sessionModel);
+		const defaultLabel = this.defaultModelLabel();
+		if (defaultLabel) return defaultLabel;
+		return model?.label || "Default";
 	}
-	renderModeToggle() {
-		const group = el("div", "cii-codex-mode-toggle");
-		group.setAttribute("role", "group");
-		group.setAttribute("aria-label", "Codex mode");
-		for (const mode of DOCK_MODES) {
-			const button = el("button", `cii-codex-mode-option${this.state.mode === mode.value ? " cii-codex-mode-option-active" : ""}`, mode.label);
-			button.type = "button";
-			button.title = mode.title;
-			button.addEventListener("click", () => {
-				this.state.mode = mode.value;
-				this.persistState();
-				this.render();
-				this.focusComposer();
-			});
-			group.append(button);
-		}
-		return group;
+	defaultModelLabel() {
+		const defaultModel = String(this.defaultModel || "").trim();
+		if (!defaultModel) return "";
+		return this.models.find((item) => item.value === defaultModel || item.label === defaultModel)?.label || readableModelLabel(defaultModel);
 	}
 	renderModelSelect() {
-		const wrapper = el("label", "cii-codex-model");
-		const marker = el("span", "cii-codex-model-icon", "⚡");
-		this.modelSelect = document.createElement("select");
-		this.modelSelect.setAttribute("aria-label", "Model");
-		for (const model of this.models) {
-			const option = document.createElement("option");
-			option.value = model.value;
-			option.textContent = model.label;
-			option.selected = model.value === this.state.model;
-			this.modelSelect.append(option);
-		}
-		this.modelSelect.addEventListener("change", () => {
-			this.state.model = this.modelSelect?.value ?? "";
-			this.persistState();
-			this.updateEnvironmentPanel();
+		const wrapper = el("div", "cii-codex-model-picker");
+		const button = el("button", "cii-codex-model-trigger");
+		button.type = "button";
+		button.setAttribute("aria-haspopup", "menu");
+		button.setAttribute("aria-expanded", this.modelMenuOpen ? "true" : "false");
+		if (this.isFastSpeed()) button.append(el("span", "cii-codex-model-icon"));
+		button.append(el("span", "cii-codex-model-trigger-text", this.modelControlLabel()), el("span", "cii-codex-model-chevron", "⌄"));
+		button.addEventListener("click", (event) => {
+			event.stopPropagation();
+			this.modelMenuOpen = !this.modelMenuOpen;
+			this.modelSubmenu = this.modelSubmenu || "model";
+			this.render();
 		});
-		wrapper.append(marker, this.modelSelect);
+		wrapper.append(button);
+		if (this.modelMenuOpen) wrapper.append(this.renderModelMenu());
 		return wrapper;
+	}
+	modelControlLabel() {
+		const modelLabel = this.currentModelLabel();
+		if (modelLabel === "Default") return "Default";
+		return `${displayModelLabel(modelLabel)} ${this.currentReasoningLabel()}`;
+	}
+	currentReasoningLabel() {
+		return REASONING_OPTIONS.find((item) => item.value === this.state.reasoningEffort)?.label ?? "Extra High";
+	}
+	currentSpeedLabel() {
+		return SPEED_OPTIONS.find((item) => item.value === this.state.speed)?.label ?? "Standard";
+	}
+	isFastSpeed() {
+		return this.state.speed === "fast";
+	}
+	renderModelMenu() {
+		const menu = el("div", "cii-codex-model-menu");
+		menu.setAttribute("role", "menu");
+		menu.append(el("div", "cii-codex-menu-title", "Reasoning"));
+		for (const option of REASONING_OPTIONS) {
+			const item = this.renderModelMenuItem(option.label, {
+				active: this.state.reasoningEffort === option.value,
+				onClick: () => {
+					this.state.reasoningEffort = option.value;
+					this.closeModelMenu();
+				}
+			});
+			menu.append(item);
+		}
+		menu.append(el("div", "cii-codex-menu-separator"));
+		menu.append(this.renderModelMenuItem(this.currentModelLabel(), {
+			icon: this.isFastSpeed() ? "⚡" : "",
+			submenu: true,
+			active: this.modelSubmenu === "model",
+			onEnter: () => this.setModelSubmenu("model"),
+			onClick: () => this.setModelSubmenu("model")
+		}));
+		menu.append(this.renderModelMenuItem("Speed", {
+			submenu: true,
+			active: this.modelSubmenu === "speed",
+			onEnter: () => this.setModelSubmenu("speed"),
+			onClick: () => this.setModelSubmenu("speed")
+		}));
+		menu.append(this.renderModelSubmenu());
+		return menu;
+	}
+	renderModelMenuItem(label, options = {}) {
+		const item = el("button", `cii-codex-menu-item${options.active ? " cii-codex-menu-item-active" : ""}`);
+		item.type = "button";
+		item.setAttribute("role", "menuitem");
+		const text = el("span", "cii-codex-menu-item-text");
+		if (options.icon) text.append(el("span", "cii-codex-menu-item-icon", options.icon));
+		if (options.detail) {
+			const copy = el("span", "cii-codex-menu-item-copy");
+			copy.append(el("span", "cii-codex-menu-item-label", label), el("span", "cii-codex-menu-detail", options.detail));
+			text.append(copy);
+		} else text.append(el("span", "cii-codex-menu-item-label", label));
+		item.append(text);
+		if (options.submenu) item.append(el("span", "cii-codex-menu-item-chevron", "›"));
+		else if (options.active) item.append(el("span", "cii-codex-menu-check", "✓"));
+		item.addEventListener("mouseenter", () => options.onEnter?.());
+		item.addEventListener("click", (event) => {
+			event.stopPropagation();
+			options.onClick?.();
+		});
+		return item;
+	}
+	renderModelSubmenu() {
+		const submenu = el("div", "cii-codex-model-submenu");
+		submenu.setAttribute("role", "menu");
+		if (this.modelSubmenu === "speed") {
+			submenu.append(el("div", "cii-codex-menu-title", "Speed"));
+			for (const option of SPEED_OPTIONS) {
+				const item = this.renderModelMenuItem(option.label, {
+					icon: option.value === "fast" ? "⚡" : "",
+					active: this.state.speed === option.value,
+					detail: option.detail,
+					onClick: () => {
+						this.state.speed = option.value;
+						this.closeModelMenu();
+					}
+				});
+				submenu.append(item);
+			}
+			return submenu;
+		}
+		submenu.append(el("div", "cii-codex-menu-title", "Model"));
+		const effectiveModel = this.effectiveModelValue();
+		for (const model of this.models) {
+			const item = this.renderModelMenuItem(model.label, {
+				icon: model.value && this.isFastSpeed() ? "⚡" : "",
+				active: model.value === effectiveModel,
+				onClick: () => {
+					this.state.model = model.value;
+					this.closeModelMenu();
+					this.updateEnvironmentPanel();
+				}
+			});
+			submenu.append(item);
+		}
+		return submenu;
+	}
+	setModelSubmenu(value) {
+		if (this.modelSubmenu === value) return;
+		this.modelSubmenu = value;
+		this.render();
+	}
+	closeModelMenu() {
+		this.modelMenuOpen = false;
+		this.persistState();
+		this.render();
+		this.focusComposer();
+	}
+	closeModelMenuFromOutside(target) {
+		if (!this.modelMenuOpen) return;
+		if (target instanceof Node && this.dockEl?.contains(target)) {
+			if ((target instanceof HTMLElement ? target : target.parentElement)?.closest?.(".cii-codex-model-picker")) return;
+		}
+		this.modelMenuOpen = false;
+		this.render();
 	}
 	positionDock() {
 		if (!this.dockEl) return;
@@ -4125,6 +4831,7 @@ var CodexDock = class {
 			const res = await this.api.codexSessions(this.config.codexDock.days);
 			if (!res.ok) throw new Error(res.error ?? "Failed to load Codex sessions");
 			this.sessions = Array.isArray(res.sessions) ? res.sessions : [];
+			this.defaultModel = typeof res.defaultModel === "string" ? res.defaultModel.trim() : "";
 			this.sessionProjectRoots = Array.isArray(res.projectRoots) ? res.projectRoots : [];
 			if (this.currentThreadId && !this.sessions.some((session) => session.id === this.currentThreadId)) {
 				this.currentThreadId = null;
@@ -4140,7 +4847,7 @@ var CodexDock = class {
 		}
 	}
 	currentSessionTitle() {
-		if (!this.currentThreadId) return "New chat";
+		if (this.isNewThread || !this.currentThreadId) return "New chat";
 		const session = this.sessions.find((item) => item.id === this.currentThreadId);
 		return session?.title ? `Continue: ${session.title}` : "Continue session";
 	}
@@ -4156,40 +4863,57 @@ var CodexDock = class {
 			this.sessionListEl.append(empty);
 			return;
 		}
-		const groups = groupSessionsByProject(this.sessions);
-		groups.forEach((group, groupIndex) => {
+		groupSessionsByProject(this.sessions).forEach((group) => {
 			const section = el("section", "cii-codex-project-group");
 			const heading = el("div", "cii-codex-project-heading");
-			heading.title = group.key;
 			heading.append(el("span", "cii-codex-project-icon"), el("span", "cii-codex-project-name", group.label));
 			section.append(heading);
 			const expanded = this.expandedSessionGroups.has(group.key);
-			const visibleSessions = expanded ? group.sessions : group.sessions.slice(0, DEFAULT_VISIBLE_SESSIONS_PER_PROJECT);
-			visibleSessions.forEach((session, index) => {
+			section.classList.toggle("cii-codex-project-group-expanded", expanded);
+			const visibleCount = expanded ? group.sessions.length : Math.min(DEFAULT_VISIBLE_SESSIONS_PER_PROJECT, group.sessions.length);
+			const sessionStack = el("div", "cii-codex-session-stack");
+			sessionStack.style.setProperty("--cii-session-visible", String(visibleCount));
+			group.sessions.forEach((session, index) => {
 				const button = el("button", "cii-codex-session");
 				button.type = "button";
-				const active = session.id === this.currentThreadId;
+				if (index >= DEFAULT_VISIBLE_SESSIONS_PER_PROJECT) {
+					button.dataset.sessionExtra = "true";
+					if (!expanded) button.tabIndex = -1;
+				}
+				const active = !this.isNewThread && session.id === this.currentThreadId;
 				button.classList.toggle("cii-codex-session-active", active);
 				if (active) button.setAttribute("aria-current", "true");
 				const title = el("span", "cii-codex-session-title", session.title || "Untitled session");
-				const shortcut = groupIndex === 0 && index < DEFAULT_VISIBLE_SESSIONS_PER_PROJECT ? `⌘${index + 1}` : "";
-				const meta = el("span", shortcut ? "cii-codex-session-shortcut" : "cii-codex-session-meta", shortcut || formatRelativeTime(session.updatedAt));
+				const meta = el("span", "cii-codex-session-meta", formatRelativeTime(session.updatedAt));
 				button.append(title, meta);
 				button.addEventListener("click", () => void this.selectSession(session));
-				section.append(button);
+				sessionStack.append(button);
 			});
-			if (group.sessions.length > DEFAULT_VISIBLE_SESSIONS_PER_PROJECT) {
-				const showMore = el("button", "cii-codex-session-more", expanded ? "Show less" : "Show more");
-				showMore.type = "button";
-				showMore.addEventListener("click", () => {
-					if (expanded) this.expandedSessionGroups.delete(group.key);
-					else this.expandedSessionGroups.add(group.key);
-					this.renderSessions();
-				});
-				section.append(showMore);
-			}
+			section.append(sessionStack);
+			if (group.sessions.length > DEFAULT_VISIBLE_SESSIONS_PER_PROJECT) section.append(this.renderSessionMoreButton(group.key, expanded, group.sessions.length));
 			this.sessionListEl.append(section);
 		});
+	}
+	renderSessionMoreButton(groupKey, expanded, totalCount) {
+		const showMore = el("button", "cii-codex-session-more", expanded ? "Show less" : "Show more");
+		showMore.type = "button";
+		showMore.setAttribute("aria-expanded", expanded ? "true" : "false");
+		showMore.addEventListener("click", () => {
+			const nextExpanded = !this.expandedSessionGroups.has(groupKey);
+			if (nextExpanded) this.expandedSessionGroups.add(groupKey);
+			else this.expandedSessionGroups.delete(groupKey);
+			this.persistState();
+			const section = showMore.closest(".cii-codex-project-group");
+			const stack = section?.querySelector?.(".cii-codex-session-stack");
+			section?.classList.toggle("cii-codex-project-group-expanded", nextExpanded);
+			if (stack instanceof HTMLElement) stack.style.setProperty("--cii-session-visible", String(nextExpanded ? totalCount : DEFAULT_VISIBLE_SESSIONS_PER_PROJECT));
+			section?.querySelectorAll?.("[data-session-extra=\"true\"]").forEach((button) => {
+				if (button instanceof HTMLElement) button.tabIndex = nextExpanded ? 0 : -1;
+			});
+			showMore.textContent = nextExpanded ? "Show less" : "Show more";
+			showMore.setAttribute("aria-expanded", nextExpanded ? "true" : "false");
+		});
+		return showMore;
 	}
 	async selectSession(session) {
 		this.currentThreadId = session.id;
@@ -4208,16 +4932,16 @@ var CodexDock = class {
 			const res = await this.api.codexSession(session.id, this.config.codexDock?.days);
 			if (this.currentThreadId !== session.id) return;
 			if (!res.ok) throw new Error(res.error ?? "Failed to load Codex session");
-			if (res.session?.id) {
-				this.sessions = this.sessions.map((item) => item.id === res.session.id ? res.session : item);
-			}
+			if (res.session?.id) this.sessions = this.sessions.map((item) => item.id === res.session.id ? res.session : item);
 			const messages = Array.isArray(res.messages) ? res.messages : [];
 			this.messages = messages.length ? messages : [{
 				type: "status",
 				text: "No messages found in this session"
 			}];
+			this.metrics = res.metrics && typeof res.metrics === "object" ? res.metrics : {};
 			this.render();
 			this.setStatus("");
+			this.scrollMessagesToBottom();
 		} catch (err) {
 			if (this.currentThreadId !== session.id) return;
 			this.messages = [{
@@ -4226,15 +4950,18 @@ var CodexDock = class {
 			}];
 			this.renderMessages();
 			this.setStatus("");
+			this.scrollMessagesToBottom();
 		}
 	}
 	startNewChat() {
 		this.currentThreadId = null;
 		this.isNewThread = true;
+		this.state.threadId = null;
 		this.messages = [];
 		this.references = [];
 		this.selectedElement = null;
 		this.draft = "";
+		this.metrics = {};
 		this.screenshots.reset(false);
 		if (this.textarea) this.textarea.value = "";
 		this.persistState();
@@ -4267,6 +4994,18 @@ var CodexDock = class {
 		await this.addCodeReference(selection, inspectable);
 		return true;
 	}
+	/**
+	* Add one source selection as a reusable composer reference chip.
+	*
+	* Boundary: `selection` must include an `inspPath` that the server can
+	* resolve; missing or duplicate selections are ignored, while invalid
+	* server responses surface as dock errors. Passing the wrong
+	* `selectedElement` only affects screenshot focus for later captures.
+	*
+	* @param {Record<string, unknown>} selection Browser source selection.
+	* @param {Element | null} selectedElement DOM element associated with the selection.
+	* @returns {Promise<void>} Resolves after the chip and screenshot preview state are updated.
+	*/
 	async addCodeReference(selection, selectedElement) {
 		if (!selection?.inspPath) return;
 		this.expand();
@@ -4280,8 +5019,7 @@ var CodexDock = class {
 				pageUrl: location.href,
 				intent: "",
 				agent: "codex-sdk",
-				applyMode: this.state.mode === "plan" ? "prompt-only" : "agent-edit",
-				planMode: this.state.mode === "plan",
+				applyMode: "agent-edit",
 				resume: true,
 				selection
 			});
@@ -4330,25 +5068,47 @@ var CodexDock = class {
 	payloadReferences() {
 		return this.references.map((item) => item.selection);
 	}
-	async buildPayload() {
+	/**
+	* Build the payload sent to the Codex dock route.
+	*
+	* Boundary: screenshot payload creation is asynchronous and may return no
+	* screenshots; thread fields must stay consistent so stale selected-thread
+	* ids are not resumed accidentally. Passing a non-string `intentValue`
+	* relies on server normalization and may produce an empty prompt.
+	*
+	* @param {string} intentValue Composer text to send to Codex.
+	* @returns {Promise<Record<string, unknown>>} Serialized dock request payload.
+	*/
+	async buildPayload(intentValue = this.textarea?.value ?? "") {
 		const screenshots = await this.screenshots.buildPayloadScreenshots();
+		const threadId = this.isNewThread ? void 0 : this.currentThreadId || void 0;
 		const payload = {
 			pageUrl: location.href,
-			intent: this.textarea?.value ?? "",
-			applyMode: this.state.mode === "plan" ? "prompt-only" : "agent-edit",
-			planMode: this.state.mode === "plan",
+			intent: intentValue,
+			applyMode: "agent-edit",
 			references: this.payloadReferences(),
-			threadId: this.currentThreadId || void 0,
-			newThread: this.isNewThread,
-			resume: !this.isNewThread,
-			model: this.state.model || void 0
+			threadId,
+			newThread: !threadId,
+			resume: Boolean(threadId),
+			model: this.effectiveModelValue() || void 0,
+			reasoningEffort: this.state.reasoningEffort,
+			speed: this.state.speed
 		};
 		if (screenshots) payload.screenshots = screenshots;
 		return payload;
 	}
+	effectiveModelValue() {
+		return this.state.model || this.defaultModel || "";
+	}
+	restoreSubmittedDraft(value) {
+		if (!value || this.draft || this.textarea?.value) return;
+		this.draft = value;
+		if (this.textarea) this.textarea.value = value;
+	}
 	async send() {
 		if (this.busy) return;
-		const intent = (this.textarea?.value ?? "").trim();
+		const submittedText = this.textarea?.value ?? "";
+		const intent = submittedText.trim();
 		const hasRefs = this.payloadReferences().length > 0;
 		const hasScreenshots = this.screenshots.choices.size > 0;
 		if (!intent && !hasRefs && !hasScreenshots) {
@@ -4356,31 +5116,39 @@ var CodexDock = class {
 			return;
 		}
 		this.setBusy(true);
+		this.draft = "";
+		if (this.textarea) this.textarea.value = "";
+		let progressId = "";
 		try {
-			const payload = await this.buildPayload();
+			const payload = await this.buildPayload(submittedText);
 			this.messages = [...this.messages, {
 				type: "user",
 				text: intent || "(attachments)",
 				references: this.references.map((item) => ({ label: item.label })),
 				screenshots: payload.screenshots ?? []
 			}];
-			this.renderMessages();
-			const result = await this.api.codexTurn(payload);
+			progressId = this.startLiveProgress();
+			const useStream = typeof this.api.codexTurnStream === "function";
+			const result = useStream ? await this.api.codexTurnStream(payload, { onEvent: (event) => this.appendProgressEvent(progressId, event) }) : await this.api.codexTurn(payload);
+			this.finishLiveProgress(progressId);
 			if (result.metrics) this.metrics = result.metrics;
 			if (result.threadId) {
 				this.currentThreadId = result.threadId;
 				this.isNewThread = false;
 				this.persistState();
 			}
-			this.appendResult(result);
+			this.attachPromptToLastUserMessage(result.prompt);
+			this.appendResult(result, { includeEvents: !useStream });
 			if (result.ok) {
 				this.draft = "";
 				if (this.textarea) this.textarea.value = "";
 				this.references = [];
 				this.renderReferences();
 				this.loadSessions();
-			}
+			} else this.restoreSubmittedDraft(submittedText);
 		} catch (err) {
+			this.finishLiveProgress(progressId);
+			this.restoreSubmittedDraft(submittedText);
 			this.messages = [...this.messages, {
 				type: "failed",
 				text: err instanceof Error ? err.message : String(err)
@@ -4390,9 +5158,101 @@ var CodexDock = class {
 			this.setBusy(false);
 		}
 	}
-	appendResult(result) {
+	/**
+	* Insert the temporary progress bubble shown while a Codex turn streams.
+	*
+	* Boundary: the returned id is local to the current render cycle; callers must remove it before appending the final
+	* response so progress text is replaced by the completed answer.
+	*
+	* @returns {string} Temporary progress message id.
+	*/
+	startLiveProgress() {
+		const id = `progress-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		this.messages = [...this.messages, {
+			id,
+			type: "progress",
+			text: "Working",
+			events: []
+		}];
+		this.renderMessages();
+		return id;
+	}
+	/**
+	* Merge one streamed progress event into the temporary progress bubble.
+	*
+	* Boundary: item-level updates with the same SDK item id replace the prior row to avoid noisy command-output
+	* duplicates. Missing ids append a new row.
+	*
+	* @param {string} id Temporary progress message id from `startLiveProgress`.
+	* @param {Record<string, unknown>} event Normalized server progress event.
+	* @returns {void}
+	*/
+	appendProgressEvent(id, event) {
+		if (!id) return;
+		const nextEvent = normalizeProgressEvent(event);
+		if (!nextEvent.text && nextEvent.type !== "completed") return;
+		this.messages = this.messages.map((item) => {
+			if (item.id !== id) return item;
+			const events = Array.isArray(item.events) ? [...item.events] : [];
+			const existingIndex = nextEvent.key ? events.findIndex((entry) => entry.key === nextEvent.key) : -1;
+			if (existingIndex >= 0) events[existingIndex] = nextEvent;
+			else events.push(nextEvent);
+			return {
+				...item,
+				text: nextEvent.type === "failed" ? "Failed" : "Working",
+				events: events.slice(-MAX_PROGRESS_EVENTS)
+			};
+		});
+		this.renderMessages();
+	}
+	/**
+	* Remove the temporary progress bubble.
+	*
+	* Boundary: this does not append final output; callers should invoke `appendResult` after removal.
+	*
+	* @param {string} id Temporary progress message id.
+	* @returns {void}
+	*/
+	finishLiveProgress(id) {
+		if (!id) return;
+		this.messages = this.messages.filter((item) => item.id !== id);
+		this.renderMessages();
+	}
+	/**
+	* Attach the authoritative server-built prompt to the latest user message.
+	*
+	* Boundary: the browser payload is only a draft; this stores the prompt after the server resolves code references
+	* and screenshots. Missing/empty prompts leave the message unchanged.
+	*
+	* @param {unknown} prompt Final prompt text returned by the server.
+	* @returns {void}
+	*/
+	attachPromptToLastUserMessage(prompt) {
+		const text = typeof prompt === "string" ? prompt.trimEnd() : "";
+		if (!text) return;
+		for (let index = this.messages.length - 1; index >= 0; index -= 1) {
+			if (this.messages[index]?.type !== "user") continue;
+			this.messages = this.messages.map((item, itemIndex) => itemIndex === index ? {
+				...item,
+				prompt: text
+			} : item);
+			return;
+		}
+	}
+	/**
+	* Append the final Codex turn result.
+	*
+	* Boundary: streaming calls pass `includeEvents: false` so progress rows are replaced by the complete response.
+	* Non-stream calls still render legacy final events.
+	*
+	* @param {Record<string, unknown>} result Adapter result returned by the server.
+	* @param {{ includeEvents?: boolean }} options Rendering options for progress/event history.
+	* @returns {void}
+	*/
+	appendResult(result, options = {}) {
+		const includeEvents = options.includeEvents !== false;
 		const next = [];
-		if (Array.isArray(result.events)) for (const event of result.events) {
+		if (includeEvents && Array.isArray(result.events)) for (const event of result.events) {
 			const text = messageText(event.text);
 			if (!text) continue;
 			next.push({
@@ -4400,9 +5260,10 @@ var CodexDock = class {
 				text
 			});
 		}
-		if (result.output && !next.some((item) => item.text === result.output)) next.push({
+		const finalOutput = result.output || (Array.isArray(result.events) ? [...result.events].reverse().find((event) => event?.type === "completed" && event?.text)?.text : "");
+		if (finalOutput && !next.some((item) => item.text === finalOutput)) next.push({
 			type: "assistant",
-			text: result.output
+			text: finalOutput
 		});
 		if (!result.ok) next.push({
 			type: "failed",
@@ -4412,23 +5273,100 @@ var CodexDock = class {
 		this.renderMessages();
 		this.updateEnvironmentPanel();
 	}
+	/**
+	* Render the chat transcript from the local message models.
+	*
+	* Boundary: user messages may carry a server-built prompt that is exposed only
+	* through the hover action; progress messages render through their dedicated
+	* live card. Missing `messageListEl` means the dock is not mounted yet and no
+	* DOM update should be attempted.
+	*
+	* @returns {void}
+	*/
 	renderMessages() {
 		if (!this.messageListEl) return;
 		this.messageListEl.innerHTML = "";
-		if (!this.messages.length) {
+		if (!this.messages.length && !this.busy) {
 			const empty = el("div", "cii-codex-empty", "What should we build?");
 			this.messageListEl.append(empty);
 			return;
 		}
 		for (const item of this.messages) {
 			const row = el("div", `cii-codex-msg cii-codex-msg-${item.type || "message"}`);
-			this.renderMessageAttachments(row, item);
+			if (item.type === "progress") {
+				row.append(this.renderProgressMessage(item));
+				this.messageListEl.append(row);
+				continue;
+			}
 			const text = el("div", "cii-codex-msg-text", messageText(item.text));
 			row.append(text);
+			const prompt = typeof item.prompt === "string" && item.prompt.trim() ? item.prompt : "";
+			if (item.type === "user" && prompt) row.append(this.renderPromptHoverAction(prompt));
+			this.renderMessageAttachments(row, item);
 			this.messageListEl.append(row);
 		}
-		this.messageListEl.scrollTop = this.messageListEl.scrollHeight;
+		if (this.busy && !this.messages.some((item) => item.type === "progress")) this.messageListEl.append(this.renderBusyMessage());
+		this.scrollMessagesToBottom();
 	}
+	scrollMessagesToBottom() {
+		const list = this.messageListEl;
+		if (!list) return;
+		const scroll = () => {
+			list.scrollTop = list.scrollHeight;
+		};
+		scroll();
+		window.requestAnimationFrame(() => {
+			scroll();
+			window.requestAnimationFrame(scroll);
+		});
+		window.setTimeout(scroll, 80);
+	}
+	renderBusyMessage() {
+		const row = el("div", "cii-codex-msg cii-codex-msg-assistant cii-codex-msg-busy");
+		const card = el("div", "cii-codex-progress-card");
+		const title = el("div", "cii-codex-progress-title");
+		title.append(el("span", "cii-codex-spinner"), el("span", void 0, "Generating"));
+		card.append(title);
+		row.append(card);
+		return row;
+	}
+	/**
+	* Render the temporary progress log bubble.
+	*
+	* Boundary: this view is intentionally transient; the completed response replaces it once the server sends the
+	* final result event.
+	*
+	* @param {Record<string, unknown>} item Progress message model.
+	* @returns {HTMLElement} Progress card element.
+	*/
+	renderProgressMessage(item) {
+		const card = el("div", "cii-codex-progress-card cii-codex-progress-card-live");
+		const title = el("div", "cii-codex-progress-title");
+		title.append(el("span", "cii-codex-spinner"), el("span", void 0, item.text || "Working"));
+		card.append(title);
+		const events = Array.isArray(item.events) ? item.events : [];
+		if (events.length) {
+			const log = el("div", "cii-codex-progress-log");
+			for (const event of events) {
+				const row = el("div", `cii-codex-progress-entry cii-codex-progress-entry-${event.type || "message"}`);
+				row.append(el("span", "cii-codex-progress-kind", progressEventLabel(event.type)), el("span", "cii-codex-progress-body", messageText(event.text)));
+				log.append(row);
+			}
+			card.append(log);
+		}
+		return card;
+	}
+	/**
+	* Append static message attachments such as screenshots and source chips.
+	*
+	* Boundary: prompt text is intentionally excluded here because it is exposed
+	* by the user-message hover action. Missing or malformed attachment payloads
+	* are skipped so historical session rows cannot break transcript rendering.
+	*
+	* @param {HTMLElement} row Message row receiving attachment DOM.
+	* @param {Record<string, unknown>} item Message model.
+	* @returns {void}
+	*/
 	renderMessageAttachments(row, item) {
 		const screenshots = Array.isArray(item.screenshots) ? item.screenshots : [];
 		const references = Array.isArray(item.references) ? item.references : [];
@@ -4448,12 +5386,35 @@ var CodexDock = class {
 		for (const reference of references) attachments.append(this.renderReferenceChip(reference, { static: true }));
 		row.append(attachments);
 	}
+	/**
+	* Render the hover action that reveals the server-built final prompt.
+	*
+	* Boundary: the prompt is plain text and is inserted via textContent helpers,
+	* so prompt content cannot execute as HTML inside the inspected page. The
+	* wrapper stays hidden until the parent user row is hovered or focused.
+	*
+	* @param {string} prompt Server-built prompt text.
+	* @returns {HTMLElement} Prompt hover action wrapper.
+	*/
+	renderPromptHoverAction(prompt) {
+		const wrapper = el("div", "cii-codex-prompt-action");
+		const button = el("button", "cii-codex-prompt-button");
+		button.type = "button";
+		button.title = "View assembled prompt";
+		button.setAttribute("aria-label", "View assembled prompt");
+		button.append(el("span", "cii-codex-prompt-button-icon"));
+		const preview = el("div", "cii-codex-prompt-popover");
+		preview.append(el("div", "cii-codex-prompt-popover-title", "Prompt"), el("pre", void 0, prompt));
+		wrapper.append(button, preview);
+		return wrapper;
+	}
 	setBusy(busy) {
 		this.busy = busy;
 		if (this.sendButton) this.sendButton.disabled = busy;
 		this.screenshots.setDisabled(busy);
 		this.updateEnvironmentPanel();
 		this.setStatus(busy ? "Codex is working" : "");
+		this.renderMessages();
 	}
 	setStatus(text) {
 		if (!this.statusEl) return;
@@ -4493,7 +5454,7 @@ function resolveEndpointUrl(config, endpoint) {
 * send requests to the wrong host.
 *
 * @param {Record<string, unknown>} config Browser config injected by the Vite plugin.
-* @returns {{ resolve: Function, send: Function, agents: Function, codexSessions: Function, codexSession: Function, codexTurn: Function }} Inspector API methods used by the picker dialog.
+* @returns {{ resolve: Function, send: Function, agents: Function, codexSessions: Function, codexSession: Function, codexTurn: Function, codexTurnStream: Function }} Inspector API methods used by the picker dialog.
 */
 function createApi(config) {
 	const headers = {
@@ -4518,10 +5479,84 @@ function createApi(config) {
 			credentials: "same-origin"
 		})).json();
 	}
+	/**
+	* Sends a JSON POST and consumes a server-sent event response.
+	*
+	* Boundary: this is used instead of EventSource because Codex turns need a POST body. Non-SSE responses fall back
+	* to JSON so disabled/older routes still surface their final error payload.
+	*
+	* @param {string} url Inspector endpoint path.
+	* @param {Record<string, unknown>} body JSON payload sent to the inspector server.
+	* @param {{ onEvent?: Function }} handlers Optional progress-event callbacks.
+	* @returns {Promise<Record<string, unknown>>} Final `result` event payload, or a JSON fallback response.
+	*/
+	async function postEventStream(url, body, handlers = {}) {
+		const params = new URLSearchParams({
+			token: config.token,
+			stream: "1"
+		});
+		const res = await fetch(`${resolveEndpointUrl(config, url)}?${params.toString()}`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify(body),
+			credentials: "same-origin"
+		});
+		const contentType = res.headers.get("content-type") || "";
+		if (!res.body || !contentType.includes("text/event-stream")) return await res.json();
+		const reader = res.body.getReader();
+		const decoder = new TextDecoder();
+		let buffer = "";
+		let result = null;
+		const handleFrame = (frame) => {
+			let event = "message";
+			const data = [];
+			for (const rawLine of frame.split(/\r?\n/)) {
+				const line = rawLine.trimEnd();
+				if (!line || line.startsWith(":")) continue;
+				if (line.startsWith("event:")) {
+					event = line.slice(6).trim();
+					continue;
+				}
+				if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+			}
+			if (!data.length) return;
+			let payload;
+			try {
+				payload = JSON.parse(data.join("\n"));
+			} catch {
+				payload = {
+					type: event,
+					text: data.join("\n")
+				};
+			}
+			if (event === "progress") handlers.onEvent?.(payload);
+			else if (event === "result") result = payload;
+		};
+		for (;;) {
+			const { value, done } = await reader.read();
+			if (done) break;
+			buffer += decoder.decode(value, { stream: true });
+			let index = buffer.indexOf("\n\n");
+			while (index >= 0) {
+				handleFrame(buffer.slice(0, index));
+				buffer = buffer.slice(index + 2);
+				index = buffer.indexOf("\n\n");
+			}
+		}
+		buffer += decoder.decode();
+		if (buffer.trim()) handleFrame(buffer);
+		return result ?? {
+			ok: false,
+			agent: "codex-sdk",
+			requestId: "",
+			error: "Codex stream ended without a result"
+		};
+	}
 	return {
 		resolve: (payload) => postJson(ENDPOINTS.resolve, payload),
 		send: (payload) => postJson(ENDPOINTS.send, payload),
 		codexTurn: (payload) => postJson(ENDPOINTS.codexTurn, payload),
+		codexTurnStream: (payload, handlers) => postEventStream(ENDPOINTS.codexTurn, payload, handlers),
 		async agents() {
 			return await (await fetch(`${resolveEndpointUrl(config, ENDPOINTS.agents)}?token=${encodeURIComponent(config.token)}`, {
 				headers,
@@ -4537,7 +5572,10 @@ function createApi(config) {
 			})).json();
 		},
 		async codexSession(id, days) {
-			const params = new URLSearchParams({ token: config.token, id });
+			const params = new URLSearchParams({
+				token: config.token,
+				id
+			});
 			if (days != null) params.set("days", String(days));
 			return await (await fetch(`${resolveEndpointUrl(config, ENDPOINTS.codexSession)}?${params.toString()}`, {
 				headers,
