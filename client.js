@@ -1695,6 +1695,198 @@ function keepUiHostLast(host) {
 	new MutationObserver(ensureLast).observe(document.body, { childList: true });
 }
 //#endregion
+//#region client/dialog-reference-style.js
+/**
+* DIALOG_REFERENCE_STYLE_TEXT: source-owned styles for dialog code-reference attachments.
+*
+* Purpose: makes normal intent-dialog references look and behave like Codex composer attachments while leaving the
+* base stylesheet and generated bundle untouched.
+* Boundary: this stylesheet must be appended after `STYLE_TEXT` inside the plugin shadow root; installing it elsewhere
+* has no effect, and installing it before the base rules lets the old textarea/chip borders win.
+*
+* @type {string} CSS text appended to the plugin shadow root.
+*/
+const DIALOG_REFERENCE_STYLE_TEXT = `
+.cii-field {
+  overflow: hidden;
+  border: 1px solid var(--cii-color-textarea-border);
+  border-radius: 12px;
+  background: var(--cii-color-textarea-surface);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.cii-field:focus-within {
+  border-color: var(--cii-color-textarea-border-focus);
+  box-shadow: var(--cii-shadow-textarea-focus);
+}
+.cii-field .cii-textarea {
+  min-height: 112px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.cii-field .cii-textarea:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+.cii-field-has-references .cii-textarea {
+  min-height: 92px;
+  padding-top: 10px;
+}
+.cii-field .cii-reference-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 96px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 14px 16px 0;
+  scrollbar-width: thin;
+}
+.cii-field .cii-reference-preview[hidden] {
+  display: none;
+}
+.cii-field .cii-code-ref-chip {
+  width: 100%;
+  max-width: 100%;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1479c9;
+  padding: 2px 4px;
+  opacity: 1;
+}
+.cii-field .cii-code-ref-chip:hover {
+  background: #f3f7fb;
+}
+.cii-reference-file-icon {
+  width: 15px;
+  height: 18px;
+  flex: 0 0 auto;
+  position: relative;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+.cii-reference-file-icon::after {
+  content: "";
+  position: absolute;
+  top: -1.5px;
+  right: -1.5px;
+  width: 5px;
+  height: 5px;
+  border-left: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  background: var(--cii-color-textarea-surface);
+}
+.cii-field .cii-code-ref-link {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  cursor: default;
+  font: 15px/22px ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: left;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cii-field .cii-code-ref-remove {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #424754;
+  cursor: pointer;
+  font: 18px/1 system-ui, sans-serif;
+  opacity: 0.62;
+}
+.cii-field .cii-code-ref-remove:hover {
+  background: #e8eef6;
+  color: #191c1e;
+  opacity: 1;
+}
+`;
+/**
+* Install the dialog reference attachment stylesheet into a UI root.
+*
+* Purpose: applies the Codex-like source attachment treatment after the base shadow-root styles are installed.
+* Boundary: `root` must support `appendChild`; passing `null`, an ordinary object, or a detached value without that
+* method skips installation and the dialog falls back to the base textarea and chip styles.
+*
+* @param {ShadowRoot | Element | null | undefined} root UI root that receives the supplemental style element.
+* @returns {HTMLStyleElement | null} The appended style element, or `null` when `root` cannot receive children.
+*/
+function installDialogReferenceStyle(root) {
+	if (!root || typeof root.appendChild !== "function") return null;
+	const style = document.createElement("style");
+	style.textContent = DIALOG_REFERENCE_STYLE_TEXT;
+	root.appendChild(style);
+	return style;
+}
+//#endregion
+//#region client/codex-dock-model-control-style.js
+/**
+* CODEX_DOCK_MODEL_CONTROL_STYLE_TEXT: corrective source style for the Codex dock model control.
+* Purpose: keeps the right-side model picker aligned with the composer action row by pairing the visual `-8px` top
+* offset with an equal bottom margin, and renders the chevron from `>` plus a rotation transform without editing the
+* generated `client.js` bundle or the oversized base stylesheet.
+* Boundary: this stylesheet is appended after the base shadow-root stylesheet and only targets the dock model picker;
+* injecting it before the base stylesheet lets later rules override the offset, while injecting it outside the shadow
+* root has no visual effect.
+* @type {string} CSS text appended to the plugin shadow root.
+*/
+const CODEX_DOCK_MODEL_CONTROL_STYLE_TEXT = `
+.cii-codex-model-picker {
+  margin-top: -8px;
+  margin-bottom: 8px;
+}
+.cii-codex-model-chevron {
+  position: relative;
+  color: transparent;
+  font-size: 0;
+}
+.cii-codex-model-chevron::before {
+  content: ">";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font: 650 15px/18px Geist, Inter, system-ui, sans-serif;
+  transform: rotate(90deg);
+  transform-origin: 50% 50%;
+}
+`;
+/**
+* Install the Codex dock model-control alignment stylesheet into a UI root.
+* Purpose: applies the source-owned alignment patch once the plugin shadow root exists.
+* Boundary: `root` must be the shadow root returned by `createUi`; passing `null`, an ordinary object, or a detached
+* value without `appendChild` skips installation and the model picker falls back to the base vertical alignment.
+*
+* @param {ShadowRoot | Element | null | undefined} root UI root that receives the supplemental style element.
+* @returns {HTMLStyleElement | null} The appended style element, or `null` when `root` cannot receive children.
+*/
+function installCodexDockModelControlStyle(root) {
+	if (!root || typeof root.appendChild !== "function") return null;
+	const style = document.createElement("style");
+	style.textContent = CODEX_DOCK_MODEL_CONTROL_STYLE_TEXT;
+	root.appendChild(style);
+	return style;
+}
+//#endregion
 //#region shared/util.js
 /** Pure helpers usable on both client and server. */
 /**
@@ -2261,12 +2453,78 @@ function sourceReferenceLabel(selection, index) {
 	return `@${basename(parsed.file)}${line}`;
 }
 //#endregion
+//#region client/dialog-reference-preview.js
+/**
+* displayDialogReferenceLabel(label): format a reference label for attachment rows.
+*
+* Purpose: mirrors the Codex composer by showing `src/File.jsx #10-20` without the prompt-facing leading `@`.
+* Boundary: missing labels become an empty string; passing a non-string value is stringified so malformed server labels
+* are visible instead of throwing during preview rendering.
+*
+* @param {unknown} label Raw source label returned by the server or fallback formatter.
+* @returns {string} UI label without a leading `@`.
+*/
+function displayDialogReferenceLabel(label) {
+	return String(label || "").replace(/^@/, "");
+}
+/**
+* mountDialogReferencePreview(button): place the reference tray inside the dialog input field.
+*
+* Purpose: lets the reference controller mount its Codex-style attachment rows without making the oversized dialog
+* renderer know about one more child node.
+* Boundary: `button` must be the rendered reference footer button inside the current dialog. Passing a stale,
+* disconnected, or layout-incompatible button returns `null`; callers can retry after the dialog is attached.
+*
+* @param {HTMLElement | null | undefined} button Footer reference button owned by the current dialog render.
+* @returns {HTMLElement | null} Existing or newly inserted preview tray, or `null` when the dialog field is absent.
+*/
+function mountDialogReferencePreview(button) {
+	if (!(button instanceof HTMLElement)) return null;
+	const field = button.closest(".cii-dialog")?.querySelector(".cii-field");
+	const textarea = field?.querySelector(".cii-textarea");
+	if (!(field instanceof HTMLElement) || !(textarea instanceof HTMLElement)) return null;
+	const existing = field.querySelector(".cii-reference-preview");
+	if (existing instanceof HTMLElement) return existing;
+	const preview = el("div", "cii-reference-preview");
+	preview.hidden = true;
+	field.insertBefore(preview, textarea);
+	return preview;
+}
+/**
+* renderDialogReferenceChip(item, index, onRemove): build one source attachment row.
+*
+* Purpose: creates the Codex-like file icon, path text, and remove control for a selected source reference.
+* Boundary: `item.selection` is only used for fallback text and tooltip display; malformed selections still render a
+* numbered fallback. `onRemove` must accept the zero-based index, and a missing callback leaves the remove button inert.
+*
+* @param {{ label?: string, selection?: Record<string, unknown> }} item Reference item held by the controller.
+* @param {number} index Zero-based item position used for fallback labels and removal.
+* @param {(index: number) => void} onRemove Callback invoked when the user removes the row.
+* @returns {HTMLElement} Attachment row ready to append to the preview tray.
+*/
+function renderDialogReferenceChip(item, index, onRemove) {
+	const rawLabel = item?.label ?? sourceReferenceLabel(item?.selection, index);
+	const label = displayDialogReferenceLabel(rawLabel) || `代码 ${index + 1}`;
+	const chip = el("span", "cii-code-ref-chip");
+	const icon = el("span", "cii-reference-file-icon");
+	const text = el("span", "cii-code-ref-link", label);
+	const remove = el("button", "cii-code-ref-remove", "×");
+	chip.title = String(item?.selection?.inspPath ?? rawLabel ?? "");
+	remove.type = "button";
+	remove.setAttribute("aria-label", `移除${label}`);
+	remove.addEventListener("click", () => {
+		onRemove?.(index);
+	});
+	chip.append(icon, text, remove);
+	return chip;
+}
+//#endregion
 //#region client/dialog-references.js
 /**
 * Local controller for extra `@code` references in the dialog.
 *
-* Boundary: this owns one-shot picking and the raw source selections for the current intent. The visible short label is
-* inserted into the host textarea, while server-side source resolution remains authoritative.
+* Boundary: this owns one-shot picking, source selections, and attachment-row rendering for the current intent. The
+* textarea is not mutated by references; server-side source resolution remains authoritative for the final prompt.
 */
 var DialogReferenceController = class {
 	picker;
@@ -2307,13 +2565,14 @@ var DialogReferenceController = class {
 	* Attach the chip preview container for the current dialog render.
 	*
 	* Boundary: callers must pass the current dialog's container; stale containers will be overwritten on next render.
+	* Passing a wrong element makes later previews update the wrong DOM node until the next successful mount.
 	*
 	* @param {HTMLElement} previewEl Reference chip container.
 	* @returns {void}
 	*/
 	attachPreview(previewEl) {
 		this.previewEl = previewEl;
-		this.previewEl.hidden = true;
+		this.previewEl.hidden = this.items.length === 0;
 	}
 	/**
 	* Render the footer button that starts selecting another source reference.
@@ -2334,7 +2593,41 @@ var DialogReferenceController = class {
 			this.host.captureIntentCursor?.();
 			this.picker.start();
 		});
+		this.schedulePreviewMount();
 		return this.button;
+	}
+	/**
+	* Mount the attachment preview tray after the dialog DOM has been attached.
+	*
+	* Boundary: `renderButton()` runs before the footer is connected to the shadow root, so this schedules a best-effort
+	* retry. Missing browser scheduling APIs fall back to `setTimeout`; if the button is never attached, rendering
+	* simply stays disabled until the next mount attempt.
+	*
+	* @returns {void}
+	*/
+	schedulePreviewMount() {
+		const mount = () => {
+			this.ensurePreviewMounted();
+			this.renderPreviews();
+		};
+		if (typeof queueMicrotask === "function") {
+			queueMicrotask(mount);
+			return;
+		}
+		window.setTimeout(mount, 0);
+	}
+	/**
+	* Ensure the current dialog has a reference attachment tray mounted inside its input field.
+	*
+	* Boundary: this depends on the current footer button being attached inside `.cii-dialog`. A stale button or changed
+	* dialog layout returns without side effects; callers may invoke it repeatedly before rendering previews.
+	*
+	* @returns {void}
+	*/
+	ensurePreviewMounted() {
+		if (this.previewEl?.isConnected) return;
+		const previewEl = mountDialogReferencePreview(this.button);
+		if (previewEl) this.attachPreview(previewEl);
 	}
 	/**
 	* Disable or enable the reference button during busy states.
@@ -2363,15 +2656,13 @@ var DialogReferenceController = class {
 	* Return raw selections for the send payload.
 	*
 	* Boundary: these selections have not been server-validated. Empty lists return an empty array so the dialog can
-	* omit the payload field; when intentText is passed, references whose inline label was removed are omitted.
+	* omit the payload field. The legacy textarea argument is ignored because chips now own reference lifecycle.
 	*
-	* @param {string | undefined} intentText Current textarea value used to keep inline text and hidden payload aligned.
+	* @param {string | undefined} _intentText Legacy textarea value from older callers; ignored by the chip-based UI.
 	* @returns {Array<Record<string, unknown>>} Additional source selections.
 	*/
-	payloadSelections(intentText) {
-		const shouldFilterByIntent = typeof intentText === "string";
-		const text = String(intentText ?? "");
-		return this.items.filter((item) => !shouldFilterByIntent || text.includes(item.label)).map((item) => item.selection);
+	payloadSelections(_intentText) {
+		return this.items.map((item) => item.selection);
 	}
 	/**
 	* Hide or restore the dialog while the user picks a page element.
@@ -2407,7 +2698,8 @@ var DialogReferenceController = class {
 	/**
 	* Add a selected page element as an extra source reference.
 	*
-	* Boundary: duplicate `data-insp-path` values are ignored to avoid repeated prompt lines and duplicate inline text.
+	* Boundary: duplicate `data-insp-path` values are ignored to avoid repeated prompt lines and chips. The textarea is
+	* left untouched, so empty prompts with only reference attachments remain valid.
 	*
 	* @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
 	* @returns {Promise<void>}
@@ -2440,35 +2732,26 @@ var DialogReferenceController = class {
 			label,
 			selection
 		}];
-		this.host.insertReferenceText?.(label);
 		this.renderPreviews();
 		this.setPicking(false);
 		this.host.reposition();
 	}
 	/**
-	* Render link-like chips for additional source references when a preview container is attached.
+	* Render Codex-like attachment rows for additional source references.
 	*
-	* Boundary: current dialog layout inserts labels into the textarea and does not attach a preview container. This
-	* fallback keeps older hosts working without changing the outgoing references.
+	* Boundary: rendering first retries the best-effort tray mount. If the dialog layout is missing, this becomes a
+	* no-op while selections still remain in memory for the outgoing payload.
 	*
 	* @returns {void}
 	*/
 	renderPreviews() {
+		this.ensurePreviewMounted();
 		if (!this.previewEl) return;
 		this.previewEl.innerHTML = "";
 		this.previewEl.hidden = this.items.length === 0;
+		this.previewEl.closest(".cii-field")?.classList.toggle("cii-field-has-references", this.items.length > 0);
 		this.items.forEach((item, index) => {
-			const label = item.label ?? sourceReferenceLabel(item.selection, index);
-			const chip = el("span", "cii-code-ref-chip");
-			const link = el("button", "cii-code-ref-link", label);
-			link.type = "button";
-			link.title = item.selection?.inspPath ?? "";
-			const remove = el("button", "cii-code-ref-remove", "×");
-			remove.type = "button";
-			remove.setAttribute("aria-label", `移除${label}`);
-			remove.addEventListener("click", () => this.remove(index));
-			chip.append(link, remove);
-			this.previewEl.append(chip);
+			this.previewEl.append(renderDialogReferenceChip(item, index, (itemIndex) => this.remove(itemIndex)));
 		});
 	}
 	/**
@@ -5775,6 +6058,15 @@ function matchHotkey(e, hk) {
 }
 //#endregion
 //#region client/entry.js
+/**
+* Start the browser-side inspector runtime from the injected page config.
+* Purpose: creates the isolated UI root, installs supplemental dialog/dock styles, and wires picker, dialog, dock, and
+* hotkey listeners for the current host page.
+* Boundary: requires a browser document with `CLIENT_CONFIG_GLOBAL` already injected; missing config logs and exits,
+* while repeated calls after installation are ignored to avoid duplicate event listeners.
+*
+* @returns {void}
+*/
 function main() {
 	const config = window[CLIENT_CONFIG_GLOBAL];
 	if (!config) {
@@ -5785,6 +6077,8 @@ function main() {
 	window.__CII_INSTALLED__ = true;
 	const boot = () => {
 		const { root } = createUi();
+		installDialogReferenceStyle(root);
+		installCodexDockModelControlStyle(root);
 		const api = createApi(config);
 		const overlay = new Overlay(root);
 		const dialog = new Dialog(root, config, api, overlay);
@@ -5839,6 +6133,16 @@ function main() {
 	else window.addEventListener("DOMContentLoaded", boot, { once: true });
 }
 main();
+/**
+* Check whether a mouse event includes the configured click modifier.
+* Purpose: lets the picker distinguish ordinary page clicks from inspector selection clicks.
+* Boundary: `modifier` is normalized through `normalizeClickModifier`; missing or unsupported values always return
+* `false`, and passing a non-mouse-like event without modifier booleans also behaves as not matched.
+*
+* @param {{ altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, shiftKey?: boolean }} e Mouse-like event object.
+* @param {string | null | undefined} modifier Configured modifier name.
+* @returns {boolean} Whether the event currently has the normalized modifier pressed.
+*/
 function matchesClickModifier(e, modifier) {
 	switch (normalizeClickModifier(modifier)) {
 		case "alt": return e.altKey;
@@ -5848,11 +6152,30 @@ function matchesClickModifier(e, modifier) {
 		default: return false;
 	}
 }
+/**
+* Check whether a keyup event released the configured click modifier key.
+* Purpose: hides the hover preview as soon as the user releases the modifier that enabled selection mode.
+* Boundary: unsupported modifier names return `false`; passing a non-string `key` would fail because keyboard events
+* always provide a string and this helper expects that browser contract.
+*
+* @param {string} key Keyboard event key value.
+* @param {string | null | undefined} modifier Configured modifier name.
+* @returns {boolean} Whether `key` is the release key for the normalized modifier.
+*/
 function isClickModifierKey(key, modifier) {
 	const normalized = normalizeClickModifier(modifier);
 	const eventKey = key.toLowerCase();
 	return normalized === "alt" && eventKey === "alt" || normalized === "control" && eventKey === "control" || normalized === "meta" && (eventKey === "meta" || eventKey === "os") || normalized === "shift" && eventKey === "shift";
 }
+/**
+* Normalize configured click modifier aliases to browser event modifier names.
+* Purpose: keeps config-friendly names like `cmd` and `ctrl` working with DOM event properties.
+* Boundary: only `alt`, `control`, `meta`, and `shift` are supported; missing or misspelled values return `null`, which
+* disables modifier-click picking rather than guessing.
+*
+* @param {string | null | undefined} modifier Raw configured modifier value.
+* @returns {'alt' | 'control' | 'meta' | 'shift' | null} Normalized modifier name, or `null` when unsupported.
+*/
 function normalizeClickModifier(modifier) {
 	const value = String(modifier ?? "").toLowerCase();
 	if (value === "command" || value === "cmd") return "meta";

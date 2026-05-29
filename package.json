@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build-single-file.js",
     "test": "node --test"
+  },
+  "devDependencies": {
+    "rolldown": "^1.0.0-rc.12"
   }
 }

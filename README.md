@@ -1,19 +1,36 @@
 # Code Intent Inspector Core
 
-This directory is a copy-friendly JavaScript version of the plugin runtime.
-It keeps the same module layout as `src`, but strips TypeScript-only files and
-ships a ready-to-serve browser bundle at `client.js`.
+This directory is a copy-friendly JavaScript version of the plugin runtime. It
+keeps readable source modules for development, and can build a single ESM file
+that embeds the browser runtime for other projects.
+
+## Single-File Build
+
+Build the portable plugin file:
+
+```sh
+npm run build
+```
+
+The output is:
+
+```txt
+dist/code-intent-inspector.js
+```
+
+Copy only that file into another Vite project and import it from the local Vite
+config. The build also refreshes the ignored `client.js` compatibility artifact
+for source-tree usage.
 
 ## Copy Usage
 
-Copy the whole `core` directory into your Vite project, then import the plugin
-from your Vite config:
+Single-file usage:
 
 ```js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
-import { codeIntentInspectorPlugin } from './core/index.js';
+import codeIntentInspectorPlugin from './code-intent-inspector.js';
 
 export default defineConfig({
   plugins: [
@@ -47,13 +64,19 @@ export default defineConfig({
 });
 ```
 
+Source-tree usage is still supported during development:
+
+```js
+import { codeIntentInspectorPlugin } from './core/index.js';
+```
+
 ## Required Dependencies
 
-Install these in the target project:
+For source-aware element picking, install the companion locator plugin in the
+target project:
 
 ```sh
 npm install -D code-inspector-plugin
-npm install @babel/parser @babel/traverse
 ```
 
 Optional agent dependencies:
@@ -93,6 +116,7 @@ sidebar can collapse into a narrow rail when you need more chat space.
 
 - `index.js` exports `codeIntentInspectorPlugin`.
 - `plugin.js` is the Vite plugin entry.
-- `client.js` is the bundled browser picker/UI runtime served by the plugin.
+- `scripts/build-single-file.js` builds `dist/code-intent-inspector.js`.
+- `client.js` is the generated browser runtime for source-tree usage.
 - `client/`, `server/`, and `shared/` contain readable JS modules for the same
   runtime pieces.

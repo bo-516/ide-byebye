@@ -1,5 +1,6 @@
 import { CLIENT_CONFIG_GLOBAL } from '../shared/constants.js';
 import { createUi } from './style.js';
+import { installDialogReferenceStyle } from './dialog-reference-style.js';
 import { installCodexDockModelControlStyle } from './codex-dock-model-control-style.js';
 import { Overlay } from './overlay.js';
 import { Dialog } from './dialog.js';
@@ -9,8 +10,8 @@ import { PickerController } from './picker.js';
 import { matchHotkey, parseHotkey } from './hotkey.js';
 /**
  * Start the browser-side inspector runtime from the injected page config.
- * Purpose: creates the isolated UI root, installs supplemental dock styles, and wires picker, dialog, dock, and hotkey
- * listeners for the current host page.
+ * Purpose: creates the isolated UI root, installs supplemental dialog/dock styles, and wires picker, dialog, dock, and
+ * hotkey listeners for the current host page.
  * Boundary: requires a browser document with `CLIENT_CONFIG_GLOBAL` already injected; missing config logs and exits,
  * while repeated calls after installation are ignored to avoid duplicate event listeners.
  *
@@ -27,6 +28,7 @@ function main() {
     window.__CII_INSTALLED__ = true;
     const boot = () => {
         const { root } = createUi();
+        installDialogReferenceStyle(root);
         installCodexDockModelControlStyle(root);
         const api = createApi(config);
         const overlay = new Overlay(root);

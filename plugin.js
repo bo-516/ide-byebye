@@ -1,7 +1,5 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { CLIENT_CONFIG_GLOBAL, ENDPOINTS, ROUTE_PREFIX, TOKEN_HEADER } from './shared/constants.js';
 import { resolveOptions } from './server/config.js';
 import { buildRegistry } from './server/agents/build.js';
@@ -9,6 +7,7 @@ import { SessionStore } from './server/session-store.js';
 import { createLogger } from './server/logger.js';
 import { registerIntentInspectorRoutes } from './server/routes.js';
 import { cleanupNonScreenshotArtifacts } from './server/output-cleanup.js';
+import { loadClientCode } from './server/client-code.js';
 const PLUGIN_NAME = 'vite-plugin-code-intent-inspector';
 const INSPECTOR_DEV_SERVER_CORS = {
     origin: true,
@@ -16,25 +15,6 @@ const INSPECTOR_DEV_SERVER_CORS = {
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', TOKEN_HEADER],
 };
-/** Locate the built browser 1client bundle, trying a few likely locations. */
-function loadClientCode() {
-    const candidates = [
-        fileURLToPath(new URL('./client.js', import.meta.url)),
-        fileURLToPath(new URL('../dist/client.js', import.meta.url)),
-        path.resolve(process.cwd(), 'dist/client.js'),
-    ];
-    for (const candidate of candidates) {
-        try {
-            if (fs.existsSync(candidate))
-                return fs.readFileSync(candidate, 'utf8');
-        }
-        catch {
-            // try next
-        }
-    }
-    throw new Error(`[${PLUGIN_NAME}] Could not find the browser client bundle. ` +
-        'Expected core/client.js or dist/client.js before starting the dev server.');
-}
 
 /**
  * Resolves the browser-reachable loopback origin for inspector API calls.
@@ -79,9 +59,10 @@ function resolveInspectorEndpointUrl(origin, endpoint) {
 /**
  * Creates the Vite plugin that injects and serves the code-intent inspector.
  *
- * Boundary: this plugin only applies to `vite serve`. It injects a browser client configured with a local `apiOrigin`
- * and registers local inspector routes; passing malformed options can disable agents, point the browser at the wrong
- * origin, or prevent route resolution from reaching the dev server.
+ * Boundary: this plugin only applies to `vite serve`. It injects a browser client configured with a local `apiOrigin`,
+ * serves the browser runtime from either an embedded single-file bundle or `client.js`, and registers local inspector
+ * routes; passing malformed options can disable agents, point the browser at the wrong origin, or prevent route
+ * resolution from reaching the dev server.
  *
  * @param {Record<string, unknown>} options Partial inspector options supplied by local Vite config.
  * @returns {import('vite').Plugin} Vite plugin that injects the inspector client and API middleware.
@@ -151,13 +132,13 @@ export function codeIntentInspectorPlugin(options = {}) {
             cleanupNonScreenshotArtifacts(outputDirAbs, projectRoot);
             let clientCode;
             try {
-                clientCode = loadClientCode();
+                clientCode = loadClientCode({ pluginName: PLUGIN_NAME });
             }
             catch (err) {
                 // Keep the API routes working even if the browser bundle is missing
                 // (e.g. during tests before a build); the page just gets a no-op script.
                 logger.warn(err instanceof Error ? err.message : String(err));
-                clientCode = `console.warn(${JSON.stringify('[code-intent-inspector] client bundle missing; expected core/client.js or dist/client.js.')});`;
+                clientCode = `console.warn(${JSON.stringify('[code-intent-inspector] client bundle missing; expected core/client.js, dist/client.js, or an embedded single-file bundle.')});`;
             }
             registerIntentInspectorRoutes({
                 server,

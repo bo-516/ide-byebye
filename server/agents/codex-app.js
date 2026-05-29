@@ -3,8 +3,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
-import { buildPromptReferenceLines } from '../prompt.js';
+import { buildCodexAppFilePrompt, buildCodexAppPrompt } from './codex-app-prompt.js';
 const DEFAULT_SCHEME = 'codex';
+export { buildCodexAppFilePrompt, buildCodexAppPrompt };
 function fileStamp(date) {
     return date.toISOString().replace(/:/g, '-').replace(/\..+$/, '');
 }
@@ -24,9 +25,7 @@ export function buildCodexAppDeepLink(input) {
         url.searchParams.set('originUrl', input.originUrl);
     return url.toString();
 }
-export function buildCodexAppFilePrompt(request, promptPath) {
-    return [...buildPromptReferenceLines(request), promptPath, '', request.intent.trim()].join('\n').trim() + '\n';
-}
+
 function writePromptFile(request, context) {
     const requestsDir = path.join(context.outputDir, 'requests');
     assertPathInsideRoot(requestsDir, context.projectRoot);
@@ -73,6 +72,17 @@ function openDeepLink(command, args) {
         });
     });
 }
+
+/**
+ * Create the Codex App deeplink adapter.
+ *
+ * Boundary: this adapter opens a local app URL and does not execute edits itself. Code references are converted to
+ * Codex App Markdown links before deeplinking; passing an invalid app config makes availability checks or URL creation
+ * fail with a user-visible adapter error.
+ *
+ * @param {Record<string, unknown>} config Codex App adapter options from plugin config.
+ * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
+ */
 export function createCodexAppAdapter(config = {}) {
     return {
         name: 'codex-app',
@@ -88,9 +98,9 @@ export function createCodexAppAdapter(config = {}) {
             const events = [{ type: 'started', text: 'Opening Codex App' }];
             context.emit(events[0]);
             try {
-                let prompt = context.prompt;
+                let prompt = buildCodexAppPrompt(request);
                 let writtenPromptPath;
-                if (shouldWritePromptFile(config, prompt)) {
+                if (shouldWritePromptFile(config, context.prompt)) {
                     writtenPromptPath = writePromptFile(request, context);
                     prompt = buildCodexAppFilePrompt(request, writtenPromptPath);
                     const event = { type: 'file-change', text: `Wrote ${writtenPromptPath}` };

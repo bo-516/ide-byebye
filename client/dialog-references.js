@@ -1,11 +1,12 @@
 import { DialogReferencePicker } from './dialog-reference-picker.js';
 import { el, sourceReferenceLabel } from './dialog-utils.js';
+import { mountDialogReferencePreview, renderDialogReferenceChip } from './dialog-reference-preview.js';
 
 /**
  * Local controller for extra `@code` references in the dialog.
  *
- * Boundary: this owns one-shot picking and the raw source selections for the current intent. The visible short label is
- * inserted into the host textarea, while server-side source resolution remains authoritative.
+ * Boundary: this owns one-shot picking, source selections, and attachment-row rendering for the current intent. The
+ * textarea is not mutated by references; server-side source resolution remains authoritative for the final prompt.
  */
 export class DialogReferenceController {
     picker;
@@ -49,13 +50,14 @@ export class DialogReferenceController {
      * Attach the chip preview container for the current dialog render.
      *
      * Boundary: callers must pass the current dialog's container; stale containers will be overwritten on next render.
+     * Passing a wrong element makes later previews update the wrong DOM node until the next successful mount.
      *
      * @param {HTMLElement} previewEl Reference chip container.
      * @returns {void}
      */
     attachPreview(previewEl) {
         this.previewEl = previewEl;
-        this.previewEl.hidden = true;
+        this.previewEl.hidden = this.items.length === 0;
     }
 
     /**
@@ -77,7 +79,45 @@ export class DialogReferenceController {
             this.host.captureIntentCursor?.();
             this.picker.start();
         });
+        this.schedulePreviewMount();
         return this.button;
+    }
+
+    /**
+     * Mount the attachment preview tray after the dialog DOM has been attached.
+     *
+     * Boundary: `renderButton()` runs before the footer is connected to the shadow root, so this schedules a best-effort
+     * retry. Missing browser scheduling APIs fall back to `setTimeout`; if the button is never attached, rendering
+     * simply stays disabled until the next mount attempt.
+     *
+     * @returns {void}
+     */
+    schedulePreviewMount() {
+        const mount = () => {
+            this.ensurePreviewMounted();
+            this.renderPreviews();
+        };
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(mount);
+            return;
+        }
+        window.setTimeout(mount, 0);
+    }
+
+    /**
+     * Ensure the current dialog has a reference attachment tray mounted inside its input field.
+     *
+     * Boundary: this depends on the current footer button being attached inside `.cii-dialog`. A stale button or changed
+     * dialog layout returns without side effects; callers may invoke it repeatedly before rendering previews.
+     *
+     * @returns {void}
+     */
+    ensurePreviewMounted() {
+        if (this.previewEl?.isConnected)
+            return;
+        const previewEl = mountDialogReferencePreview(this.button);
+        if (previewEl)
+            this.attachPreview(previewEl);
     }
 
     /**
@@ -110,18 +150,13 @@ export class DialogReferenceController {
      * Return raw selections for the send payload.
      *
      * Boundary: these selections have not been server-validated. Empty lists return an empty array so the dialog can
-     * omit the payload field; when intentText is passed, references whose inline label was removed are omitted.
+     * omit the payload field. The legacy textarea argument is ignored because chips now own reference lifecycle.
      *
-     * @param {string | undefined} intentText Current textarea value used to keep inline text and hidden payload aligned.
+     * @param {string | undefined} _intentText Legacy textarea value from older callers; ignored by the chip-based UI.
      * @returns {Array<Record<string, unknown>>} Additional source selections.
      */
-    payloadSelections(intentText) {
-        const shouldFilterByIntent = typeof intentText === 'string';
-        const text = String(intentText ?? '');
-
-        return this.items
-            .filter((item) => !shouldFilterByIntent || text.includes(item.label))
-            .map((item) => item.selection);
+    payloadSelections(_intentText) {
+        return this.items.map((item) => item.selection);
     }
 
     /**
@@ -143,14 +178,15 @@ export class DialogReferenceController {
     }
 
     /**
-     * Resolve the inline text inserted for one selected reference.
+     * Resolve the chip label for one selected reference.
      *
      * Boundary: the browser only knows `file:line` from `data-insp-path`; the server resolves the AST range and
-     * project-relative path, so normal labels become `@src/Button.jsx #12-45`.
+     * project-relative path, so normal labels become `@src/Button.jsx #12-45`. Empty resolver results fall back to the
+     * compact browser-derived label; thrown errors are handled by `addSelection()`.
      *
      * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
      * @param {number} index Zero-based fallback index.
-     * @returns {Promise<string>} Text inserted into the intent textarea.
+     * @returns {Promise<string>} Prompt-facing reference label stored with the chip and payload selection.
      */
     async resolveLabel(selection, index) {
         const fallback = sourceReferenceLabel(selection, index);
@@ -163,7 +199,8 @@ export class DialogReferenceController {
     /**
      * Add a selected page element as an extra source reference.
      *
-     * Boundary: duplicate `data-insp-path` values are ignored to avoid repeated prompt lines and duplicate inline text.
+     * Boundary: duplicate `data-insp-path` values are ignored to avoid repeated prompt lines and chips. The textarea is
+     * left untouched, so empty prompts with only reference attachments remain valid.
      *
      * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
      * @returns {Promise<void>}
@@ -196,37 +233,28 @@ export class DialogReferenceController {
         }
 
         this.items = [...this.items, { label, selection }];
-        this.host.insertReferenceText?.(label);
         this.renderPreviews();
         this.setPicking(false);
         this.host.reposition();
     }
 
     /**
-     * Render link-like chips for additional source references when a preview container is attached.
+     * Render Codex-like attachment rows for additional source references.
      *
-     * Boundary: current dialog layout inserts labels into the textarea and does not attach a preview container. This
-     * fallback keeps older hosts working without changing the outgoing references.
+     * Boundary: rendering first retries the best-effort tray mount. If the dialog layout is missing, this becomes a
+     * no-op while selections still remain in memory for the outgoing payload.
      *
      * @returns {void}
      */
     renderPreviews() {
+        this.ensurePreviewMounted();
         if (!this.previewEl)
             return;
         this.previewEl.innerHTML = '';
         this.previewEl.hidden = this.items.length === 0;
+        this.previewEl.closest('.cii-field')?.classList.toggle('cii-field-has-references', this.items.length > 0);
         this.items.forEach((item, index) => {
-            const label = item.label ?? sourceReferenceLabel(item.selection, index);
-            const chip = el('span', 'cii-code-ref-chip');
-            const link = el('button', 'cii-code-ref-link', label);
-            link.type = 'button';
-            link.title = item.selection?.inspPath ?? '';
-            const remove = el('button', 'cii-code-ref-remove', '×');
-            remove.type = 'button';
-            remove.setAttribute('aria-label', `移除${label}`);
-            remove.addEventListener('click', () => this.remove(index));
-            chip.append(link, remove);
-            this.previewEl.append(chip);
+            this.previewEl.append(renderDialogReferenceChip(item, index, (itemIndex) => this.remove(itemIndex)));
         });
     }
 
