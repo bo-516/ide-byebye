@@ -16,11 +16,13 @@ The output is:
 
 ```txt
 dist/code-intent-inspector.js
+dist/client.js
 ```
 
-Copy only that file into another Vite project and import it from the local Vite
-config. The build also refreshes the ignored `client.js` compatibility artifact
-for source-tree usage.
+Copy only `dist/code-intent-inspector.js` into another Vite project and import
+it from the local Vite config. The single-file plugin embeds the browser
+runtime; `dist/client.js` is also emitted for source-tree usage and direct
+client-bundle inspection.
 
 ## Copy Usage
 
@@ -116,7 +118,8 @@ sidebar can collapse into a narrow rail when you need more chat space.
 
 - `index.js` exports `codeIntentInspectorPlugin`.
 - `plugin.js` is the Vite plugin entry.
-- `scripts/build-single-file.js` builds `dist/code-intent-inspector.js`.
-- `client.js` is the generated browser runtime for source-tree usage.
+- `scripts/build-single-file.js` builds `dist/code-intent-inspector.js` and
+  `dist/client.js`.
+- `dist/client.js` is the generated browser runtime for source-tree usage.
 - `client/`, `server/`, and `shared/` contain readable JS modules for the same
   runtime pieces.

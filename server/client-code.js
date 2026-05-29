@@ -32,8 +32,8 @@ export function readEmbeddedClientCode(globalObject = globalThis) {
  * Build the ordered disk locations that may contain the browser client bundle.
  *
  * Boundary: `moduleUrl` must be this module's `import.meta.url`, because the relative candidates are calculated from
- * `server/client-code.js`. Passing a URL from another directory can make the loader miss `client.js`; passing a bad
- * `cwd` only affects the final `dist/client.js` fallback.
+ * `server/client-code.js`. Passing a URL from another directory can make the loader miss the core `dist/client.js`;
+ * passing a bad `cwd` only affects the final host-project `dist/client.js` fallback.
  *
  * @param {string} moduleUrl URL for this module.
  * @param {string} cwd Current working directory used for the final fallback.
@@ -41,8 +41,8 @@ export function readEmbeddedClientCode(globalObject = globalThis) {
  */
 function buildClientBundleCandidates(moduleUrl, cwd) {
     return [
+        fileURLToPath(new URL('../dist/client.js', moduleUrl)),
         fileURLToPath(new URL('../client.js', moduleUrl)),
-        fileURLToPath(new URL('../../dist/client.js', moduleUrl)),
         path.resolve(cwd, 'dist/client.js'),
     ];
 }
@@ -50,9 +50,9 @@ function buildClientBundleCandidates(moduleUrl, cwd) {
 /**
  * Locate browser client code for the Vite middleware.
  *
- * Boundary: single-file builds win through the embedded global; source-tree usage falls back to `client.js` locations.
- * Missing all candidates throws a descriptive error so the plugin can serve a no-op warning script instead of crashing
- * the dev server.
+ * Boundary: single-file builds win through the embedded global; source-tree usage falls back to `dist/client.js`, then
+ * the legacy root `client.js`, then the host project's `dist/client.js`. Missing all candidates throws a descriptive
+ * error so the plugin can serve a no-op warning script instead of crashing the dev server.
  *
  * @param {{ pluginName?: string, cwd?: string, moduleUrl?: string }} input Loader options. `pluginName` is only used in
  * error messages; `cwd` and `moduleUrl` should usually be omitted.
@@ -77,5 +77,5 @@ export function loadClientCode({ pluginName = 'vite-plugin-code-intent-inspector
     }
 
     throw new Error(`[${pluginName}] Could not find the browser client bundle. ` +
-        'Expected core/client.js, dist/client.js, or an embedded single-file bundle before starting the dev server.');
+        'Expected core/dist/client.js, legacy core/client.js, host dist/client.js, or an embedded single-file bundle before starting the dev server.');
 }

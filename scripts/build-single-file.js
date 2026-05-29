@@ -9,8 +9,18 @@ const ROOT_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const CLIENT_ENTRY = path.join(ROOT_DIR, 'client/entry.js');
 const SINGLE_FILE_ENTRY = path.join(DIST_DIR, 'code-intent-inspector.entry.tmp.js');
-const CLIENT_OUTPUT_FILE = path.join(ROOT_DIR, 'client.js');
+const CLIENT_OUTPUT_FILE = path.join(DIST_DIR, 'client.js');
 const SINGLE_FILE_OUTPUT = path.join(DIST_DIR, 'code-intent-inspector.js');
+
+/**
+ * Legacy browser bundle path used before all generated artifacts moved under `dist`.
+ *
+ * Boundary: this path is deleted during builds only to prevent stale root-level `client.js` from masking
+ * `dist/client.js`. Passing it to write helpers would recreate the deprecated artifact layout.
+ *
+ * @type {string} Absolute path to the old generated browser bundle.
+ */
+const LEGACY_CLIENT_OUTPUT_FILE = path.join(ROOT_DIR, 'client.js');
 
 /**
  * Browser style modules whose CSS template exports should be compacted only in generated client artifacts.
@@ -63,7 +73,7 @@ async function removeIfExists(file) {
  *
  * Boundary: `client/entry.js` must be browser-safe and must not rely on unresolved imports. If that entry is missing or
  * imports unsupported browser code, the single-file build fails before producing the Node plugin bundle. CSS template
- * exports from `CLIENT_CSS_TEMPLATE_MODULES` are compacted before JS minification. The generated `client.js` is a
+ * exports from `CLIENT_CSS_TEMPLATE_MODULES` are compacted before JS minification. The generated `dist/client.js` is a
  * compatibility artifact for source-tree usage: comments are stripped by the bundler, and the file should not be
  * hand-edited.
  *
@@ -108,11 +118,11 @@ async function writeSingleFileEntry(clientCode) {
 }
 
 /**
- * Bundle the Node-side Vite plugin and embedded browser runtime into one ESM file.
+ * Bundle the Node-side Vite plugin and embedded browser runtime into one compact ESM file.
  *
  * Boundary: Node built-ins remain external through `platform: "node"`, and optional agent SDK packages remain external
- * through `OPTIONAL_AGENT_EXTERNALS`. Removing those externals can make the bundle require optional packages even when
- * their agents are disabled.
+ * through `OPTIONAL_AGENT_EXTERNALS`. Output comments are stripped and code is minified; removing those externals can
+ * make the bundle require optional packages even when their agents are disabled.
  *
  * @param {string} entry Absolute path to the temporary single-file entry.
  * @returns {Promise<void>} Resolves after `dist/code-intent-inspector.js` is written.
@@ -123,6 +133,8 @@ async function buildPluginBundle(entry) {
         output: {
             file: SINGLE_FILE_OUTPUT,
             format: 'esm',
+            minify: true,
+            comments: false,
         },
         platform: 'node',
         external: OPTIONAL_AGENT_EXTERNALS,
@@ -132,14 +144,15 @@ async function buildPluginBundle(entry) {
 /**
  * Build the copy-friendly one-file inspector plugin.
  *
- * Boundary: this command writes the generated browser artifact to `client.js` and the copy-friendly plugin bundle under
- * `dist`. If any build step fails, temporary files are still cleaned up and the process exits non-zero through the
- * caller's unhandled rejection.
+ * Boundary: this command writes generated artifacts under `dist` and removes the deprecated root-level `client.js`.
+ * If any build step fails, temporary files are still cleaned up and the process exits non-zero through the caller's
+ * unhandled rejection.
  *
  * @returns {Promise<void>} Resolves after the single-file artifact is ready.
  */
 async function buildSingleFile() {
     await fs.mkdir(DIST_DIR, { recursive: true });
+    await removeIfExists(LEGACY_CLIENT_OUTPUT_FILE);
     await removeIfExists(SINGLE_FILE_OUTPUT);
 
     try {
