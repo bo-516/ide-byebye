@@ -2,9 +2,7 @@ import { coerceAgentConfig } from '../config.js';
 import { AgentRegistry } from './registry.js';
 import { clipboardAdapter } from './clipboard.js';
 import { fileAdapter } from './file.js';
-import { createClaudeCliAdapter } from './claude-cli.js';
 import { createCodexSdkAdapter } from './codex-sdk.js';
-import { createClaudeAgentSdkAdapter } from './claude-agent-sdk.js';
 import { createCodexAppServerAdapter } from './codex-app-server.js';
 import { createCodexAppAdapter } from './codex-app.js';
 import { createClaudeAppAdapter } from './claude-app.js';
@@ -31,11 +29,5 @@ export function buildRegistry(agents) {
     const claudeApp = coerceAgentConfig(agents.claudeApp);
     if (claudeApp)
         registry.register(createClaudeAppAdapter(claudeApp));
-    const claudeCli = coerceAgentConfig(agents.claudeCli);
-    if (claudeCli)
-        registry.register(createClaudeCliAdapter(claudeCli));
-    const claudeAgentSdk = coerceAgentConfig(agents.claudeAgentSdk);
-    if (claudeAgentSdk)
-        registry.register(createClaudeAgentSdkAdapter(claudeAgentSdk));
     return registry;
 }
