@@ -28,6 +28,14 @@ export const DEFAULT_MAX_TEXT_SNIPPET = 300;
 export const DEFAULT_MAX_HTML_SNIPPET = 1000;
 export const OVERLAY_Z_INDEX = 2147483646;
 export const DIALOG_Z_INDEX = 2147483647;
+/**
+ * All recognized agent names shared by config validation, clients, and tests.
+ *
+ * Boundary: names in this list are identifiers only; an adapter still appears in the UI only after `buildRegistry`
+ * registers it. Passing names not present here can make older clients reject or ignore that agent.
+ *
+ * @type {string[]} Ordered stable agent identifiers.
+ */
 export const ALL_AGENT_NAMES = [
     'clipboard',
     'file',
@@ -35,6 +43,7 @@ export const ALL_AGENT_NAMES = [
     'codex-sdk',
     'codex-app-server',
     'claude-app',
+    'cursor-app',
     'claude-cli',
     'claude-agent-sdk',
 ];
