@@ -7,6 +7,8 @@
     "test": "node --test"
   },
   "devDependencies": {
+    "@babel/parser": "^8.0.0",
+    "@babel/traverse": "^8.0.0",
     "rolldown": "^1.0.0-rc.12"
   }
 }
