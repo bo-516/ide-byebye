@@ -111,6 +111,25 @@ codeIntentInspectorPlugin({
 });
 ```
 
+## Cursor
+
+Enable `agents.cursorApp` to open Cursor with the generated intent prompt
+prefilled. Cursor prompt deeplinks route by workspace name, so set
+`cursorApp.workspace` if the folder name shown in Cursor differs from the Vite
+project folder.
+
+```js
+codeIntentInspectorPlugin({
+  defaultAgent: 'cursor-app',
+  agents: {
+    cursorApp: {
+      enabled: true,
+      workspace: 'my-app',
+    },
+  },
+});
+```
+
 ## Codex Dock
 
 Set `codexDock: true` or `codexDock: { enabled: true }` and enable

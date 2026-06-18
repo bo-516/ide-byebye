@@ -30,10 +30,27 @@ const SCREENSHOT_SCOPE_TITLE_LABELS = {
     parent: '父节点',
     viewport: '全屏',
 };
+/**
+ * Human-readable labels for app agents surfaced in errors and result messages.
+ *
+ * Boundary: keys must match `AGENT_ACTIONS` names. Missing labels fall back to raw agent ids, which is useful for
+ * hidden/custom agents but looks rough for footer buttons.
+ *
+ * @type {Record<string, string>} Label text by app agent id.
+ */
 export const AGENT_LABELS = {
     'codex-app': 'Codex App',
     'claude-app': 'Claude App',
+    'cursor-app': 'Cursor',
 };
+/**
+ * App-agent actions displayed in the dialog footer.
+ *
+ * Boundary: this list is UI-only; availability still comes from the server registry. Adding an action without a
+ * matching registered adapter shows an unavailable button instead of sending to a missing route.
+ *
+ * @type {Array<{ name: string, label: string, title: string }>} Ordered footer app actions.
+ */
 export const AGENT_ACTIONS = [
     {
         name: 'codex-app',
@@ -44,6 +61,11 @@ export const AGENT_ACTIONS = [
         name: 'claude-app',
         label: 'Claude App',
         title: 'Open Claude App with this UI change intent prefilled.',
+    },
+    {
+        name: 'cursor-app',
+        label: 'Cursor',
+        title: 'Open Cursor with this UI change intent prefilled.',
     },
 ];
 
