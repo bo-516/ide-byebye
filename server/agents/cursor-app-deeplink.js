@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { buildPromptReferenceLines } from '../prompt.js';
+import { buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
 
 /**
  * Default Cursor URL scheme declared by Cursor.app.
@@ -141,5 +141,6 @@ export function resolveCursorAppWorkspace(config, context) {
  */
 export function buildCursorAppFilePrompt(request, promptPath) {
     const intent = String(request.intent ?? '').trim();
-    return [...buildPromptReferenceLines(request), promptPath, '', intent].join('\n').trim() + '\n';
+    const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
+    return [...refs, promptPath, '', intent].join('\n').trim() + '\n';
 }

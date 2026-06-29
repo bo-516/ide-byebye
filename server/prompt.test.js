@@ -26,6 +26,31 @@ test('buildPrompt keeps sdk source references in at-mention format', () => {
     assert.equal(prompt, '@AGENTS.md #2-3\n\nExplain it\n');
 });
 
+test('buildPrompt keeps the primary reference on top and drops inlined extra references', () => {
+    const prompt = buildPrompt({
+        projectRoot: '/tmp/project',
+        selection: { line: 2 },
+        source: {
+            filePath: '/tmp/project/AGENTS.md',
+            selectedNodeRange: { startLine: 2, endLine: 3 },
+        },
+        references: [
+            {
+                selection: { line: 9 },
+                source: {
+                    filePath: '/tmp/project/src/App.jsx',
+                    selectedNodeRange: { startLine: 9, endLine: 12 },
+                },
+            },
+        ],
+        intent: 'Tidy up @src/App.jsx #9-12 spacing',
+    });
+
+    // The primary selection is never inlined by the editor, so it stays on top; the
+    // extra reference is inline in the sentence, so it must not be duplicated above.
+    assert.equal(prompt, '@AGENTS.md #2-3\n\nTidy up @src/App.jsx #9-12 spacing\n');
+});
+
 test('buildPromptMarkdownReferenceLines uses codex app file-link labels', () => {
     const refs = buildPromptMarkdownReferenceLines({
         projectRoot: '/tmp/project',

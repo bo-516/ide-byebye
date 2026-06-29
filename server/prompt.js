@@ -119,20 +119,38 @@ export function buildPromptReferenceLines(request) {
     return refs;
 }
 /**
+ * Drop reference lines the user already placed inline inside the intent text.
+ *
+ * Boundary: the intent now comes from a mention editor that serializes extra `@code` references inline at the user's
+ * cursor, so the same `@path #range` would otherwise appear both in the top context block and in the sentence. Matching
+ * is exact full-line text; a reference whose resolved line range changed between picking and sending no longer matches
+ * and is kept in the top block instead of being silently dropped.
+ *
+ * @param {string[]} refs Reference lines built for the top context block.
+ * @param {string} intent User intent text that may already contain inline references.
+ * @returns {string[]} Reference lines that are not already inline in the intent.
+ */
+export function filterInlineReferenceLines(refs, intent) {
+    const text = String(intent ?? '');
+    return refs.filter((ref) => !(ref && text.includes(ref)));
+}
+
+/**
  * Build the compact app prompt. Keep this deliberately terse so Codex/Claude
  * receive source references, visual references, and the user intent without
  * verbose wrapper instructions.
  *
  * Boundary: execution-control flags are intentionally ignored so stale clients
- * cannot inject wrapper instructions into the prompt. Missing `intent` becomes
- * an empty trailing prompt line, while malformed references should have been
- * rejected before this renderer is called.
+ * cannot inject wrapper instructions into the prompt. References already inlined
+ * in the intent are removed from the top context block so they are not duplicated.
+ * Missing `intent` becomes an empty trailing prompt line, while malformed
+ * references should have been rejected before this renderer is called.
  *
  * @param {Record<string, unknown>} request Intent request with source references, screenshots, and user intent.
  * @returns {string} Final prompt text ending with a trailing newline.
  */
 export function buildPrompt(request) {
-    const refs = buildPromptReferenceLines(request);
     const intent = String(request.intent ?? '').trim();
+    const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
     return [...refs, ...(refs.length ? [''] : []), intent].join('\n').trim() + '\n';
 }
