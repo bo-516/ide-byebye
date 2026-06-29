@@ -33,73 +33,32 @@ function normalizeApiOrigin(apiOrigin) {
 }
 
 /**
- * Normalize the optional persistent Codex dock configuration.
+ * Normalize the optional element-behavior recording (rrweb) configuration.
  *
- * Boundary: the dock is disabled unless the caller explicitly opts in. A string
- * `sessionsRoot` is accepted for tests or custom Codex homes; normal use reads
- * from `~/.codex/sessions`.
+ * Boundary: recording is disabled unless the caller explicitly opts in (`recording: true` or `{ enabled: true }`).
+ * Masking defaults to OFF because this is a developer tool where seeing real form state aids reproduction; enable
+ * `mask.allInputs` / set `mask.blockClass` for privacy-sensitive pages. `maxDurationMs` bounds the in-browser rolling
+ * buffer and is clamped to a sane ceiling so a forgotten recording cannot grow without limit.
  *
- * @param {unknown} value Raw `codexDock` option.
- * @returns {{ enabled: boolean, days: number, sessionsRoot?: string, projectRoot?: string, models: Array<{ label: string, value: string }> }} Normalized dock options.
+ * @param {unknown} value Raw `recording` option.
+ * @returns {{ enabled: boolean, maxDurationMs: number, mask: { allInputs: boolean, blockClass: string } }} Normalized recording options.
  */
-function normalizeCodexDock(value) {
+function normalizeRecordingConfig(value) {
     if (value !== true && (value == null || typeof value !== 'object')) {
-        return { enabled: false, days: 15, models: defaultCodexDockModels() };
+        return { enabled: false, maxDurationMs: 30000, mask: { allInputs: false, blockClass: 'rr-block' } };
     }
-
     const options = value === true ? {} : value;
-    const rawDays = Number(options.days);
-    const days = Number.isFinite(rawDays) && rawDays > 0
-        ? Math.min(Math.floor(rawDays), 90)
-        : 15;
-    const sessionsRoot = typeof options.sessionsRoot === 'string' && options.sessionsRoot.trim()
-        ? options.sessionsRoot.trim()
-        : undefined;
-    const projectRoot = typeof options.projectRoot === 'string' && options.projectRoot.trim()
-        ? options.projectRoot.trim()
-        : undefined;
-    const models = normalizeCodexDockModels(options.models);
-
+    const rawMax = Number(options.maxDurationMs);
+    const maxDurationMs = Number.isFinite(rawMax) && rawMax > 0 ? Math.min(Math.floor(rawMax), 300000) : 30000;
+    const mask = options.mask && typeof options.mask === 'object' ? options.mask : {};
     return {
-        enabled: options.enabled === false ? false : true,
-        days,
-        sessionsRoot,
-        projectRoot,
-        models,
+        enabled: value === true ? true : options.enabled === true,
+        maxDurationMs,
+        mask: {
+            allInputs: mask.allInputs === true,
+            blockClass: typeof mask.blockClass === 'string' && mask.blockClass ? mask.blockClass : 'rr-block',
+        },
     };
-}
-
-function defaultCodexDockModels() {
-    return [
-        { label: 'Default', value: '' },
-        { label: 'GPT-5.5', value: 'gpt-5.5' },
-        { label: 'GPT-5.4', value: 'gpt-5.4' },
-        { label: 'GPT-5.4-Mini', value: 'gpt-5.4-mini' },
-        { label: 'GPT-5.3-Codex', value: 'gpt-5.3-codex' },
-        { label: 'GPT-5.3-Codex-Spark', value: 'gpt-5.3-codex-spark' },
-        { label: 'GPT-5.2', value: 'gpt-5.2' },
-    ];
-}
-
-function normalizeCodexDockModels(value) {
-    if (!Array.isArray(value))
-        return defaultCodexDockModels();
-
-    const models = value
-        .map((entry) => {
-        if (typeof entry === 'string') {
-            const text = entry.trim();
-            return text ? { label: text, value: text } : null;
-        }
-        if (!entry || typeof entry !== 'object')
-            return null;
-        const label = String(entry.label ?? entry.value ?? '').trim();
-        const modelValue = String(entry.value ?? '').trim();
-        return label ? { label, value: modelValue } : null;
-    })
-        .filter(Boolean);
-
-    return models.length ? models : defaultCodexDockModels();
 }
 
 /**
@@ -113,12 +72,10 @@ function normalizeCodexDockModels(value) {
  * @returns {Record<string, unknown>} Fully resolved inspector options used by server and browser config generation.
  */
 export function resolveOptions(options) {
-    const codexDock = normalizeCodexDock(options.codexDock);
-
     return {
         enabled: options.enabled ?? true,
         hotkey: options.hotkey ?? DEFAULT_HOTKEY,
-        clickModifier: options.clickModifier ?? (codexDock.enabled ? 'meta' : null),
+        clickModifier: options.clickModifier ?? null,
         defaultAgent: options.defaultAgent ?? 'clipboard',
         outputDir: options.outputDir ?? DEFAULT_OUTPUT_DIR,
         // prompt-only is the safer default: the agent proposes a plan rather than
@@ -127,7 +84,7 @@ export function resolveOptions(options) {
         maxSourceContextLines: options.maxSourceContextLines ?? DEFAULT_MAX_SOURCE_CONTEXT_LINES,
         maxDomSnippetLength: options.maxDomSnippetLength ?? DEFAULT_MAX_HTML_SNIPPET,
         apiOrigin: normalizeApiOrigin(options.apiOrigin),
-        codexDock,
+        recording: normalizeRecordingConfig(options.recording),
         agents: options.agents ?? {},
     };
 }

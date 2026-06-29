@@ -53,27 +53,6 @@ function resolveReferenceSelections(references, projectRoot, options) {
 }
 
 /**
- * Resolve optional primary and additional selections for the persistent Codex dock.
- *
- * Boundary: the dock supports plain chat, so the primary selection is optional.
- * Additional references remain strict when present because the user explicitly
- * inserted those `@file #range` tokens into the composer.
- *
- * @param {Record<string, unknown>} payload Browser payload sent by the Codex dock.
- * @param {string} projectRoot Absolute Vite project root.
- * @param {Record<string, unknown>} options Resolved inspector options.
- * @returns {{ selection?: Record<string, unknown>, source?: Record<string, unknown>, references: Array<Record<string, unknown>> }} Resolved optional source payload.
- */
-export function resolveDockSelections(payload, projectRoot, options) {
-    const primary = payload?.selection?.inspPath
-        ? resolveSourceSelection(payload.selection, projectRoot, options, 'Selection')
-        : {};
-    const references = resolveReferenceSelections(payload?.references, projectRoot, options);
-
-    return { ...primary, references };
-}
-
-/**
  * Parse the primary `data-insp-path`, validate all selected paths, and extract source context.
  *
  * Boundary: the primary selection is required, while additional references are optional but strict when present. Throws
@@ -118,42 +97,3 @@ export function buildIntentRequest(payload, resolved, projectRoot, options) {
     };
 }
 
-/**
- * Build the normalized Codex dock request.
- *
- * Boundary: this request may not have a primary source selection. Prompt
- * generation and adapters must treat `selection/source` as optional while still
- * preserving resolved extra references and screenshots. Dock requests always
- * use `agent-edit`; stale plan-only fields from older clients are ignored here
- * so they cannot change prompt or adapter behavior.
- *
- * @param {Record<string, unknown>} payload Browser payload from the Codex dock.
- * @param {{ selection?: Record<string, unknown>, source?: Record<string, unknown>, references?: Array<Record<string, unknown>> }} resolved Optional resolved source context.
- * @param {string} projectRoot Absolute Vite project root.
- * @param {Record<string, unknown>} options Resolved inspector options.
- * @returns {Record<string, unknown>} Request consumed by prompt rendering and the Codex SDK adapter.
- */
-export function buildCodexDockRequest(payload, resolved, projectRoot, options) {
-    const rawThreadId = typeof payload.threadId === 'string' && payload.threadId ? payload.threadId : undefined;
-    const forceNewThread = payload.newThread === true || payload.resume === false || !rawThreadId;
-    const threadId = forceNewThread ? undefined : rawThreadId;
-
-    return {
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        projectRoot,
-        pageUrl: payload.pageUrl,
-        intent: payload.intent ?? '',
-        agent: 'codex-sdk',
-        applyMode: 'agent-edit',
-        resume: Boolean(threadId),
-        threadId,
-        newThread: !threadId,
-        model: typeof payload.model === 'string' && payload.model ? payload.model : undefined,
-        reasoningEffort: typeof payload.reasoningEffort === 'string' && payload.reasoningEffort ? payload.reasoningEffort : undefined,
-        speed: typeof payload.speed === 'string' && payload.speed ? payload.speed : undefined,
-        selection: resolved.selection,
-        source: resolved.source,
-        references: resolved.references ?? [],
-    };
-}

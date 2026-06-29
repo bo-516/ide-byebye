@@ -33,7 +33,6 @@ const LEGACY_CLIENT_OUTPUT_FILE = path.join(ROOT_DIR, 'client.js');
 const CLIENT_CSS_TEMPLATE_MODULES = [
     path.join(ROOT_DIR, 'client/style.js'),
     path.join(ROOT_DIR, 'client/dialog-reference-style.js'),
-    path.join(ROOT_DIR, 'client/codex-dock-model-control-style.js'),
 ];
 
 /**
@@ -44,8 +43,6 @@ const CLIENT_CSS_TEMPLATE_MODULES = [
  */
 const OPTIONAL_AGENT_EXTERNALS = [
     '@anthropic-ai/claude-agent-sdk',
-    '@openai/codex-sdk',
-    'ws',
 ];
 
 /**

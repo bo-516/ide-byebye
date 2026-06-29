@@ -11,9 +11,23 @@ const STYLE_COPY_BATCH_SIZE = 24;
 const ASSET_WAIT_TIMEOUT_MS = 1800;
 const ASSET_INLINE_TIMEOUT_MS = 2500;
 
-/** Yield screenshot work to the next animation frame so picker UI can paint before heavy DOM serialization resumes. */
+/**
+ * Yield to the next animation frame so picker UI can paint before heavy DOM serialization resumes.
+ * Boundary: `requestAnimationFrame` is paused while the document is hidden (background tab) or fully offscreen, which
+ * would otherwise hang capture forever; a short `setTimeout` fallback guarantees the promise still settles in that case.
+ */
 function nextAnimationFrame() {
-    return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+            if (settled)
+                return;
+            settled = true;
+            resolve();
+        };
+        window.requestAnimationFrame(finish);
+        window.setTimeout(finish, 100);
+    });
 }
 
 function timeout(ms) {
@@ -22,6 +36,18 @@ function timeout(ms) {
 
 async function withTimeout(promise, ms) {
     return Promise.race([promise, timeout(ms)]);
+}
+
+/**
+ * Resolve the window that owns a node so computed styles are read from the node's own document.
+ * Boundary: nodes living inside another document (e.g. an rrweb replay iframe) must use that document's window, or
+ * `getComputedStyle` would read from the wrong context. Detached nodes without a defaultView fall back to the top
+ * `window`, which is correct for normal top-document screenshot nodes.
+ * @param {Node} node Source node whose computed styles will be read.
+ * @returns {Window} The owning window, or the top window as a fallback.
+ */
+function ownerWindow(node) {
+    return (node && node.ownerDocument && node.ownerDocument.defaultView) || window;
 }
 
 /**
@@ -43,7 +69,7 @@ function isTransparentBackground(value) {
  * @returns {boolean} True when the ancestor should provide the clipped wrapper background.
  */
 function hasPaintedBackground(element) {
-    const computed = window.getComputedStyle(element);
+    const computed = ownerWindow(element).getComputedStyle(element);
     return !isTransparentBackground(computed.backgroundColor) || computed.backgroundImage !== 'none';
 }
 
@@ -84,7 +110,7 @@ function resolveParentBackgroundSource(root) {
  * @returns {void}
  */
 function copyBackgroundStyles(source, target) {
-    const computed = window.getComputedStyle(source);
+    const computed = ownerWindow(source).getComputedStyle(source);
     for (const prop of [
         'background-color',
         'background-image',
@@ -224,7 +250,7 @@ function pseudoContentText(content) {
 async function makePseudoClone(source, pseudo, assetCache) {
     if (!(source instanceof HTMLElement))
         return null;
-    const computed = window.getComputedStyle(source, pseudo);
+    const computed = ownerWindow(source).getComputedStyle(source, pseudo);
     const text = pseudoContentText(computed.getPropertyValue('content'));
     if (text == null)
         return null;
@@ -329,7 +355,7 @@ async function copyComputedStyles(source, clone, assetCache) {
     let processed = 0;
     while (stack.length) {
         const [currentSource, currentClone] = stack.pop();
-        const computed = window.getComputedStyle(currentSource);
+        const computed = ownerWindow(currentSource).getComputedStyle(currentSource);
         const sourceChildren = Array.from(currentSource.children);
         const cloneChildren = Array.from(currentClone.children);
         let css = cssTextFromComputed(computed);
@@ -595,11 +621,26 @@ function svgDataUrl(node, width, height) {
     ].join('');
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
+/**
+ * Decode an image source into an `<img>`, rejecting on error or timeout.
+ * Boundary: a malformed or oversized SVG `foreignObject` can leave an `Image` that never fires `load` or `error`
+ * (notably when rasterizing a rebuilt rrweb replay DOM); the timeout turns that silent hang into a reportable failure so
+ * the caller can clear its pending state instead of spinning forever.
+ * @param {string} src Image source URL (typically an SVG data URL).
+ * @returns {Promise<HTMLImageElement>} The decoded image.
+ */
 function loadImage(src) {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('Failed to render screenshot image'));
+        const timer = window.setTimeout(() => reject(new Error('Timed out rendering image')), 10000);
+        img.onload = () => {
+            window.clearTimeout(timer);
+            resolve(img);
+        };
+        img.onerror = () => {
+            window.clearTimeout(timer);
+            reject(new Error('Failed to render screenshot image'));
+        };
         img.src = src;
     });
 }
@@ -623,6 +664,34 @@ function resolveAssetWaitRoot(target, scope) {
 }
 
 /**
+ * Rasterize a serializable DOM wrapper into an encoded image payload.
+ * Boundary: `node` must be an XHTML-namespaced wrapper (see `makeXhtmlWrapper`) whose styles and images are already
+ * inlined, because it is drawn through an SVG `<foreignObject>`; live external stylesheets and cross-origin images that
+ * were not inlined will not render and can taint the canvas. Throws when a 2D canvas context is unavailable.
+ * @param {Element} node Serializable wrapper node to render.
+ * @param {number} width CSS-pixel width of the render box; non-positive values are clamped to 1.
+ * @param {number} height CSS-pixel height of the render box; non-positive values are clamped to 1.
+ * @param {string} background Solid color painted behind the node so transparent regions become opaque.
+ * @returns {Promise<{ dataUrl: string, width: number, height: number }>} Encoded image (WebP, PNG fallback) and pixel size.
+ */
+export async function rasterizeNode(node, width, height, background) {
+    const image = await loadImage(svgDataUrl(node, width, height));
+    const scale = renderScale(width, height);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx)
+        throw new Error('Canvas rendering is unavailable');
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.drawImage(image, 0, 0, width, height);
+    await nextAnimationFrame();
+    return { dataUrl: encodeCanvas(canvas), width: canvas.width, height: canvas.height };
+}
+
+/**
  * Render a screenshot payload for the selected element, its parent subtree, or the viewport.
  * Boundary: DOM is serialized through SVG foreignObject; cross-origin images without CORS still cannot be inlined and
  * may be unavailable to the browser's SVG image renderer.
@@ -637,24 +706,12 @@ export async function captureScreenshot(target, scope) {
     const assetCache = new Map();
     const { width, height, wrapper } = await resolveScreenshotRender(target, scope, assetCache);
     await nextAnimationFrame();
-    const image = await loadImage(svgDataUrl(wrapper, width, height));
-    const scale = renderScale(width, height);
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(width * scale));
-    canvas.height = Math.max(1, Math.round(height * scale));
-    const ctx = canvas.getContext('2d');
-    if (!ctx)
-        throw new Error('Canvas rendering is unavailable');
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(scale, scale);
-    ctx.drawImage(image, 0, 0, width, height);
-    await nextAnimationFrame();
+    const raster = await rasterizeNode(wrapper, width, height, background);
     return {
         scope,
-        dataUrl: encodeCanvas(canvas),
-        width: canvas.width,
-        height: canvas.height,
+        dataUrl: raster.dataUrl,
+        width: raster.width,
+        height: raster.height,
         capturedAt: new Date().toISOString(),
     };
 }

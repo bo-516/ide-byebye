@@ -116,6 +116,10 @@ export function buildPromptReferenceLines(request) {
             ? [request.screenshot]
             : [];
     refs.push(...screenshots.map((screenshot) => screenshotRef(screenshot, request.projectRoot)));
+    const recordings = Array.isArray(request.recordings) ? request.recordings : [];
+    refs.push(...recordings
+        .filter((recording) => recording && recording.stillFramePath)
+        .map((recording) => `@${repoRelativePath(recording.stillFramePath, request.projectRoot)}`));
     return refs;
 }
 /**

@@ -9,6 +9,9 @@ const SUPPORTED_MIME_TYPES = new Map([
 ]);
 const SCREENSHOT_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 const SCREENSHOT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+/** Subdirectory and file extensions for persisted rrweb recordings (event stream + rasterized still). */
+const RECORDINGS_SUBDIR = 'recordings';
+const RECORDING_EXTENSIONS = new Set(['.json', '.png', '.jpg', '.jpeg', '.webp']);
 const SCREENSHOT_FILE_ID_LENGTH = 7;
 const SCREENSHOT_FILE_ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
@@ -184,4 +187,110 @@ export function saveScreenshotPayloads(payloads, request, outputDir) {
     if (!payloads?.length)
         return undefined;
     return payloads.map((payload) => writeScreenshotPayload(payload, request, outputDir));
+}
+
+/**
+ * Resolve the recordings storage directory for one inspector output root.
+ *
+ * Boundary: only joins path segments; callers must still validate the result against `projectRoot` before writing.
+ *
+ * @param {string} outputDir Inspector output directory.
+ * @returns {string} Path to the recordings subdirectory.
+ */
+function recordingsDir(outputDir) {
+    return path.join(outputDir, RECORDINGS_SUBDIR);
+}
+
+/**
+ * Remove expired recording artifacts (event JSON + still frames) from the inspector output directory.
+ *
+ * Boundary: cleanup is best-effort and shares the screenshot max-age window. Passing the wrong `projectRoot` makes path
+ * validation throw before any files are touched.
+ *
+ * @param {string} outputDir Inspector output directory.
+ * @param {string} projectRoot Vite project root that must contain the recordings directory.
+ * @param {number} nowMs Current timestamp in milliseconds, injectable for tests.
+ * @returns {number} Number of expired recording files removed.
+ */
+export function cleanupExpiredRecordings(outputDir, projectRoot, nowMs = Date.now()) {
+    const dir = recordingsDir(outputDir);
+    assertPathInsideRoot(dir, projectRoot);
+    if (!fs.existsSync(dir))
+        return 0;
+    let removed = 0;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isFile())
+            continue;
+        if (!RECORDING_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
+            continue;
+        const file = path.join(dir, entry.name);
+        try {
+            const stat = fs.statSync(file);
+            if (nowMs - stat.mtimeMs <= SCREENSHOT_MAX_AGE_MS)
+                continue;
+            fs.rmSync(file, { force: true });
+            removed += 1;
+        }
+        catch {
+            // Best-effort cleanup: recording retention should not block a send.
+        }
+    }
+    return removed;
+}
+
+/**
+ * Persist one recording payload: the rrweb event stream as JSON plus the rasterized still frame.
+ *
+ * Boundary: only the still frame is later referenced in prompts; the `.rrweb.json` stream is for in-browser human review
+ * and is never shown to an agent. The events file and still share one random id for easy on-disk correlation. A missing
+ * or malformed still data URL throws during parsing so a failed send is reported rather than persisting a half-recording.
+ *
+ * @param {{ scope?: string, events?: unknown[], clip?: Record<string, unknown>, durationMs?: number, stillFrame?: { dataUrl: string }, capturedAt?: string }} payload Browser recording payload.
+ * @param {{ projectRoot: string }} request Intent request carrying the trusted project root.
+ * @param {string} outputDir Inspector output directory.
+ * @returns {{ scope: string, eventsPath: string, stillFramePath?: string, clip?: Record<string, unknown>, durationMs?: number, capturedAt?: string }} Persisted recording metadata.
+ */
+function writeRecordingPayload(payload, request, outputDir) {
+    const dir = recordingsDir(outputDir);
+    assertPathInsideRoot(dir, request.projectRoot);
+    fs.mkdirSync(dir, { recursive: true });
+    let id = randomScreenshotFileId();
+    let eventsPath = path.join(dir, `${id}.rrweb.json`);
+    for (let attempt = 0; attempt < 20 && fs.existsSync(eventsPath); attempt += 1) {
+        id = randomScreenshotFileId();
+        eventsPath = path.join(dir, `${id}.rrweb.json`);
+    }
+    fs.writeFileSync(eventsPath, JSON.stringify(payload.events ?? []), 'utf8');
+    let stillFramePath;
+    if (payload.stillFrame?.dataUrl) {
+        const { ext, bytes } = parseDataUrl(payload.stillFrame.dataUrl);
+        stillFramePath = path.join(dir, `${id}.${ext}`);
+        fs.writeFileSync(stillFramePath, bytes);
+    }
+    return {
+        scope: payload.scope ?? 'recording',
+        eventsPath,
+        stillFramePath,
+        clip: payload.clip,
+        durationMs: payload.durationMs,
+        capturedAt: payload.capturedAt,
+    };
+}
+
+/**
+ * Save all recording payloads for a request.
+ *
+ * Boundary: empty or missing arrays return undefined after cleanup. Each recording is written independently. Throws on a
+ * malformed still data URL so the caller can report a failed send instead of building a prompt with a missing frame.
+ *
+ * @param {Array<Record<string, unknown>> | undefined} payloads Optional recording payload list.
+ * @param {{ projectRoot: string }} request Intent request carrying the trusted project root.
+ * @param {string} outputDir Inspector output directory.
+ * @returns {Array<Record<string, unknown>> | undefined} Persisted recording metadata list, if any payloads were supplied.
+ */
+export function saveRecordingPayloads(payloads, request, outputDir) {
+    cleanupExpiredRecordings(outputDir, request.projectRoot);
+    if (!payloads?.length)
+        return undefined;
+    return payloads.map((payload) => writeRecordingPayload(payload, request, outputDir));
 }

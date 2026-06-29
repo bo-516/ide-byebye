@@ -8,7 +8,7 @@ const EMPTY = { version: 1 };
  * - Writes atomically (temp file + rename).
  * - Backs up and resets a corrupt file instead of throwing.
  *
- * Keys use dotted paths, e.g. `codexSdk.lastThreadId`.
+ * Keys use dotted paths, e.g. `agent.lastThreadId`.
  */
 export class SessionStore {
     dirAbs;
