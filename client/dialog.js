@@ -1,7 +1,9 @@
 import { DialogReferenceController } from './dialog-references.js';
 import { DialogScreenshotController } from './dialog-screenshots.js';
-import { createIntentTextController } from './dialog-intent-text.js';
-import { AGENT_LABELS, anchorFromElement, clamp, configuredActions, el, loadLastAgent, saveLastAgent, } from './dialog-utils.js';
+import { createDialogEditor } from './dialog-editor.js';
+import { AGENT_LABELS, anchorFromElement, clamp, configuredActions, el, loadLastAgent, saveLastAgent, sourceReferenceLabel, } from './dialog-utils.js';
+
+const INTENT_PLACEHOLDER = '例如：把这个按钮改成主按钮，并加 loading 状态';
 export class Dialog {
     parent;
     config;
@@ -10,7 +12,8 @@ export class Dialog {
     screenshots;
     backdrop = null;
     dialogEl = null;
-    textarea;
+    editor;
+    editorEl = null;
     actionButtons = new Map();
     lastAgent;
     selection = null;
@@ -47,10 +50,17 @@ export class Dialog {
         this.config = config;
         this.api = api;
         this.lastAgent = loadLastAgent(config);
-        this.intentText = createIntentTextController(() => this.textarea);
+        this.editor = createDialogEditor({
+            placeholder: INTENT_PLACEHOLDER,
+            onChange: () => {
+                if (this.dialogEl)
+                    this.positionDialog(this.dialogEl, this.anchor);
+            },
+        });
         this.references = new DialogReferenceController(config, overlay, {
-            captureIntentCursor: () => this.intentText.capture(),
-            insertReferenceText: (label) => this.intentText.insert(label),
+            captureIntentCursor: () => this.editor.captureCursor(),
+            insertReference: (item) => this.editor.insertReference(item),
+            hasReference: (inspPath) => this.editor.hasReference(inspPath),
             resolveReferenceText: (selection) => this.resolveReferenceText(selection),
             setBackdropHidden: (hidden) => {
                 if (this.backdrop)
@@ -97,10 +107,12 @@ export class Dialog {
         this.anchor = anchor ?? anchorFromElement(this.selectedElement);
         this.screenshots.reset();
         this.references.reset();
-        this.intentText.reset();
+        this.editor.reset();
         this.lastAgent = loadLastAgent(this.config);
         this.enableFocusGuard();
         this.render(selection);
+        // Show the clicked element immediately as a non-removable pinned chip; resolve() upgrades the label.
+        this.editor.setPrimary({ label: sourceReferenceLabel(selection, 0), selection });
         void this.screenshots.captureSelected();
         void this.resolve(selection);
         void this.loadAgents();
@@ -121,6 +133,7 @@ export class Dialog {
         this.parent.removeChild(this.backdrop);
         this.backdrop = null;
         this.dialogEl = null;
+        this.editorEl = null;
         this.selectedElement = null;
         this.screenshotElement = null;
         this.anchor = null;
@@ -144,21 +157,16 @@ export class Dialog {
         });
         const dialog = el('div', 'cii-dialog');
         const body = el('div', 'cii-body');
-        const intentField = el('div', 'cii-field');
-        this.textarea = el('textarea', 'cii-textarea');
-        this.intentText.bind(this.textarea);
-        this.textarea.setAttribute('aria-label', 'Change intent');
-        this.textarea.autofocus = true;
-        this.textarea.placeholder = '例如：把这个按钮改成主按钮，并加 loading 状态';
-        this.textarea.addEventListener('keydown', (event) => {
+        const intentField = this.editor.render();
+        this.editorEl = this.editor.getEditorElement();
+        this.editorEl.addEventListener('keydown', (event) => {
             if (this.closeFromEscape(event))
                 return;
-            if (this.shouldSubmitFromTextarea(event)) {
+            if (this.shouldSubmitIntent(event)) {
                 event.preventDefault();
                 void this.send(this.lastAgent);
             }
         });
-        intentField.append(this.textarea);
         body.append(intentField);
         const screenshotPreviewEl = el('div', 'cii-screenshot-preview');
         this.screenshots.attachPreview(screenshotPreviewEl);
@@ -226,10 +234,10 @@ export class Dialog {
         if (!(host instanceof HTMLElement))
             return false;
         const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
-        if (path.includes(host) || path.includes(this.backdrop) || path.includes(this.dialogEl) || path.includes(this.textarea))
+        if (path.includes(host) || path.includes(this.backdrop) || path.includes(this.dialogEl) || path.includes(this.editorEl))
             return true;
         const target = event.target;
-        return target === host || target === this.backdrop || target === this.dialogEl || target === this.textarea;
+        return target === host || target === this.backdrop || target === this.dialogEl || target === this.editorEl;
     }
 
     /**
@@ -266,18 +274,13 @@ export class Dialog {
      * @returns {void}
      */
     focusIntent(options = {}) {
-        const textarea = this.textarea;
-        if (!(textarea instanceof HTMLTextAreaElement))
+        const editorEl = this.editorEl;
+        if (!editorEl)
             return;
         const focus = () => {
-            if (!this.backdrop || this.textarea !== textarea)
+            if (!this.backdrop || this.editorEl !== editorEl)
                 return;
-            try {
-                textarea.focus({ preventScroll: true });
-            }
-            catch {
-                textarea.focus();
-            }
+            this.editor.focus();
         };
         focus();
         if (!options.retry)
@@ -310,15 +313,15 @@ export class Dialog {
         dialog.style.top = `${clamp(Math.round(y), margin, maxY)}px`;
     }
     /**
-     * Decide whether textarea Enter should submit to the remembered app.
+     * Decide whether an Enter press in the intent editor should submit to the remembered app.
      *
      * Boundary: IME composition and modified Enter presses are ignored so Chinese candidate selection and
      * Shift+Enter line breaks keep working. Callers must still validate intent text before sending.
      *
-     * @param {KeyboardEvent} event Textarea keydown event.
+     * @param {KeyboardEvent} event Editor keydown event.
      * @returns {boolean} True when this key should submit the dialog.
      */
-    shouldSubmitFromTextarea(event) {
+    shouldSubmitIntent(event) {
         return (event.key === 'Enter' &&
             this.state !== 'resolving' &&
             this.state !== 'sending' &&
@@ -362,6 +365,8 @@ export class Dialog {
             button.disabled = busy;
         this.references.setDisabled(busy);
         this.screenshots.setDisabled(busy);
+        // Only lock the editor while actually sending so the user can keep typing during the initial resolve.
+        this.editor.setDisabled(state === 'sending');
     }
     /**
      * Mark the app button that Enter will use.
@@ -394,21 +399,21 @@ export class Dialog {
      * Build the server payload for route resolution and agent dispatch.
      *
      * Boundary: screenshot capture can reject if the originally selected element disappeared; extra code references are
-     * sent only while their inline labels remain in the textarea, then validated server-side before prompt generation.
+     * serialized inline from the editor in cursor order, then validated server-side before prompt generation.
      *
      * @param {string} agent App agent selected by the user.
      * @returns {Promise<Record<string, unknown>>} JSON payload for the send endpoint.
      */
     async buildPayload(agent) {
+        const { intent, references } = this.editor.serialize();
         const payload = {
             pageUrl: location.href,
-            intent: this.textarea.value,
+            intent,
             agent,
             applyMode: 'agent-edit',
             resume: true,
             selection: this.selection,
         };
-        const references = this.references.payloadSelections(this.textarea.value);
         if (references.length > 0)
             payload.references = references;
         const screenshots = await this.screenshots.buildPayloadScreenshots();
@@ -444,6 +449,9 @@ export class Dialog {
                 return;
             }
             this.setState('idle');
+            // Upgrade the pinned primary chip from the client fallback label to the server-resolved `@path #range`.
+            if (typeof res.reference === 'string' && res.reference.trim())
+                this.editor.setPrimary({ label: res.reference.trim(), selection });
             if (res.source?.astError) {
                 console.info(`Intent inspector source extraction fell back to line context: ${res.source.astError}`);
             }

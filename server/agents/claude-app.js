@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
-import { buildPromptReferenceLines } from '../prompt.js';
+import { buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
 const DEFAULT_SCHEME = 'claude';
 const DEFAULT_ROUTE = 'code';
 function fileStamp(date) {
@@ -96,7 +96,9 @@ export function resolveClaudeAppFolders(config, context) {
     return folders;
 }
 export function buildClaudeAppFilePrompt(request, promptPath) {
-    return [...buildPromptReferenceLines(request), promptPath, '', request.intent.trim()].join('\n').trim() + '\n';
+    const intent = request.intent.trim();
+    const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
+    return [...refs, promptPath, '', intent].join('\n').trim() + '\n';
 }
 function writePromptFile(request, context) {
     const requestsDir = path.join(context.outputDir, 'requests');
