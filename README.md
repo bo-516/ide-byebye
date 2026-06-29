@@ -48,18 +48,14 @@ export default defineConfig({
       },
     }),
     codeIntentInspectorPlugin({
-      defaultAgent: 'clipboard',
-      // Optional persistent web Codex dock. Requires code-inspector-plugin and
-      // the target project to install @openai/codex-sdk.
-      codexDock: {
-        enabled: true,
-        models: [
-          { label: 'Default', value: '' },
-          { label: '5.5 Extra High', value: 'gpt-5.5-codex' },
-        ],
-      },
+      // The dialog footer always shows Codex App / Claude App / Cursor, so
+      // defaultAgent (used by Enter) must be one of those three.
+      defaultAgent: 'claude-app',
+      clickModifier: 'meta', // ⌘+click to pick an element (macOS)
       agents: {
-        codexSdk: true,
+        codexApp: { enabled: true },
+        claudeApp: true,
+        cursorApp: { enabled: true },
       },
     }),
   ],
@@ -81,32 +77,23 @@ target project:
 npm install -D code-inspector-plugin
 ```
 
-Optional agent dependencies:
-
-```sh
-npm install @openai/codex-sdk
-npm install ws
-npm install @anthropic-ai/claude-agent-sdk
-```
-
-`ws` is only needed for the Codex App Server adapter on Node versions without a
-global `WebSocket`.
+The three app agents (Codex App / Claude App / Cursor) only need the macOS
+`open` command and the matching app installed; no extra npm dependencies are
+required.
 
 ## Codex App
 
 Set `agents.codexApp.projectRoot` to override the folder opened by Codex App
-deeplinks without enabling the in-page Codex dock or the Codex SDK adapter.
+deeplinks.
 
 ```js
 codeIntentInspectorPlugin({
   defaultAgent: 'codex-app',
-  codexDock: { enabled: false },
   agents: {
     codexApp: {
       enabled: true,
       projectRoot: '/absolute/path/to/project',
     },
-    codexSdk: false,
   },
 });
 ```
@@ -130,27 +117,49 @@ codeIntentInspectorPlugin({
 });
 ```
 
-## Codex Dock
+## Recording (rrweb)
 
-Set `codexDock: true` or `codexDock: { enabled: true }` and enable
-`agents.codexSdk` to show a draggable Codex dock in the browser. The dock reads
-recent project sessions from
-`~/.codex/sessions/YYYY/MM/DD`, scanning only the last 15 days by default and
-prefiltering with one `rg -l --fixed-strings <projectRoot>` command before it
-parses JSONL metadata. Session lookup uses the current Vite `config.root`; set
-`codexDock.projectRoot` only if your Codex sessions use a different `cwd`.
+Beyond static screenshots, the intent dialog can record **element behavior** with
+[rrweb](https://github.com/rrweb-io/rrweb): pick a **scope** (selected node / its
+parent / app mount root), click record — the dialog steps aside and the page
+becomes interactive while a floating control counts up — interact with the page,
+then click stop. The dialog returns and you can review and **trim a clip**
+in-browser. A still frame is rasterized from the chosen moment (cropped to the
+scope) so the coding agent gets an image it can read; the raw event stream is
+saved alongside it for human replay but is never put in the prompt. The
+inspector's own UI is excluded from every recording.
 
-When `codexDock` is enabled, Command+click is the default code-reference
-gesture unless `clickModifier` is explicitly configured. It adds the clicked
-source block as a highlighted `@file #range` attachment in the dock composer.
-Screenshot choices render above the prompt text only after they are selected in
-the dock, and reuse the same capture pipeline as the intent dialog. The model
-picker uses the built-in model list unless `codexDock.models` is supplied. The
-dock sends editing requests through the Codex SDK, surfaces native reasoning
-progress when the SDK returns it, and shows session state, selected sources,
-tokens/s, and context usage. Its position, width, height, collapsed state,
-selected model, and session-sidebar state are persisted locally; the session
-sidebar can collapse into a narrow rail when you need more chat space.
+Recording is **opt-in** and lazy-loaded. Install rrweb in the target project and
+enable it:
+
+```sh
+npm i @rrweb/record @rrweb/replay
+```
+
+```js
+codeIntentInspectorPlugin({
+  recording: {
+    enabled: true,
+    maxDurationMs: 30000, // rolling buffer length (clamped to 5min)
+    mask: {
+      allInputs: false,   // default off: dev tooling wants real form state
+      blockClass: 'rr-block', // elements with this class are blocked from capture
+    },
+  },
+});
+```
+
+How it works and what it costs:
+
+- The plugin serves rrweb's ESM build from the host's `node_modules` over
+  `/__intent-inspector/vendor/{record,replay}`; the browser imports it by URL
+  only when recording is used, so the single-file plugin stays small.
+- The still frame reuses the same SVG-`<foreignObject>` → canvas rasterizer as
+  screenshots, so it inherits the same limits: cross-origin assets without CORS
+  may be blank, web fonts must be loadable, and **`canvas`/WebGL content is not
+  captured in v1**.
+- Recordings are written under `.intent-inspector/recordings/` (`<id>.rrweb.json`
+  + `<id>.webp`) and expire on the same schedule as screenshots.
 
 ## Files
 

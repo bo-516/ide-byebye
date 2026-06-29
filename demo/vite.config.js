@@ -34,6 +34,8 @@ export default defineConfig({
     codeIntentInspectorPlugin({
       defaultAgent: 'claude-app', // 回车提交的默认目标
       clickModifier: 'meta', // macOS 的 ⌘；也可写 'command' / 'cmd'
+      // 元素行为录制（rrweb）。需在本 demo 安装 @rrweb/record / @rrweb/replay。
+      recording: { enabled: true },
       agents: {
         claudeApp: true, // 打开 Claude，预填新对话
         codexApp: { enabled: true }, // 打开 Codex App

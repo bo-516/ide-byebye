@@ -8,9 +8,7 @@ export const ENDPOINTS = {
     agents: `${ROUTE_PREFIX}/agents`,
     resolve: `${ROUTE_PREFIX}/resolve`,
     send: `${ROUTE_PREFIX}/send`,
-    codexSessions: `${ROUTE_PREFIX}/codex/sessions`,
-    codexSession: `${ROUTE_PREFIX}/codex/session`,
-    codexTurn: `${ROUTE_PREFIX}/codex/turn`,
+    vendor: `${ROUTE_PREFIX}/vendor`,
 };
 /** Header carrying the per-session dev token. */
 export const TOKEN_HEADER = 'x-intent-inspector-token';
@@ -40,8 +38,6 @@ export const ALL_AGENT_NAMES = [
     'clipboard',
     'file',
     'codex-app',
-    'codex-sdk',
-    'codex-app-server',
     'claude-app',
     'cursor-app',
     'claude-cli',

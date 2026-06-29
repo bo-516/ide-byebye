@@ -404,6 +404,74 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
+         * exportContent(): 把编辑器内容导出为保序 token 列表，供 pin 折叠后冷恢复(刷新/跨页)精确重建。
+         * 作用：与 serialize() 不同，这里保留“文本段”与“引用 chip”的先后结构(而非压平成一段文本)，所以恢复时
+         * 不会把行内引用重复成纯文本。主选择不在 contenteditable 内，由 setPrimary 单独恢复。
+         * 边界：丢失 selection 的孤立 chip 跳过;空编辑器返回空数组。
+         *
+         * @returns {Array<{ t: 'text', v: string } | { t: 'ref', label: string, selection: Record<string, unknown> }>} 保序内容 token。
+         */
+        exportContent() {
+            const tokens = [];
+            if (!editorEl)
+                return tokens;
+            const walk = (node) => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    if (node.data)
+                        tokens.push({ t: 'text', v: node.data });
+                    return;
+                }
+                if (!(node instanceof HTMLElement))
+                    return;
+                if (node.tagName === 'BR') {
+                    tokens.push({ t: 'text', v: '\n' });
+                    return;
+                }
+                if (node.classList.contains('cii-mention')) {
+                    const refId = node.dataset.refId;
+                    const selection = refId ? selections.get(refId) : null;
+                    if (selection)
+                        tokens.push({ t: 'ref', label: node.dataset.label || '', selection });
+                    return;
+                }
+                for (const child of node.childNodes)
+                    walk(child);
+                if (/^(DIV|P)$/.test(node.tagName))
+                    tokens.push({ t: 'text', v: '\n' });
+            };
+            for (const child of editorEl.childNodes)
+                walk(child);
+            return tokens;
+        },
+
+        /**
+         * importContent(tokens): 用 exportContent() 的 token 列表重建编辑器内容(冷恢复)。
+         * 边界：必须在 render() 之后调用;按顺序追加文本与引用 chip，保持原有先后关系;非数组或空安全降级。
+         *
+         * @param {Array<Record<string, unknown>>} tokens 由 exportContent() 导出的保序内容 token。
+         * @returns {void}
+         */
+        importContent(tokens) {
+            if (!editorEl || !Array.isArray(tokens))
+                return;
+            for (const token of tokens) {
+                if (token?.t === 'text' && token.v) {
+                    const range = endRange();
+                    const node = document.createTextNode(token.v);
+                    range.insertNode(node);
+                    const after = document.createRange();
+                    after.setStartAfter(node);
+                    after.collapse(true);
+                    savedRange = after.cloneRange();
+                }
+                else if (token?.t === 'ref' && token.label && token.selection) {
+                    this.insertReference({ label: token.label, selection: token.selection });
+                }
+            }
+            refreshEmptyState();
+        },
+
+        /**
          * setDisabled(disabled): 忙碌(resolving/sending)时禁用编辑，避免发送中途被改。
          * @param {boolean} disabled 是否禁用。
          */

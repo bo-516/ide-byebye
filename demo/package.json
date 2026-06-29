@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@rrweb/record": "^2.1.0",
+    "@rrweb/replay": "^2.1.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
