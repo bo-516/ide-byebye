@@ -33,6 +33,7 @@ pnpm-debug.log*
 tmp/
 temp/
 *.tmp
+.intent-inspector
 
 # OS and editor files
 .DS_Store
