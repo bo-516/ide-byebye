@@ -1,5 +1,6 @@
 import { basename, parseInspPathLite } from './dom.js';
 import { INSP_PATH_ATTR } from '../shared/constants.js';
+import { t } from './i18n.js';
 /** Fixed-position highlight box + floating label for the hovered element. */
 export class Overlay {
     box;
@@ -29,7 +30,7 @@ export class Overlay {
     showNoMapping(el) {
         const rect = el.getBoundingClientRect();
         this.position(rect, true);
-        this.label.textContent = 'no source mapping';
+        this.label.textContent = t('overlay.noMapping');
         this.label.classList.add('cii-nomap');
     }
     position(rect, noMap) {

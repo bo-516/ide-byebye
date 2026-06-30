@@ -1,27 +1,32 @@
 import { el } from './dialog-utils.js';
+import { t } from './i18n.js';
 
 /**
  * displayMentionLabel(label): strip the prompt-facing leading `@` for chip display.
  *
- * 作用：mention chip 里展示 `src/App.jsx #9-12`，而序列化进 prompt 时仍用带 `@` 的完整标签。
- * 边界：空值返回空字符串；非字符串会被 String() 兜底，方便暴露异常标签而不是抛错。
+ * Purpose: a mention chip shows `src/App.jsx #9-12`, while serialization into the prompt still uses the full label with
+ * its leading `@`.
+ * Boundary: empty input returns an empty string; non-strings are coerced via String() so a malformed label is surfaced
+ * rather than thrown.
  *
- * @param {unknown} label 服务端解析出的引用标签，例如 `@src/App.jsx #9-12`。
- * @returns {string} 去掉前导 `@` 的展示文本。
+ * @param {unknown} label Reference label resolved by the server, e.g. `@src/App.jsx #9-12`.
+ * @returns {string} Display text without the leading `@`.
  */
 export function displayMentionLabel(label) {
     return String(label || '').replace(/^@/, '');
 }
 
 /**
- * createMentionElement(label, options): 创建一个原子 mention chip 节点。
+ * createMentionElement(label, options): create one atomic mention chip node.
  *
- * 作用：用 `contenteditable=false` 把引用做成不可被光标拆开的整体；静态(主选择)无删除按钮，补充引用带 `×`。
- * 边界：节点只负责展示与删除交互，selection 数据由调用方用 refId 维护在外部 Map 里，避免把对象塞进 DOM 属性。
+ * Purpose: uses `contenteditable=false` so a reference behaves as a single unit the caret cannot split; static (primary)
+ * chips have no remove button, supplementary references carry a `×`.
+ * Boundary: the node only handles display and remove interaction; the selection data is kept by the caller in an
+ * external Map keyed by refId, so no objects are stuffed into DOM attributes.
  *
- * @param {string} label 引用标签(带 `@`)。
- * @param {{ refId?: string, inspPath?: string, static?: boolean, onRemove?: Function }} options chip 行为配置。
- * @returns {HTMLElement} 可插入 contenteditable 的 mention 节点。
+ * @param {string} label Reference label (with `@`).
+ * @param {{ refId?: string, inspPath?: string, static?: boolean, onRemove?: Function }} options Chip behavior config.
+ * @returns {HTMLElement} A mention node insertable into the contenteditable.
  */
 function createMentionElement(label, options = {}) {
     const text = String(label || '').trim();
@@ -42,9 +47,9 @@ function createMentionElement(label, options = {}) {
         const remove = el('button', 'cii-mention-remove', '×');
         remove.type = 'button';
         remove.setAttribute('contenteditable', 'false');
-        remove.setAttribute('aria-label', `移除 ${displayMentionLabel(text)}`);
+        remove.setAttribute('aria-label', t('mention.remove.aria', { label: displayMentionLabel(text) }));
         remove.addEventListener('mousedown', (event) => {
-            // contenteditable 里 mousedown 会移动光标/触发删除选区，阻止默认行为后再删。
+            // In a contenteditable, mousedown moves the caret / starts a delete selection, so prevent default first.
             event.preventDefault();
             event.stopPropagation();
         });
@@ -59,16 +64,18 @@ function createMentionElement(label, options = {}) {
 }
 
 /**
- * createDialogEditor(options): 创建意图对话框的轻量 mention 编辑器(tiptap 式 contenteditable)。
+ * createDialogEditor(options): create the intent dialog's lightweight mention editor (tiptap-style contenteditable).
  *
- * 作用：用一个 contenteditable 替代原 textarea，让“补充引用”在光标处行内插入、与文本保序；主选择则作为
- * contenteditable 之外、不可删除的 pinned chip 常驻顶部。序列化时把行内引用还原成 `@path #range` 文本，并按
- * 顺序导出 selection 列表给 payload。
- * 边界：编辑器只持有本次弹窗的本地 DOM 与 selection 缓存，源码解析仍由服务端负责；每次弹窗 render 都重建 DOM，
- * 因此 reset 之后必须先 render 再 setPrimary。
+ * Purpose: replaces the old textarea with a contenteditable so a supplementary reference is inserted inline at the caret
+ * and stays ordered within the text; the primary selection lives outside the contenteditable as a non-removable pinned
+ * chip at the top. On serialization, inline references are restored to `@path #range` text and the selection list is
+ * exported in order for the payload.
+ * Boundary: the editor only holds this dialog's local DOM and selection cache; source resolution stays on the server.
+ * Every dialog render rebuilds the DOM, so after reset() you must render() before setPrimary().
  *
- * @param {{ placeholder?: string, onChange?: Function }} options placeholder 文案与结构变化回调(插入/删除引用时触发)。
- * @returns {Record<string, Function>} 编辑器控制方法。
+ * @param {{ placeholder?: string, onChange?: Function }} options Placeholder copy and a structure-change callback (fired
+ * when a reference is inserted/removed).
+ * @returns {Record<string, Function>} Editor control methods.
  */
 export function createDialogEditor(options = {}) {
     const placeholder = String(options.placeholder || '');
@@ -85,8 +92,9 @@ export function createDialogEditor(options = {}) {
     const resolveSelectionRoot = () => editorEl?.getRootNode?.() ?? document;
 
     /**
-     * readRange(): 读取当前落在 contenteditable 内的光标 Range。
-     * 边界：shadow DOM 下优先用 root.getSelection()，回退 window.getSelection()；不在编辑器内返回 null。
+     * readRange(): read the caret Range currently inside the contenteditable.
+     * Boundary: under shadow DOM it prefers root.getSelection(), falling back to window.getSelection(); returns null when
+     * the caret is not inside the editor.
      */
     const readRange = () => {
         if (!editorEl)
@@ -115,8 +123,8 @@ export function createDialogEditor(options = {}) {
     };
 
     /**
-     * isEditorEmpty(): 编辑器是否“无意义内容”(无引用 chip 且无非空白文本)。
-     * 作用：驱动 placeholder 显示;主选择 pinned chip 在编辑器之外，不影响这里的判断。
+     * isEditorEmpty(): whether the editor has "no meaningful content" (no reference chip and no non-whitespace text).
+     * Purpose: drives placeholder visibility; the primary pinned chip lives outside the editor and does not affect this.
      */
     const isEditorEmpty = () => {
         if (!editorEl)
@@ -150,13 +158,14 @@ export function createDialogEditor(options = {}) {
             }
         }
         catch {
-            // 选区恢复失败不致命：下一次点击/输入会重新建立光标。
+            // Failing to restore the selection is not fatal: the next click/typing re-establishes the caret.
         }
     };
 
     /**
-     * renderPinned(): 渲染/刷新 contenteditable 之外的主选择 pinned chip。
-     * 边界：无 primary 时隐藏容器;主选择 chip 不带删除按钮、天然不可被编辑删除。
+     * renderPinned(): render/refresh the primary selection pinned chip outside the contenteditable.
+     * Boundary: hides the container when there is no primary; the primary chip has no remove button and is naturally
+     * not editable-deletable.
      */
     const renderPinned = () => {
         if (!pinnedEl)
@@ -171,13 +180,14 @@ export function createDialogEditor(options = {}) {
             static: true,
             inspPath: primary.selection?.inspPath,
         });
-        chip.title = `当前选中的元素（不可移除）：${primary.selection?.inspPath ?? primary.label}`;
+        chip.title = t('editor.primaryPinned.title', { target: primary.selection?.inspPath ?? primary.label });
         pinnedEl.append(chip);
     };
 
     /**
-     * serializeNode(node, refs): 递归把一个 DOM 节点转成 prompt 文本，并按顺序收集引用 selection。
-     * 边界：mention chip 还原成带前后空格的 `@label`;<br>/块级元素当作换行;丢失 selection 的孤立 chip 跳过。
+     * serializeNode(node, refs): recursively turn one DOM node into prompt text, collecting reference selections in order.
+     * Boundary: a mention chip is restored to `@label` with surrounding spaces; <br>/block elements become newlines; an
+     * orphaned chip that lost its selection is skipped.
      */
     const serializeNode = (node, refs) => {
         if (node.nodeType === Node.TEXT_NODE)
@@ -198,7 +208,7 @@ export function createDialogEditor(options = {}) {
         let text = '';
         for (const child of node.childNodes)
             text += serializeNode(child, refs);
-        // contenteditable 在某些浏览器里用 <div>/<p> 包裹新行，补一个换行边界。
+        // Some browsers wrap a new line in a <div>/<p> inside contenteditable, so add a newline boundary.
         if (/^(DIV|P)$/.test(node.tagName))
             text += '\n';
         return text;
@@ -206,10 +216,10 @@ export function createDialogEditor(options = {}) {
 
     return {
         /**
-         * render(): 构建并返回本次弹窗的 `.cii-field`(含 pinned chip 容器 + contenteditable)。
-         * 边界：每次弹窗都重建 DOM;若已存在 primary 数据则一并渲染 pinned chip。
+         * render(): build and return this dialog's `.cii-field` (pinned chip container + contenteditable).
+         * Boundary: every dialog rebuilds the DOM; if primary data already exists, the pinned chip is rendered too.
          *
-         * @returns {HTMLElement} 可直接 append 进对话框 body 的字段容器。
+         * @returns {HTMLElement} Field container ready to append into the dialog body.
          */
         render() {
             fieldEl = el('div', 'cii-field');
@@ -219,7 +229,7 @@ export function createDialogEditor(options = {}) {
             editorEl.setAttribute('contenteditable', 'true');
             editorEl.setAttribute('role', 'textbox');
             editorEl.setAttribute('aria-multiline', 'true');
-            editorEl.setAttribute('aria-label', 'Change intent');
+            editorEl.setAttribute('aria-label', t('editor.aria'));
             editorEl.dataset.placeholder = placeholder;
             editorEl.spellcheck = false;
 
@@ -228,7 +238,7 @@ export function createDialogEditor(options = {}) {
             });
             editorEl.addEventListener('input', refreshEmptyState);
             editorEl.addEventListener('paste', (event) => {
-                // 只接受纯文本粘贴，避免外部富文本污染 contenteditable 结构。
+                // Accept plain text only, so external rich text cannot pollute the contenteditable structure.
                 event.preventDefault();
                 const text = event.clipboardData?.getData('text/plain') ?? '';
                 const range = readRange() ?? savedRange ?? endRange();
@@ -250,7 +260,8 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * getEditorElement(): 返回 contenteditable 节点，供对话框挂 keydown(提交/Esc)与焦点守卫。
+         * getEditorElement(): return the contenteditable node so the dialog can attach keydown (submit/Esc) and the focus
+         * guard.
          * @returns {HTMLElement | null}
          */
         getEditorElement() {
@@ -258,8 +269,8 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * focus(): 聚焦编辑器并把光标放到末尾。
-         * 边界：编辑器未渲染时安全降级。
+         * focus(): focus the editor and place the caret at the end.
+         * Boundary: degrades safely when the editor is not rendered.
          */
         focus() {
             if (!editorEl)
@@ -268,11 +279,13 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * setPrimary(data): 设置/刷新主选择 chip 数据(点击触发、不可删除)。
-         * 作用：先用客户端兜底标签即时展示，待服务端 resolve 出 `@path #range` 后再调用一次升级。
-         * 边界：仅更新内存与(若已渲染)pinned DOM;不写入 contenteditable，因此不会进入 intent 文本。
+         * setPrimary(data): set/refresh the primary selection chip data (triggered by a click, not removable).
+         * Purpose: show the client fallback label immediately, then call again to upgrade once the server resolves the
+         * `@path #range`.
+         * Boundary: only updates memory and (if rendered) the pinned DOM; never writes into the contenteditable, so it
+         * does not enter the intent text.
          *
-         * @param {{ label: string, selection: Record<string, unknown> }} data 主选择标签与 selection。
+         * @param {{ label: string, selection: Record<string, unknown> }} data Primary selection label and selection.
          */
         setPrimary(data) {
             if (!data || !data.selection) {
@@ -285,8 +298,9 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * captureCursor(): 记录当前光标 Range，供“添加代码引用”隐藏弹窗后回到原位插入。
-         * @returns {Range | null} 最近一次落在编辑器内的 Range。
+         * captureCursor(): record the current caret Range so "add code reference" can re-insert at the original spot
+         * after the dialog is hidden.
+         * @returns {Range | null} The most recent Range that fell inside the editor.
          */
         captureCursor() {
             trackRange();
@@ -294,10 +308,10 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * hasReference(inspPath): 编辑器内是否已存在该来源的补充引用。
-         * 边界：只看 contenteditable 内的 mention，主选择不计入。
+         * hasReference(inspPath): whether a supplementary reference for that source already exists in the editor.
+         * Boundary: only looks at mentions inside the contenteditable; the primary selection is not counted.
          *
-         * @param {string} inspPath code-inspector 注入的 `data-insp-path`。
+         * @param {string} inspPath The `data-insp-path` injected by code-inspector.
          * @returns {boolean}
          */
         hasReference(inspPath) {
@@ -307,13 +321,15 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * insertReference(item): 在光标处行内插入一枚可删除的引用 chip(保留先后顺序)。
-         * 作用：替代旧的“置顶 chip 托盘”，让输入到一半再 @ 的内容落在原位置。
-         * 边界：label/selection 缺失或重复来源时不插入;插入后更新缓存光标并触发 onChange(供对话框重新定位)。
+         * insertReference(item): insert one removable reference chip inline at the caret (preserving order).
+         * Purpose: replaces the old "pinned chip tray" so content `@`-mentioned mid-typing lands at its original spot.
+         * Boundary: does not insert when label/selection is missing or the source is a duplicate; after insertion it
+         * updates the cached caret and fires onChange (so the dialog can reposition).
          *
-         * @param {{ label: string, selection: Record<string, unknown>, range?: Range }} item 引用标签、selection 与
-         * 可选的插入位置 Range(由对话框在点击 @ 按钮时捕获，避免弹窗恢复时光标被移到末尾)。
-         * @returns {boolean} 是否实际插入。
+         * @param {{ label: string, selection: Record<string, unknown>, range?: Range }} item Reference label, selection,
+         * and an optional insertion Range (captured by the dialog when the `@` button is clicked, so the dialog restore
+         * does not move the caret to the end).
+         * @returns {boolean} Whether an insertion actually happened.
          */
         insertReference(item) {
             const label = String(item?.label || '').trim();
@@ -354,10 +370,11 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * removeMention(node): 删除一枚补充引用 chip 及其紧邻的占位空格。
-         * 边界：节点已脱离 DOM 时安全降级;删除后刷新空态并触发 onChange。
+         * removeMention(node): remove one supplementary reference chip and its adjacent spacer space.
+         * Boundary: degrades safely when the node has left the DOM; after removal it refreshes the empty state and fires
+         * onChange.
          *
-         * @param {HTMLElement} node 由 insertReference 创建的 mention 节点。
+         * @param {HTMLElement} node The mention node created by insertReference.
          */
         removeMention(node) {
             if (!node || !editorEl?.contains(node))
@@ -379,10 +396,12 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * serialize(): 把编辑器内容导出为 payload 所需的 { intent, references }。
-         * 作用：intent = 文本 + 行内 `@path #range`(主选择不含，由服务端从 selection 置顶);references = 按出现
-         * 顺序的 selection 列表(claude-app 附文件、codex-app markdown 链接需要)。
-         * 边界：折叠多余空格、按行 trim;主选择不在 contenteditable 内，自然被排除。
+         * serialize(): export the editor content into the payload's { intent, references }.
+         * Purpose: intent = text + inline `@path #range` (the primary is excluded; the server pins it from the selection);
+         * references = the selection list in appearance order (needed for claude-app file attachments and codex-app
+         * markdown links).
+         * Boundary: collapses extra spaces and trims per line; the primary is not inside the contenteditable and is thus
+         * naturally excluded.
          *
          * @returns {{ intent: string, references: Array<Record<string, unknown>> }}
          */
@@ -404,12 +423,14 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * exportContent(): 把编辑器内容导出为保序 token 列表，供 pin 折叠后冷恢复(刷新/跨页)精确重建。
-         * 作用：与 serialize() 不同，这里保留“文本段”与“引用 chip”的先后结构(而非压平成一段文本)，所以恢复时
-         * 不会把行内引用重复成纯文本。主选择不在 contenteditable 内，由 setPrimary 单独恢复。
-         * 边界：丢失 selection 的孤立 chip 跳过;空编辑器返回空数组。
+         * exportContent(): export the editor content as an ordered token list so a pinned dialog can be precisely rebuilt
+         * on a cold restore (reload / cross-page).
+         * Purpose: unlike serialize(), this keeps the order structure of "text segments" and "reference chips" (instead of
+         * flattening to one string), so a restore does not duplicate inline references as plain text. The primary is not
+         * inside the contenteditable and is restored separately by setPrimary.
+         * Boundary: an orphaned chip that lost its selection is skipped; an empty editor returns an empty array.
          *
-         * @returns {Array<{ t: 'text', v: string } | { t: 'ref', label: string, selection: Record<string, unknown> }>} 保序内容 token。
+         * @returns {Array<{ t: 'text', v: string } | { t: 'ref', label: string, selection: Record<string, unknown> }>} Ordered content tokens.
          */
         exportContent() {
             const tokens = [];
@@ -445,10 +466,11 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * importContent(tokens): 用 exportContent() 的 token 列表重建编辑器内容(冷恢复)。
-         * 边界：必须在 render() 之后调用;按顺序追加文本与引用 chip，保持原有先后关系;非数组或空安全降级。
+         * importContent(tokens): rebuild editor content from an exportContent() token list (cold restore).
+         * Boundary: must be called after render(); appends text and reference chips in order, preserving their original
+         * sequence; degrades safely for a non-array or empty input.
          *
-         * @param {Array<Record<string, unknown>>} tokens 由 exportContent() 导出的保序内容 token。
+         * @param {Array<Record<string, unknown>>} tokens Ordered content tokens exported by exportContent().
          * @returns {void}
          */
         importContent(tokens) {
@@ -472,8 +494,8 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * setDisabled(disabled): 忙碌(resolving/sending)时禁用编辑，避免发送中途被改。
-         * @param {boolean} disabled 是否禁用。
+         * setDisabled(disabled): disable editing while busy (resolving/sending) so content cannot change mid-send.
+         * @param {boolean} disabled Whether to disable.
          */
         setDisabled(disabled) {
             if (!editorEl)
@@ -483,8 +505,8 @@ export function createDialogEditor(options = {}) {
         },
 
         /**
-         * reset(): 清空本次弹窗的编辑器状态(文本、引用、主选择、光标缓存)。
-         * 边界：只重置内存与(若存在)DOM;新弹窗 render 后需再次 setPrimary。
+         * reset(): clear this dialog's editor state (text, references, primary, caret cache).
+         * Boundary: only resets memory and (if present) the DOM; a new dialog must setPrimary again after render.
          */
         reset() {
             primary = null;

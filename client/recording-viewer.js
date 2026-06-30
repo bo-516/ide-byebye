@@ -2,6 +2,7 @@ import { el } from './dialog-utils.js';
 import { loadRrwebReplay } from './vendor-loader.js';
 import { captureRecordingStill } from './recording-still.js';
 import { recordingDurationMs, normalizeSegments, segmentsDuration, cutSegments } from './recorder.js';
+import { t } from './i18n.js';
 
 /** Largest on-screen size for the embedded player; the recorded scope is scaled to fit inside this box. */
 const VIEWER_MAX_W = 760;
@@ -120,8 +121,8 @@ export async function openRecordingViewer(opts) {
     const header = el('div', 'cii-rv-header');
     const close = el('button', 'cii-rv-close', '×');
     close.type = 'button';
-    close.setAttribute('aria-label', '完成');
-    header.append(el('span', 'cii-rv-title', '录制编辑'), close);
+    close.setAttribute('aria-label', t('rv.close.aria'));
+    header.append(el('span', 'cii-rv-title', t('rv.title')), close);
     const stage = el('div', 'cii-recording-stage');
     frame.append(header, stage);
     lightbox.append(frame);
@@ -193,21 +194,21 @@ export async function openRecordingViewer(opts) {
     timeline.append(selEl, playheadEl);
 
     // --- segment controls (cut model: default keeps everything, drag a range and cut it out) ---
-    const hint = el('div', 'cii-rv-hint', '默认保留全部。在下方时间轴上拖选要删掉的片段，再点「剪掉选区」——被删的时间会压成一帧跳过；也可点片段上的 × 删除整段。');
+    const hint = el('div', 'cii-rv-hint', t('rv.hint'));
     const segBar = el('div', 'cii-rv-row cii-rv-segbar');
-    const cutBtn = el('button', 'cii-rv-chip-btn', '剪掉选区');
+    const cutBtn = el('button', 'cii-rv-chip-btn', t('rv.cut'));
     cutBtn.type = 'button';
     cutBtn.disabled = true;
-    const resetBtn = el('button', 'cii-rv-chip-btn', '还原全部');
+    const resetBtn = el('button', 'cii-rv-chip-btn', t('rv.reset'));
     resetBtn.type = 'button';
     const cutInfo = el('span', 'cii-rv-time', '');
     segBar.append(cutBtn, resetBtn, cutInfo);
 
     // --- actions ---
     const actions = el('div', 'cii-rv-row cii-rv-actions');
-    const stillBtn = el('button', 'cii-btn cii-btn-primary', '用此刻作为静帧');
+    const stillBtn = el('button', 'cii-btn cii-btn-primary', t('rv.useStill'));
     stillBtn.type = 'button';
-    const doneBtn = el('button', 'cii-btn cii-btn-secondary cii-rv-done', '完成');
+    const doneBtn = el('button', 'cii-btn cii-btn-secondary cii-rv-done', t('rv.done'));
     doneBtn.type = 'button';
     doneBtn.addEventListener('click', teardown);
     actions.append(stillBtn, doneBtn);
@@ -229,7 +230,7 @@ export async function openRecordingViewer(opts) {
             block.style.width = pct(seg.t1 - seg.t0);
             const remove = el('button', 'cii-rv-seg-x', '×');
             remove.type = 'button';
-            remove.title = '删除该片段';
+            remove.title = t('rv.seg.remove.title');
             remove.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
             remove.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -247,7 +248,11 @@ export async function openRecordingViewer(opts) {
     };
     const updateCutInfo = () => {
         const kept = segmentsDuration(recording.segments);
-        cutInfo.textContent = `保留 ${formatMs(kept)} / 共 ${formatMs(duration)}（${recording.segments.length} 段）`;
+        cutInfo.textContent = t('rv.kept', {
+            kept: formatMs(kept),
+            total: formatMs(duration),
+            count: recording.segments.length,
+        });
     };
 
     // --- transport behaviour (honors segments: jump-cut over gaps) ---
@@ -374,7 +379,7 @@ export async function openRecordingViewer(opts) {
     stillBtn.addEventListener('click', async () => {
         stillBtn.disabled = true;
         const original = stillBtn.textContent;
-        stillBtn.textContent = '生成中…';
+        stillBtn.textContent = t('rv.generating');
         try {
             const still = await captureRecordingStill(config, recording.events, playhead, {
                 blockClass: opts.blockClass,
@@ -383,7 +388,7 @@ export async function openRecordingViewer(opts) {
             recording.still = still;
             recording.stillAt = playhead;
             onUpdate(recording);
-            stillBtn.textContent = '已更新静帧 ✓';
+            stillBtn.textContent = t('rv.stillUpdated');
         }
         catch (err) {
             showError(err instanceof Error ? err.message : String(err));
@@ -391,7 +396,7 @@ export async function openRecordingViewer(opts) {
         }
         finally {
             stillBtn.disabled = false;
-            window.setTimeout(() => { stillBtn.textContent = '用此刻作为静帧'; }, 1500);
+            window.setTimeout(() => { stillBtn.textContent = t('rv.useStill'); }, 1500);
         }
     });
 

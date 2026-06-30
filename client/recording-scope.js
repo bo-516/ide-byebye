@@ -1,4 +1,5 @@
 import { INSP_PATH_ATTR } from '../shared/constants.js';
+import { t } from './i18n.js';
 
 /**
  * Recording scope choices, mirroring the screenshot scopes: the selected node, its parent, or the app mount root.
@@ -7,12 +8,16 @@ import { INSP_PATH_ATTR } from '../shared/constants.js';
  */
 export const RECORDING_SCOPES = ['selection', 'parent', 'root'];
 
-/** Chinese labels for the recording scope dropdown. */
-export const RECORDING_SCOPE_LABELS = {
-    selection: '选中节点',
-    parent: '父节点',
-    root: '挂载根',
-};
+/**
+ * Localized label for one recording scope.
+ * Boundary: unsupported values fall back to the selected-node label so a stale stored scope still reads sensibly.
+ * @param {'selection' | 'parent' | 'root'} scope Recording scope value.
+ * @returns {string} Human-readable scope label in the active locale.
+ */
+export function recordingScopeLabel(scope) {
+    const key = RECORDING_SCOPES.includes(scope) ? scope : 'selection';
+    return t(`recording.scope.${key}`);
+}
 
 /**
  * Normalize a possibly-stale scope value to a supported one.

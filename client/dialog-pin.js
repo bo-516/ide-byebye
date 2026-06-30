@@ -1,4 +1,5 @@
-import { el, clamp } from './dialog-utils.js';
+import { el, clamp, readJsonStore, writeJsonStore } from './dialog-utils.js';
+import { t } from './i18n.js';
 
 /** sessionStorage key for the pinned intent draft (survives SPA navigation and reload, clears on tab close). */
 const PIN_DRAFT_KEY = 'code-intent-inspector:pinned-intent';
@@ -30,7 +31,7 @@ export class DialogPin {
     constructor(parent, callbacks) {
         this.parent = parent;
         this.onRestore = typeof callbacks?.onRestore === 'function' ? callbacks.onRestore : () => {};
-        this.pos = readJson(PIN_ORB_POS_KEY, null, window.localStorage);
+        this.pos = readJsonStore(PIN_ORB_POS_KEY, null, window.localStorage);
     }
 
     /**
@@ -38,7 +39,7 @@ export class DialogPin {
      * @returns {Record<string, unknown> | null} The stored draft, or null when nothing is pinned.
      */
     readDraft() {
-        return readJson(PIN_DRAFT_KEY, null, window.sessionStorage);
+        return readJsonStore(PIN_DRAFT_KEY, null, window.sessionStorage);
     }
 
     /** Whether a pinned draft currently exists. @returns {boolean} */
@@ -105,8 +106,8 @@ export class DialogPin {
     renderOrb() {
         const orb = el('button', 'cii-pin-orb');
         orb.type = 'button';
-        orb.title = '继续编辑已固定的意图';
-        orb.setAttribute('aria-label', '继续编辑已固定的意图');
+        orb.title = t('pin.orb.title');
+        orb.setAttribute('aria-label', t('pin.orb.title'));
         orb.style.pointerEvents = 'auto';
         orb.append(el('span', 'cii-pin-orb-icon'));
         let dragging = false;
@@ -129,7 +130,7 @@ export class DialogPin {
             document.removeEventListener('mousemove', move, true);
             document.removeEventListener('mouseup', up, true);
             if (moved >= DRAG_THRESHOLD)
-                writeJson(PIN_ORB_POS_KEY, this.pos, window.localStorage);
+                writeJsonStore(PIN_ORB_POS_KEY, this.pos, window.localStorage);
         };
         orb.addEventListener('mousedown', (event) => {
             if (event.button !== 0)
@@ -169,41 +170,5 @@ export class DialogPin {
         this.orbEl.style.position = 'fixed';
         this.orbEl.style.left = `${Math.round(x)}px`;
         this.orbEl.style.top = `${Math.round(y)}px`;
-    }
-}
-
-/**
- * Read and JSON-parse a storage value, returning a fallback on any failure.
- * @param {string} key Storage key.
- * @param {unknown} fallback Value returned when missing or malformed.
- * @param {Storage} store `window.sessionStorage` or `window.localStorage`.
- * @returns {unknown} Parsed value or fallback.
- */
-function readJson(key, fallback, store) {
-    try {
-        const raw = store.getItem(key);
-        if (!raw)
-            return fallback;
-        const value = JSON.parse(raw);
-        return value ?? fallback;
-    }
-    catch {
-        return fallback;
-    }
-}
-
-/**
- * JSON-stringify and write a storage value, swallowing failures.
- * @param {string} key Storage key.
- * @param {unknown} value Serializable value.
- * @param {Storage} store `window.sessionStorage` or `window.localStorage`.
- * @returns {void}
- */
-function writeJson(key, value, store) {
-    try {
-        store.setItem(key, JSON.stringify(value));
-    }
-    catch {
-        // best-effort persistence
     }
 }

@@ -178,6 +178,7 @@ function makeClientConfig(resolved, registry, token, server) {
     return {
         token,
         routePrefix: ROUTE_PREFIX,
+        locale: resolved.locale,
         hotkey: resolved.hotkey,
         clickModifier: resolved.clickModifier,
         defaultAgent,

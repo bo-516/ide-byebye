@@ -1,5 +1,6 @@
 import { captureScreenshot } from './screenshot.js';
 import { el, loadScreenshotChoices, saveScreenshotChoices, SCREENSHOT_SCOPE_ORDER, screenshotScopeLabel, screenshotScopeTitleLabel, } from './dialog-utils.js';
+import { t } from './i18n.js';
 
 /**
  * Local screenshot controller for the intent dialog.
@@ -83,8 +84,8 @@ export class DialogScreenshotController {
         const wrapper = el('div', 'cii-screenshot-picker');
         this.button = el('button', 'cii-icon-btn');
         this.button.type = 'button';
-        this.button.title = '截图设置';
-        this.button.setAttribute('aria-label', '截图设置');
+        this.button.title = t('screenshot.settings.title');
+        this.button.setAttribute('aria-label', t('screenshot.settings.title'));
         this.button.append(el('span', 'cii-shot-icon'));
         this.button.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -93,7 +94,7 @@ export class DialogScreenshotController {
         this.menu = el('div', 'cii-screenshot-menu');
         this.menu.hidden = true;
         this.choiceButtons = new Map();
-        this.menu.append(this.renderChoice('none', '不截图'), this.renderChoice('selection', '区域截图'), this.renderChoice('parent', '父节点截图'), this.renderChoice('viewport', '全屏截图'));
+        this.menu.append(this.renderChoice('none', t('screenshot.choice.none')), this.renderChoice('selection', t('screenshot.scope.selection')), this.renderChoice('parent', t('screenshot.scope.parent')), this.renderChoice('viewport', t('screenshot.scope.viewport')));
         wrapper.append(this.button, this.menu);
         this.updatePicker();
         return wrapper;
@@ -162,7 +163,7 @@ export class DialogScreenshotController {
         if (this.choices.size === 0)
             return undefined;
         if (!this.host.selectedElement())
-            throw new Error('Selected element is no longer available');
+            throw new Error(t('screenshot.error.elementGone'));
         const scopes = SCREENSHOT_SCOPE_ORDER.filter((scope) => this.choices.has(scope));
         return Promise.all(scopes.map((scope) => this.ensureCapture(scope)));
     }
@@ -204,10 +205,12 @@ export class DialogScreenshotController {
         const hasScreenshots = this.choices.size > 0;
         this.button.classList.toggle('cii-icon-btn-active', hasScreenshots);
         this.button.title = hasScreenshots
-            ? `截图：${Array.from(this.choices)
-                .map((scope) => screenshotScopeTitleLabel(scope))
-                .join(' + ')}`
-            : '不截图';
+            ? t('screenshot.summary', {
+                list: Array.from(this.choices)
+                    .map((scope) => screenshotScopeTitleLabel(scope))
+                    .join(' + '),
+            })
+            : t('screenshot.choice.none');
         for (const [choice, button] of this.choiceButtons) {
             const active = choice === 'none' ? !hasScreenshots : this.choices.has(choice);
             button.classList.toggle('cii-choice-active', active);
@@ -293,7 +296,7 @@ export class DialogScreenshotController {
             return pending;
         const selectedElement = this.host.selectedElement();
         if (!selectedElement)
-            return Promise.reject(new Error('Selected element is no longer available'));
+            return Promise.reject(new Error(t('screenshot.error.elementGone')));
         this.pending.add(scope);
         this.renderPreviews();
         const promise = captureScreenshot(selectedElement, scope)
@@ -332,7 +335,7 @@ export class DialogScreenshotController {
             const item = el('div', 'cii-screenshot-thumb');
             item.tabIndex = 0;
             item.setAttribute('role', 'button');
-            item.setAttribute('aria-label', `预览${screenshotScopeLabel(scope)}`);
+            item.setAttribute('aria-label', t('screenshot.preview.aria', { label: screenshotScopeLabel(scope) }));
             const media = this.renderPreviewMedia(scope, item);
             const remove = this.renderRemoveButton(scope);
             item.append(media, remove);
@@ -383,7 +386,7 @@ export class DialogScreenshotController {
     renderRemoveButton(scope) {
         const remove = el('button', 'cii-thumb-remove', '×');
         remove.type = 'button';
-        remove.setAttribute('aria-label', `移除${screenshotScopeLabel(scope)}`);
+        remove.setAttribute('aria-label', t('screenshot.remove.aria', { label: screenshotScopeLabel(scope) }));
         remove.addEventListener('click', (event) => {
             event.stopPropagation();
             this.choices.delete(scope);
@@ -416,7 +419,7 @@ export class DialogScreenshotController {
         img.alt = screenshotScopeLabel(capture.scope);
         const close = el('button', 'cii-image-close', '×');
         close.type = 'button';
-        close.setAttribute('aria-label', '关闭预览');
+        close.setAttribute('aria-label', t('screenshot.lightbox.close.aria'));
         const closePreview = () => lightbox.remove();
         close.addEventListener('click', closePreview);
         lightbox.addEventListener('click', (event) => {

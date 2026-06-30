@@ -1,4 +1,5 @@
 import { PLUGIN_NODE_ATTR } from '../shared/constants.js';
+import { t } from './i18n.js';
 const MAX_RENDER_DIMENSION = 1400;
 
 /**
@@ -632,14 +633,14 @@ function svgDataUrl(node, width, height) {
 function loadImage(src) {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        const timer = window.setTimeout(() => reject(new Error('Timed out rendering image')), 10000);
+        const timer = window.setTimeout(() => reject(new Error(t('screenshot.error.renderTimeout'))), 10000);
         img.onload = () => {
             window.clearTimeout(timer);
             resolve(img);
         };
         img.onerror = () => {
             window.clearTimeout(timer);
-            reject(new Error('Failed to render screenshot image'));
+            reject(new Error(t('screenshot.error.renderFailed')));
         };
         img.src = src;
     });
@@ -682,7 +683,7 @@ export async function rasterizeNode(node, width, height, background) {
     canvas.height = Math.max(1, Math.round(height * scale));
     const ctx = canvas.getContext('2d');
     if (!ctx)
-        throw new Error('Canvas rendering is unavailable');
+        throw new Error(t('screenshot.error.canvasUnavailable'));
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.scale(scale, scale);

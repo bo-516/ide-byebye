@@ -1,4 +1,5 @@
 import { CLIENT_CONFIG_GLOBAL } from '../shared/constants.js';
+import { setLocale } from './i18n.js';
 import { createUi } from './style.js';
 import { installDialogReferenceStyle } from './dialog-reference-style.js';
 import { Overlay } from './overlay.js';
@@ -24,6 +25,8 @@ function main() {
     if (window.__CII_INSTALLED__)
         return;
     window.__CII_INSTALLED__ = true;
+    // Resolve the UI locale before any dialog copy is built (falls back to navigator language when unset).
+    setLocale(config.locale);
     const boot = () => {
         const { root } = createUi();
         installDialogReferenceStyle(root);
