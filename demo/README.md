@@ -1,97 +1,91 @@
 # ai-inspector demo
 
-一个用来测试 **code-intent-inspector** 插件的最小 Vite + React 项目。
-触发方式：**按住 ⌘（Command）点击页面上任意元素**。
+A minimal Vite + React app for testing the **code-intent-inspector** plugin.
+Trigger it by **holding ⌘ (Command) and clicking any element on the page**.
 
-## 运行
+## Run
 
-在本目录下：
+In this directory:
 
 ```sh
 pnpm install
 pnpm dev
 ```
 
-浏览器会自动打开 `http://127.0.0.1:5300`。
+The browser opens the demo automatically at `http://localhost:5300`.
 
-## 怎么测试
+## How to test
 
-1. 在页面上**按住 ⌘**，移动鼠标 —— 悬停的元素会被高亮预览。
-2. **⌘ + 点击**任意元素（标题、按钮、卡片、输入框、列表项……）。
-3. 弹出「意图」对话框，里面已带上该元素的**源码位置与上下文**。
-4. 输入你的修改意图（例如“把这个按钮改成圆角”）。
-5. 点对话框底部的 **app 按钮**：`Codex App` / `Claude App` / `Cursor`。插件会把
-   「元素源码 + 你的意图」整理成结构化 Prompt，并用 deeplink 打开对应 app、
-   预填一个新对话。按 **回车** 默认提交到 `claude-app`。
+1. **Hold ⌘** and move the mouse — the hovered element gets a highlight preview.
+2. **⌘ + click** any element (heading, button, card, input, list item…).
+3. The "intent" dialog opens, already carrying that element's **source location and context**.
+4. Type your change request (e.g. "make this button rounded").
+5. Click an **app button** at the bottom: `Codex App` / `Claude App` / `Cursor`. The plugin assembles
+   "element source + your intent" into a structured prompt and opens the matching app via deeplink with a
+   prefilled new conversation. Press **Enter** to submit to `claude-app` by default.
 
-> ⚠️ 对话框底部的按钮**固定**就是 Codex App / Claude App / Cursor 这三个
-> （客户端写死的，见 `client/dialog-utils.js` 的 `AGENT_ACTIONS`）。这三个 app agent
-> **现在默认就启用**，所以本 demo 零配置即可全部点亮。点哪个按钮，就要本机装了对应
-> app 才能真正被打开。
+> ⚠️ The dialog's footer buttons are **fixed** to Codex App / Claude App / Cursor (hard-coded on the client —
+> see `AGENT_ACTIONS` in `client/dialog-utils.js`). These three app agents are **now enabled by default**, so this
+> demo lights them all up with zero config. Whichever button you click, the matching app must be installed locally
+> to actually open.
 >
-> 改动 `vite.config.js` 后 dev server 会自动重启，**记得刷新浏览器页面**再测。
+> After editing `vite.config.js` the dev server restarts automatically — **remember to refresh the browser page**.
 
-> 另一种触发方式：直接按快捷键 `Alt+Shift+I` 进入/退出拾取模式，再普通点击元素。
+> Alternative trigger: press the hotkey `Alt+Shift+I` to enter/exit pick mode, then click elements normally.
 
-## 关键配置（见 `vite.config.js`）
+## Key config (see `vite.config.js`)
 
 ```js
-// 编译期注入 data-insp-path（源码定位），关掉它自己的点击行为避免冲突
-codeInspectorPlugin({
-  bundler: 'vite',
-  pathType: 'absolute',
-  hotKeys: ['altKey'],
-  behavior: { locate: false, copy: false, defaultAction: 'target' },
-}),
-
-// 本插件：现在零配置即可。默认行为就是 demo 想要的全部：
-// - 录屏（rrweb）默认开
-// - clipboard / file + 三个 app agent（codex / claude / cursor）全部默认启用
-// - 回车默认提交到 claude-app
+// Zero config. The plugin registers code-inspector-plugin internally (it injects the data-insp-path source
+// location), so you don't add it yourself. The defaults are exactly what this demo wants:
+// - ⌘/Ctrl-click to pick (clickModifier defaults to 'auto')
+// - recording (rrweb) on
+// - clipboard / file + all three app agents (codex / claude / cursor) enabled
+// - Enter submits to claude-app
 codeIntentInspectorPlugin(),
 ```
 
-零配置已经够用，所以本 demo 不再传任何 options。如果你想体验覆盖写法，可以按需加上，例如：
+Zero config is enough, so this demo passes no options. If you want to try the override form, add them as needed:
 
 ```js
 codeIntentInspectorPlugin({
-  clickModifier: 'meta',                 // ⌘ 触发；也可写 'command' / 'cmd'
-  defaultAgent: 'codex-app',             // 改掉回车默认目标（默认是 'claude-app'）
+  clickModifier: 'meta',                 // ⌘ to trigger; 'command' / 'cmd' also work
+  defaultAgent: 'codex-app',             // change the Enter-key target (defaults to 'claude-app')
   agents: {
-    cursorApp: { workspace: 'demo' },    // 仍启用 Cursor，但按 workspace 名路由
-    codexApp: false,                     // 关掉某个 app agent
+    cursorApp: { workspace: 'demo' },    // keep Cursor enabled but route by workspace name
+    codexApp: false,                     // disable an app agent you don't want
   },
-  recording: false,                      // 关掉录屏
+  recording: false,                      // turn recording off
 }),
 ```
 
-- `clickModifier`：触发修饰键。`'meta'` = ⌘，`'alt'` = Option，`'control'` = Ctrl，`'shift'` = Shift。不传时只能用快捷键 `Alt+Shift+I` 进入拾取模式。
-- `defaultAgent`：按回车时提交的目标，**必须是底部三个 app agent 之一**，默认 `'claude-app'`。
+- `clickModifier`: the hold-to-pick modifier, defaults to `'auto'` (⌘ on macOS, Ctrl elsewhere). Pass
+  `'meta'`/`'control'`/`'alt'`/`'shift'` to force one, or `null`/`false` to disable click-picking (the
+  `Alt+Shift+I` hotkey still works).
+- `defaultAgent`: the Enter-key target, **must be one of the three footer app agents**, defaults to `'claude-app'`.
 
-## agent 说明
+## Agents
 
-- **对话框底部按钮固定 = `codex-app` / `claude-app` / `cursor-app`**，且这三个 app agent
-  **现在默认全部启用**。三者都只依赖 macOS 的 `open` 命令打开 `codex://` / `claude://` /
-  `cursor://` deeplink，**无需安装额外 npm 依赖**，但需要本机装了对应 app 才能真正响应。
-  要关掉某个，用 `agents.<name>: false`。
-- `clipboard` / `file` 默认也启用，但**没有对话框按钮入口**，属于后端 agent
-  （`file` 会把请求写到 `.intent-inspector/`）。要关掉用 `agents.clipboard: false` /
-  `agents.file: false`。
-- `cursorApp.workspace`：按 Cursor 里显示的 workspace 名路由，若与文件夹名不同请修改。
-- `claudeApp` / `codexApp` 还支持 `projectRoot`、`folders` 等选项，详见仓库根目录
-  `../README.md`。
+- **The footer buttons are fixed to `codex-app` / `claude-app` / `cursor-app`**, and these three app agents are
+  **now enabled by default**. All three rely only on the macOS `open` command to launch `codex://` / `claude://` /
+  `cursor://` deeplinks, so they need **no extra npm dependencies**, but the matching app must be installed to
+  respond. Disable one with `agents.<name>: false`.
+- `clipboard` / `file` are also enabled by default but have **no footer button** — they are backend agents
+  (`file` writes the request into `.intent-inspector/`). Disable them with `agents.clipboard: false` /
+  `agents.file: false`.
+- `cursorApp.workspace`: routes by the workspace name shown in Cursor; change it if it differs from the folder name.
+- `claudeApp` / `codexApp` also support `projectRoot`, `folders`, and more — see the repo root `../README.md`.
 
-## 它是怎么接上的
+## How it's wired
 
-本 demo 直接相对 import 了插件源码（方便边改插件边测）：
+This demo imports the plugin source directly (so you can edit the plugin and test in place):
 
 ```js
 import codeIntentInspectorPlugin from '../index.js';
 ```
 
-在你自己的真实项目里，应改为在仓库根运行 `npm run build` 后，把
-`dist/code-intent-inspector.js` 单文件复制进项目再 import。
+In a real project, run `npm run build` at the repo root and copy the single-file
+`dist/code-intent-inspector.js` into your project, then import that instead.
 
-另外 `server.host` 显式设为 `'127.0.0.1'`：插件内部把浏览器请求固定指向
-`127.0.0.1`，而 vite 默认 `host: localhost` 在不少系统会走 IPv6(`::1`)，
-不对齐会导致插件客户端连不上、UI 不加载。
+The inspector runs on its own loopback server and the page reaches it cross-origin (CORS + a per-process token
+handle that), so the demo no longer needs a special `server.host` binding.

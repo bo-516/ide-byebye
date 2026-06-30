@@ -80,34 +80,16 @@ Disable it with `recording: false` if you don't want it.
 // vite.config.js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { codeInspectorPlugin } from 'code-inspector-plugin';
 import ideByebye from 'ide-byebye';
 
 export default defineConfig({
   plugins: [
-    // 1) code-inspector-plugin MUST run before @vitejs/plugin-react so it can
-    //    inject data-insp-path onto every element before the JSX transform.
-    //    Turn off its own jump/copy hotkeys to avoid clashing with this plugin.
-    codeInspectorPlugin({
-      bundler: 'vite',
-      pathType: 'absolute',
-      hotKeys: ['altKey'],
-      behavior: { locate: false, copy: false, defaultAction: 'target' },
-    }),
-
+    // Zero config. ide-byebye registers code-inspector-plugin internally (it injects the data-insp-path attribute
+    // before the JSX transform — you don't add it yourself). Out of the box: ⌘/Ctrl-click to pick an element, all
+    // three app agents + clipboard + file enabled, recording on, and Enter submits to Claude App.
+    ideByebye(),
     react(),
-
-    // 2) ide-byebye: the intent picker + app handoff.
-    //    Zero config works out of the box: all three app agents + clipboard +
-    //    file are enabled, recording is on, and Enter submits to Claude App.
-    ideByebye({
-      clickModifier: 'meta', // ⌘ + click to pick an element (macOS)
-    }),
   ],
-  server: {
-    // Bind IPv4 so it matches the http://127.0.0.1 origin the plugin uses.
-    host: '127.0.0.1',
-  },
 });
 ```
 
@@ -167,7 +149,7 @@ optional values fall back to the documented default.
 | `enabled` | `boolean` | `true` | Master on/off switch. Only `false` disables. |
 | `locale` | `'zh' \| 'en'` | auto | UI language. Anything starting with `zh` → Chinese, any other value → English. Unset auto-detects: `config.locale` → `navigator.language` → `zh`. (Only UI copy is localized; prompts and brand names are not.) |
 | `hotkey` | `string` | `'Alt+Shift+I'` | Combo that toggles picker mode. `+`-joined, case-insensitive. Modifiers: `alt`/`option`, `shift`, `ctrl`/`control`, `meta`/`cmd`/`command`. The last non-modifier token is the key, e.g. `'Meta+Shift+K'`. |
-| `clickModifier` | `string \| null` | `null` | Hold-to-pick modifier for a normal click (`'meta'`, `'ctrl'`, `'alt'`, `'shift'`). `null` disables click-to-pick (hotkey still works). |
+| `clickModifier` | `string \| null` | `'auto'` | Hold-to-pick modifier for a normal click. `'auto'` resolves per-platform (⌘ on macOS, Ctrl elsewhere); pass `'meta'`/`'ctrl'`/`'alt'`/`'shift'` to force one, or `null`/`false` to disable click-to-pick (the hotkey still works). |
 | `defaultAgent` | `string` | `'claude-app'` | Target for the Enter key. **Must be one of `'codex-app'` / `'claude-app'` / `'cursor-app'`** — those are the only agents with footer buttons, so a `clipboard`/`file` value falls back to the first enabled app agent. |
 | `applyMode` | `'prompt-only' \| 'agent-edit'` | `'prompt-only'` | Hint recorded with the request: propose a plan vs. allow edits. |
 | `outputDir` | `string` | `'.intent-inspector'` | Project-relative dir where the `file` agent and file-mode handoffs write. Must stay inside the project root. |
