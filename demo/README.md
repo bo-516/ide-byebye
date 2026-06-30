@@ -25,9 +25,9 @@ pnpm dev
    预填一个新对话。按 **回车** 默认提交到 `claude-app`。
 
 > ⚠️ 对话框底部的按钮**固定**就是 Codex App / Claude App / Cursor 这三个
-> （客户端写死的，见 `client/dialog-utils.js` 的 `AGENT_ACTIONS`）。要让按钮可用，
-> 必须在 `vite.config.js` 里启用对应 agent（本 demo 已三个全开），否则点击会提示
-> `… is not enabled.`。点哪个按钮，就要本机装了对应 app 才能真正被打开。
+> （客户端写死的，见 `client/dialog-utils.js` 的 `AGENT_ACTIONS`）。这三个 app agent
+> **现在默认就启用**，所以本 demo 零配置即可全部点亮。点哪个按钮，就要本机装了对应
+> app 才能真正被打开。
 >
 > 改动 `vite.config.js` 后 dev server 会自动重启，**记得刷新浏览器页面**再测。
 
@@ -44,31 +44,42 @@ codeInspectorPlugin({
   behavior: { locate: false, copy: false, defaultAction: 'target' },
 }),
 
-// 本插件：⌘ + 点击 触发
+// 本插件：现在零配置即可。默认行为就是 demo 想要的全部：
+// - 录屏（rrweb）默认开
+// - clipboard / file + 三个 app agent（codex / claude / cursor）全部默认启用
+// - 回车默认提交到 claude-app
+codeIntentInspectorPlugin(),
+```
+
+零配置已经够用，所以本 demo 不再传任何 options。如果你想体验覆盖写法，可以按需加上，例如：
+
+```js
 codeIntentInspectorPlugin({
-  defaultAgent: 'claude-app',     // 回车提交的默认目标
-  clickModifier: 'meta',          // ⌘；也可写 'command' / 'cmd'
+  clickModifier: 'meta',                 // ⌘ 触发；也可写 'command' / 'cmd'
+  defaultAgent: 'codex-app',             // 改掉回车默认目标（默认是 'claude-app'）
   agents: {
-    claudeApp: true,                              // 打开 Claude
-    codexApp: { enabled: true },                  // 打开 Codex App
-    cursorApp: { enabled: true, workspace: 'demo' }, // 打开 Cursor（按 workspace 名路由）
+    cursorApp: { workspace: 'demo' },    // 仍启用 Cursor，但按 workspace 名路由
+    codexApp: false,                     // 关掉某个 app agent
   },
+  recording: false,                      // 关掉录屏
 }),
 ```
 
-- `clickModifier`：触发修饰键。`'meta'` = ⌘，`'alt'` = Option，`'control'` = Ctrl，`'shift'` = Shift。
-- `defaultAgent`：按回车时提交的目标，必须是底部三个 app agent 之一。
+- `clickModifier`：触发修饰键。`'meta'` = ⌘，`'alt'` = Option，`'control'` = Ctrl，`'shift'` = Shift。不传时只能用快捷键 `Alt+Shift+I` 进入拾取模式。
+- `defaultAgent`：按回车时提交的目标，**必须是底部三个 app agent 之一**，默认 `'claude-app'`。
 
 ## agent 说明
 
-- **对话框底部按钮固定 = `codex-app` / `claude-app` / `cursor-app`**。三者都只依赖
-  macOS 的 `open` 命令打开 `codex://` / `claude://` / `cursor://` deeplink，**无需安装额外
-  npm 依赖**，但需要本机装了对应 app 才能真正响应。
+- **对话框底部按钮固定 = `codex-app` / `claude-app` / `cursor-app`**，且这三个 app agent
+  **现在默认全部启用**。三者都只依赖 macOS 的 `open` 命令打开 `codex://` / `claude://` /
+  `cursor://` deeplink，**无需安装额外 npm 依赖**，但需要本机装了对应 app 才能真正响应。
+  要关掉某个，用 `agents.<name>: false`。
 - `clipboard` / `file` 默认也启用，但**没有对话框按钮入口**，属于后端 agent
-  （`file` 会把请求写到 `.intent-inspector/`）。
+  （`file` 会把请求写到 `.intent-inspector/`）。要关掉用 `agents.clipboard: false` /
+  `agents.file: false`。
 - `cursorApp.workspace`：按 Cursor 里显示的 workspace 名路由，若与文件夹名不同请修改。
 - `claudeApp` / `codexApp` 还支持 `projectRoot`、`folders` 等选项，详见仓库根目录
-  `../README.md`。Codex 网页 dock / Codex SDK 等需要额外安装依赖。
+  `../README.md`。
 
 ## 它是怎么接上的
 
