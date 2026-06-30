@@ -46,6 +46,21 @@ const OPTIONAL_AGENT_EXTERNALS = [
 ];
 
 /**
+ * Bundler-integration packages that must stay external to the single-file plugin.
+ *
+ * Boundary: `unplugin` and `code-inspector-plugin` are the multi-bundler runtime deps. `code-inspector-plugin` resolves
+ * its own per-bundler sub-packages through dynamic requires, so inlining it into one file is fragile and huge. Keeping
+ * them external means the single-file artifact still needs them installed (`npm i unplugin code-inspector-plugin`),
+ * which npm consumers already get as declared dependencies.
+ *
+ * @type {string[]} Package names kept as external imports in the single-file Node bundle.
+ */
+const BUNDLER_RUNTIME_EXTERNALS = [
+    'unplugin',
+    'code-inspector-plugin',
+];
+
+/**
  * Remove a generated file when it exists.
  *
  * Boundary: this helper only unlinks the exact file path passed to it. Passing a directory or an unrelated path will
@@ -134,7 +149,7 @@ async function buildPluginBundle(entry) {
             comments: false,
         },
         platform: 'node',
-        external: OPTIONAL_AGENT_EXTERNALS,
+        external: [...OPTIONAL_AGENT_EXTERNALS, ...BUNDLER_RUNTIME_EXTERNALS],
     });
 }
 

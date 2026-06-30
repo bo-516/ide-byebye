@@ -7,6 +7,7 @@ import { Dialog } from '../dialog/dialog.js';
 import { createApi } from '../lib/api.js';
 import { PickerController } from '../inspect/picker.js';
 import { matchHotkey, parseHotkey } from './hotkey.js';
+import { resolveClickModifier } from './click-modifier.js';
 /**
  * Start the browser-side inspector runtime from the injected page config.
  * Purpose: creates the isolated UI root, installs supplemental dialog/dock styles, and wires picker, dialog, dock, and
@@ -36,7 +37,9 @@ function main() {
         dialog.restorePinnedIfAny();
         const picker = new PickerController(config, overlay, dialog);
         const hotkey = parseHotkey(config.hotkey);
-        const clickModifier = config.clickModifier;
+        // Expand the 'auto' default to the platform modifier here, where the real OS is known (⌘ on macOS, Ctrl else).
+        const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+        const clickModifier = resolveClickModifier(config.clickModifier, platform);
         window.addEventListener('keydown', (e) => {
             if (matchHotkey(e, hotkey)) {
                 e.preventDefault();
