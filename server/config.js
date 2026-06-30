@@ -1,4 +1,5 @@
 import { DEFAULT_HOTKEY, DEFAULT_MAX_HTML_SNIPPET, DEFAULT_MAX_SOURCE_CONTEXT_LINES, DEFAULT_OUTPUT_DIR, } from '../shared/constants.js';
+import { normalizeLocale } from '../shared/locale.js';
 
 /**
  * Normalizes an optional inspector API origin.
@@ -74,6 +75,7 @@ function normalizeRecordingConfig(value) {
 export function resolveOptions(options) {
     return {
         enabled: options.enabled ?? true,
+        locale: normalizeLocale(options.locale),
         hotkey: options.hotkey ?? DEFAULT_HOTKEY,
         clickModifier: options.clickModifier ?? null,
         defaultAgent: options.defaultAgent ?? 'clipboard',

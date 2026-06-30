@@ -1,4 +1,5 @@
 import { ENDPOINTS } from '../shared/constants.js';
+import { t } from './i18n.js';
 
 /**
  * Cached module promises so each rrweb bundle is fetched/parsed at most once per page.
@@ -29,7 +30,7 @@ function vendorUrl(config, name) {
  * Lazily import the `@rrweb/record` ESM bundle from the inspector vendor route.
  *
  * Boundary: only call this when recording is enabled and actually used; it triggers a network import of a ~160KB module
- * the first time. Rejects with a human-readable error (in Chinese) when the host project has not installed rrweb so the
+ * the first time. Rejects with a localized, human-readable error when the host project has not installed rrweb so the
  * dialog can surface it. Returns the module namespace whose `record` export starts a recording.
  *
  * @param {Record<string, unknown>} config Browser config injected by the plugin.
@@ -39,7 +40,7 @@ export function loadRrwebRecord(config) {
     if (!recordPromise) {
         recordPromise = import(/* @vite-ignore */ vendorUrl(config, 'record')).catch((err) => {
             recordPromise = null;
-            throw new Error(`无法加载录制库 @rrweb/record：${err instanceof Error ? err.message : String(err)}。请先在项目中安装：npm i @rrweb/record`);
+            throw new Error(t('vendor.record.loadFail', { detail: err instanceof Error ? err.message : String(err) }));
         });
     }
     return recordPromise;
@@ -59,7 +60,7 @@ export function loadRrwebReplay(config) {
     if (!replayPromise) {
         replayPromise = import(/* @vite-ignore */ vendorUrl(config, 'replay')).catch((err) => {
             replayPromise = null;
-            throw new Error(`无法加载回放库 @rrweb/replay：${err instanceof Error ? err.message : String(err)}。请先在项目中安装：npm i @rrweb/replay`);
+            throw new Error(t('vendor.replay.loadFail', { detail: err instanceof Error ? err.message : String(err) }));
         });
     }
     return replayPromise;

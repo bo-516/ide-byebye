@@ -1,5 +1,6 @@
 import { buildPromptReferenceLines } from '../prompt.js';
 import { buildPromptMarkdownReferenceLines } from '../prompt-markdown.js';
+import { buildStyleContextLines } from '../styles.js';
 
 /**
  * Build Codex App prompt parts while de-duplicating inline code references.
@@ -47,7 +48,9 @@ function codexAppPromptParts(request) {
  */
 export function buildCodexAppPrompt(request) {
     const { refs, intent } = codexAppPromptParts(request);
-    return [...refs, ...(refs.length ? [''] : []), intent].join('\n').trim() + '\n';
+    const styleLines = buildStyleContextLines(request);
+    const top = refs.length && styleLines.length ? [...refs, '', ...styleLines] : [...refs, ...styleLines];
+    return [...top, ...(top.length ? [''] : []), intent].join('\n').trim() + '\n';
 }
 
 /**
@@ -62,6 +65,8 @@ export function buildCodexAppPrompt(request) {
  * @returns {string} Codex App handoff prompt ending with a newline.
  */
 export function buildCodexAppFilePrompt(request, promptPath) {
+    // The full request context (including any captured styles) is written to the handoff file, so this short prompt
+    // stays compact and does not inline the style block.
     const { refs, intent } = codexAppPromptParts(request);
     return [...refs, promptPath, '', intent].join('\n').trim() + '\n';
 }

@@ -1,6 +1,7 @@
 import { PLUGIN_NODE_ATTR } from '../shared/constants.js';
 import { loadRrwebReplay } from './vendor-loader.js';
 import { rasterizeNode } from './screenshot.js';
+import { t } from './i18n.js';
 
 /** rrweb `EventType.Meta` numeric tag; carries the recorded viewport size. */
 const RRWEB_META_EVENT = 4;
@@ -150,7 +151,7 @@ function buildReplayWrapper(doc, node, width, height) {
  */
 export async function captureRecordingStill(config, events, tOffsetMs, options = {}) {
     if (!Array.isArray(events) || events.length === 0) {
-        throw new Error('录制内容为空，无法生成静帧');
+        throw new Error(t('recording.still.empty'));
     }
     const { Replayer } = await loadRrwebReplay(config);
     const host = document.createElement('div');
@@ -183,7 +184,7 @@ export async function captureRecordingStill(config, events, tOffsetMs, options =
         await twoFrames();
         const doc = iframe?.contentDocument;
         if (!doc || !doc.body) {
-            throw new Error('回放重建失败：replay iframe 文档不可用');
+            throw new Error(t('recording.still.replayUnavailable'));
         }
         const node = findScopeNode(doc, options.scopeSelector);
         let width = viewport.width;

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { buildStyleContextLines } from './styles.js';
 
 /**
  * Convert an absolute project file path into a POSIX-style path relative to the project root.
@@ -156,5 +157,7 @@ export function filterInlineReferenceLines(refs, intent) {
 export function buildPrompt(request) {
     const intent = String(request.intent ?? '').trim();
     const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
-    return [...refs, ...(refs.length ? [''] : []), intent].join('\n').trim() + '\n';
+    const styleLines = buildStyleContextLines(request);
+    const top = refs.length && styleLines.length ? [...refs, '', ...styleLines] : [...refs, ...styleLines];
+    return [...top, ...(top.length ? [''] : []), intent].join('\n').trim() + '\n';
 }

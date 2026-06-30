@@ -1,5 +1,6 @@
 import { DialogReferencePicker } from './dialog-reference-picker.js';
 import { el, sourceReferenceLabel } from './dialog-utils.js';
+import { t } from './i18n.js';
 
 /**
  * Coordinates picking extra `@code` references for the dialog mention editor.
@@ -58,8 +59,8 @@ export class DialogReferenceController {
     renderButton() {
         this.button = el('button', 'cii-icon-btn cii-reference-btn');
         this.button.type = 'button';
-        this.button.title = '添加代码引用';
-        this.button.setAttribute('aria-label', '添加代码引用');
+        this.button.title = t('reference.add.title');
+        this.button.setAttribute('aria-label', t('reference.add.title'));
         this.button.append(el('span', 'cii-code-ref-icon'));
         this.button.addEventListener('click', (event) => {
             event.stopPropagation();

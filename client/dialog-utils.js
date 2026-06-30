@@ -1,7 +1,11 @@
 import { basename, parseInspPathLite } from './dom.js';
+import { t } from './i18n.js';
+import { validStyleKeys } from './style-keys.js';
 
 export const SCREENSHOT_PREF_KEY = 'code-intent-inspector:screenshot-scopes';
 export const LAST_AGENT_PREF_KEY = 'code-intent-inspector:last-app-agent';
+export const STYLE_KEYS_PREF_KEY = 'code-intent-inspector:style-keys';
+export const STYLE_SCOPE_PREF_KEY = 'code-intent-inspector:style-scope';
 
 /**
  * Screenshot scopes in render and persistence order.
@@ -10,26 +14,6 @@ export const LAST_AGENT_PREF_KEY = 'code-intent-inspector:last-app-agent';
  */
 export const SCREENSHOT_SCOPE_ORDER = ['selection', 'parent', 'viewport'];
 
-/**
- * Full Chinese labels for screenshot scopes.
- * Boundary: keys must cover every value in `SCREENSHOT_SCOPE_ORDER`; missing keys make previews fall back to viewport.
- */
-const SCREENSHOT_SCOPE_LABELS = {
-    selection: '区域截图',
-    parent: '父节点截图',
-    viewport: '全屏截图',
-};
-
-/**
- * Compact Chinese labels for screenshot picker titles.
- * Boundary: keys must cover every value in `SCREENSHOT_SCOPE_ORDER`; missing keys make active titles fall back to full
- * viewport wording.
- */
-const SCREENSHOT_SCOPE_TITLE_LABELS = {
-    selection: '区域',
-    parent: '父节点',
-    viewport: '全屏',
-};
 /**
  * Human-readable labels for app agents surfaced in errors and result messages.
  *
@@ -47,25 +31,26 @@ export const AGENT_LABELS = {
  * App-agent actions displayed in the dialog footer.
  *
  * Boundary: this list is UI-only; availability still comes from the server registry. Adding an action without a
- * matching registered adapter shows an unavailable button instead of sending to a missing route.
+ * matching registered adapter shows an unavailable button instead of sending to a missing route. `titleKey` is resolved
+ * to a localized title at call time by `configuredActions()`, so the tooltip follows the active locale.
  *
- * @type {Array<{ name: string, label: string, title: string }>} Ordered footer app actions.
+ * @type {Array<{ name: string, label: string, titleKey: string }>} Ordered footer app actions.
  */
 export const AGENT_ACTIONS = [
     {
         name: 'codex-app',
         label: 'Codex App',
-        title: 'Open Codex App with this UI change intent prefilled.',
+        titleKey: 'agent.codexApp.title',
     },
     {
         name: 'claude-app',
         label: 'Claude App',
-        title: 'Open Claude App with this UI change intent prefilled.',
+        titleKey: 'agent.claudeApp.title',
     },
     {
         name: 'cursor-app',
         label: 'Cursor',
-        title: 'Open Cursor with this UI change intent prefilled.',
+        titleKey: 'agent.cursorApp.title',
     },
 ];
 
@@ -98,7 +83,53 @@ export function el(tag, className, text) {
  * @returns {Array<{ name: string, label: string, title: string }>} Ordered footer app actions.
  */
 export function configuredActions() {
-    return AGENT_ACTIONS;
+    return AGENT_ACTIONS.map((action) => ({
+        name: action.name,
+        label: action.label,
+        title: t(action.titleKey),
+    }));
+}
+
+/**
+ * Read and JSON-parse a stored preference, returning a fallback on any failure.
+ *
+ * Boundary: the single choke point for best-effort preference reads. Missing, unparsable, or storage-blocked values all
+ * collapse to `fallback`, so private browsing / quota errors never throw into the dialog. Callers own value-shape
+ * validation (e.g. array/enum checks) on the returned value.
+ *
+ * @param {string} key Storage key.
+ * @param {unknown} fallback Value returned when missing or malformed.
+ * @param {Storage} [store] Storage area; defaults to `window.localStorage`.
+ * @returns {unknown} Parsed value or fallback.
+ */
+export function readJsonStore(key, fallback, store = window.localStorage) {
+    try {
+        const raw = store.getItem(key);
+        if (!raw)
+            return fallback;
+        const value = JSON.parse(raw);
+        return value ?? fallback;
+    }
+    catch {
+        return fallback;
+    }
+}
+
+/**
+ * JSON-stringify and write a stored preference, swallowing failures.
+ *
+ * @param {string} key Storage key.
+ * @param {unknown} value Serializable value.
+ * @param {Storage} [store] Storage area; defaults to `window.localStorage`.
+ * @returns {void}
+ */
+export function writeJsonStore(key, value, store = window.localStorage) {
+    try {
+        store.setItem(key, JSON.stringify(value));
+    }
+    catch {
+        // Preference persistence is best effort.
+    }
 }
 
 /**
@@ -110,18 +141,10 @@ export function configuredActions() {
  * @returns {Set<string>} Valid screenshot scopes selected by the user.
  */
 export function loadScreenshotChoices() {
-    try {
-        const raw = window.localStorage.getItem(SCREENSHOT_PREF_KEY);
-        if (!raw)
-            return new Set();
-        const value = JSON.parse(raw);
-        if (!Array.isArray(value))
-            return new Set();
-        return new Set(value.filter((scope) => SCREENSHOT_SCOPE_ORDER.includes(scope)));
-    }
-    catch {
+    const value = readJsonStore(SCREENSHOT_PREF_KEY, null);
+    if (!Array.isArray(value))
         return new Set();
-    }
+    return new Set(value.filter((scope) => SCREENSHOT_SCOPE_ORDER.includes(scope)));
 }
 
 /**
@@ -134,12 +157,7 @@ export function loadScreenshotChoices() {
  * @returns {void}
  */
 export function saveScreenshotChoices(choices) {
-    try {
-        window.localStorage.setItem(SCREENSHOT_PREF_KEY, JSON.stringify(SCREENSHOT_SCOPE_ORDER.filter((scope) => choices.has(scope))));
-    }
-    catch {
-        // Preference persistence is best effort; the picker still works without it.
-    }
+    writeJsonStore(SCREENSHOT_PREF_KEY, SCREENSHOT_SCOPE_ORDER.filter((scope) => choices.has(scope)));
 }
 
 /**
@@ -223,7 +241,7 @@ export function clamp(value, min, max) {
 }
 
 /**
- * Convert a screenshot scope into the Chinese label used in previews.
+ * Convert a screenshot scope into the localized label used in previews.
  *
  * Boundary: unknown scopes are treated as viewport screenshots so stale stored choices still get a stable label.
  *
@@ -231,20 +249,83 @@ export function clamp(value, min, max) {
  * @returns {string} Human-readable label.
  */
 export function screenshotScopeLabel(scope) {
-    return SCREENSHOT_SCOPE_LABELS[scope] ?? SCREENSHOT_SCOPE_LABELS.viewport;
+    const key = SCREENSHOT_SCOPE_ORDER.includes(scope) ? scope : 'viewport';
+    return t(`screenshot.scope.${key}`);
 }
 
 /**
- * Convert a screenshot scope into the compact Chinese label used in the picker title.
+ * Convert a screenshot scope into the compact localized label used in the picker title.
  *
  * Boundary: unknown scopes are treated as viewport screenshots; callers should still validate persisted choices through
  * `SCREENSHOT_SCOPE_ORDER` before using them.
  *
  * @param {string} scope Screenshot scope value.
- * @returns {string} Compact title label without the `截图` suffix.
+ * @returns {string} Compact title label without the screenshot suffix.
  */
 export function screenshotScopeTitleLabel(scope) {
-    return SCREENSHOT_SCOPE_TITLE_LABELS[scope] ?? SCREENSHOT_SCOPE_TITLE_LABELS.viewport;
+    const key = SCREENSHOT_SCOPE_ORDER.includes(scope) ? scope : 'viewport';
+    return t(`screenshot.scopeTitle.${key}`);
+}
+
+/**
+ * Load persisted style-capture property choices from localStorage.
+ *
+ * Boundary: style capture is opt-in, so an absent preference returns an empty set (no styles are attached until the user
+ * picks properties or applies the common defaults from the panel). Malformed or stale values are filtered against the
+ * curated catalog.
+ *
+ * @returns {Set<string>} Selected computed-style property names.
+ */
+export function loadStyleChoices() {
+    const value = readJsonStore(STYLE_KEYS_PREF_KEY, null);
+    if (!Array.isArray(value))
+        return new Set();
+    return new Set(validStyleKeys(value));
+}
+
+/**
+ * Persist style-capture property choices as a best-effort preference.
+ *
+ * Boundary: storage failures are swallowed so private browsing or quota issues do not block the dialog. Only catalog
+ * properties are written so unsupported values cannot leak into storage.
+ *
+ * @param {Set<string>} choices Selected property set from the current dialog.
+ * @returns {void}
+ */
+export function saveStyleChoices(choices) {
+    writeJsonStore(STYLE_KEYS_PREF_KEY, validStyleKeys(choices));
+}
+
+/**
+ * Load the persisted style-capture scope.
+ *
+ * Boundary: only `self` and `ancestors` are valid; any other stored value falls back to `self` so a stale preference
+ * cannot widen the capture unexpectedly.
+ *
+ * @returns {'self' | 'ancestors'} Persisted scope, defaulting to `self`.
+ */
+export function loadStyleScope() {
+    try {
+        return window.localStorage.getItem(STYLE_SCOPE_PREF_KEY) === 'ancestors' ? 'ancestors' : 'self';
+    }
+    catch {
+        return 'self';
+    }
+}
+
+/**
+ * Persist the style-capture scope as a best-effort preference.
+ *
+ * @param {'self' | 'ancestors'} scope Scope chosen in the current dialog.
+ * @returns {void}
+ */
+export function saveStyleScope(scope) {
+    try {
+        window.localStorage.setItem(STYLE_SCOPE_PREF_KEY, scope === 'ancestors' ? 'ancestors' : 'self');
+    }
+    catch {
+        // Preference persistence is best effort.
+    }
 }
 
 /**
@@ -261,7 +342,7 @@ export function screenshotScopeTitleLabel(scope) {
 export function sourceReferenceLabel(selection, index) {
     const parsed = parseInspPathLite(selection?.inspPath ?? '');
     if (!parsed.file)
-        return `代码 ${index + 1}`;
+        return t('reference.codeFallback', { n: index + 1 });
     const line = parsed.line != null ? ` #${parsed.line}` : '';
     return `@${basename(parsed.file)}${line}`;
 }

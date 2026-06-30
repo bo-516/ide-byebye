@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { parseInspPath } from './insp-path.js';
 import { assertPathInsideRoot } from './security.js';
 import { extractSourceContext } from './source-context.js';
+import { normalizeStyles } from './styles.js';
 /**
  * Resolve one browser selection into a validated source selection and context.
  *
@@ -94,6 +95,7 @@ export function buildIntentRequest(payload, resolved, projectRoot, options) {
         selection: resolved.selection,
         source: resolved.source,
         references: resolved.references ?? [],
+        styles: normalizeStyles(payload.styles),
     };
 }
 

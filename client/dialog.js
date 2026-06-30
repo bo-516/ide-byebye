@@ -2,11 +2,11 @@ import { INSP_PATH_ATTR } from '../shared/constants.js';
 import { DialogReferenceController } from './dialog-references.js';
 import { DialogScreenshotController } from './dialog-screenshots.js';
 import { DialogRecordingController } from './dialog-recordings.js';
+import { DialogStyleController } from './dialog-style.js';
 import { DialogPin } from './dialog-pin.js';
 import { createDialogEditor } from './dialog-editor.js';
 import { AGENT_LABELS, anchorFromElement, clamp, configuredActions, el, loadLastAgent, saveLastAgent, sourceReferenceLabel, } from './dialog-utils.js';
-
-const INTENT_PLACEHOLDER = '例如：把这个按钮改成主按钮，并加 loading 状态';
+import { t } from './i18n.js';
 export class Dialog {
     parent;
     config;
@@ -14,6 +14,7 @@ export class Dialog {
     references;
     screenshots;
     recordings;
+    styles;
     pin;
     backdrop = null;
     pinnedNode = null;
@@ -58,7 +59,7 @@ export class Dialog {
         this.api = api;
         this.lastAgent = loadLastAgent(config);
         this.editor = createDialogEditor({
-            placeholder: INTENT_PLACEHOLDER,
+            placeholder: t('intent.placeholder'),
             onChange: () => {
                 if (this.dialogEl)
                     this.positionDialog(this.dialogEl, this.anchor);
@@ -111,6 +112,13 @@ export class Dialog {
                     this.positionDialog(this.dialogEl, this.anchor);
             },
         });
+        this.styles = new DialogStyleController({
+            selectedElement: () => this.selectedElement,
+            onChange: () => {
+                if (this.dialogEl)
+                    this.positionDialog(this.dialogEl, this.anchor);
+            },
+        });
         this.pin = new DialogPin(parent, { onRestore: () => this.handleOrbRestore() });
     }
     isOpen() {
@@ -137,6 +145,7 @@ export class Dialog {
         this.screenshots.reset();
         this.recordings.reset();
         this.references.reset();
+        this.styles.reset();
         this.editor.reset();
         this.lastAgent = loadLastAgent(this.config);
         this.enableFocusGuard();
@@ -159,6 +168,7 @@ export class Dialog {
         if (!this.backdrop)
             return;
         this.references.clear();
+        this.styles.clear();
         this.disableFocusGuard();
         this.setHostInteractive(false);
         this.parent.removeChild(this.backdrop);
@@ -192,14 +202,14 @@ export class Dialog {
         const header = el('div', 'cii-header');
         const pinBtn = el('button', 'cii-pin-btn');
         pinBtn.type = 'button';
-        pinBtn.title = '固定为悬浮按钮，跨页面继续编辑';
-        pinBtn.setAttribute('aria-label', '固定');
+        pinBtn.title = t('dialog.pin.title');
+        pinBtn.setAttribute('aria-label', t('dialog.pin.aria'));
         pinBtn.innerHTML = '<svg class="cii-pin-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0058be" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4"/><path d="M9 15l-4.5 4.5"/><path d="M14.5 4l5.5 5.5"/></svg>';
         pinBtn.addEventListener('click', () => this.pinDialog());
         const closeBtn = el('button', 'cii-close-btn');
         closeBtn.type = 'button';
-        closeBtn.title = '取消';
-        closeBtn.setAttribute('aria-label', '取消');
+        closeBtn.title = t('dialog.close.title');
+        closeBtn.setAttribute('aria-label', t('dialog.close.aria'));
         closeBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>';
         closeBtn.addEventListener('click', () => this.close());
         header.append(pinBtn, el('span', 'cii-header-div'), closeBtn);
@@ -222,12 +232,16 @@ export class Dialog {
         const recordingPreviewEl = el('div', 'cii-screenshot-preview cii-recording-preview');
         this.recordings.attachPreview(recordingPreviewEl);
         body.append(recordingPreviewEl);
+        const stylePreviewEl = el('div', 'cii-screenshot-preview cii-style-preview');
+        this.styles.attachPreview(stylePreviewEl);
+        body.append(stylePreviewEl);
         dialog.append(body);
         // --- footer: capture tools grouped on the left, app actions on the right ---
         const footer = el('div', 'cii-footer');
         const tools = el('div', 'cii-footer-tools');
         tools.append(this.references.renderButton());
         tools.append(this.screenshots.renderPicker());
+        tools.append(this.styles.renderButton());
         const recordButton = this.recordings.renderButton();
         if (recordButton)
             tools.append(recordButton);
@@ -247,6 +261,7 @@ export class Dialog {
             const target = event.target;
             this.screenshots.closeMenuFromOutside(target);
             this.recordings.closeMenuFromOutside(target);
+            this.styles.closeMenuFromOutside(target);
         }, true);
         backdrop.append(dialog);
         this.parent.append(backdrop);
@@ -257,6 +272,8 @@ export class Dialog {
         document.addEventListener('keydown', this.keyHandler, true);
         this.parent.addEventListener('keydown', this.keyHandler, true);
         window.addEventListener('resize', this.resizeHandler, true);
+        // Reflect any persisted style selection in the body preview once the preview container is attached.
+        this.styles.updatePreview();
     }
 
     /**
@@ -421,6 +438,7 @@ export class Dialog {
         this.references.setDisabled(busy);
         this.screenshots.setDisabled(busy);
         this.recordings.setDisabled(busy);
+        this.styles.setDisabled(busy);
         // Only lock the editor while actually sending so the user can keep typing during the initial resolve.
         this.editor.setDisabled(state === 'sending');
     }
@@ -478,6 +496,9 @@ export class Dialog {
         const recordings = await this.recordings.buildPayloadRecordings();
         if (recordings)
             payload.recordings = recordings;
+        const styles = this.styles.buildPayloadStyles({ strict: true });
+        if (styles)
+            payload.styles = styles;
         return payload;
     }
     /**
@@ -502,7 +523,7 @@ export class Dialog {
             });
             if (!res.ok) {
                 this.setState('failed');
-                this.showError(res.error ?? 'Failed to resolve source location');
+                this.showError(res.error ?? t('resolve.failed'));
                 for (const button of this.actionButtons.values())
                     button.disabled = true;
                 return;
@@ -539,7 +560,7 @@ export class Dialog {
             selection,
         });
         if (!res.ok) {
-            throw new Error(res.error ?? 'Failed to resolve source reference');
+            throw new Error(res.error ?? t('reference.resolveFailed'));
         }
 
         return typeof res.reference === 'string' ? res.reference : undefined;
@@ -566,9 +587,9 @@ export class Dialog {
                 const unavailable = !configured || info?.available === false;
                 button.classList.toggle('cii-agent-unavailable', unavailable);
                 button.title = !configured
-                    ? `${action.label} is not enabled in the plugin config.`
+                    ? t('agent.notEnabledInConfig', { label: action.label })
                     : info?.available === false
-                        ? info.reason ?? `${action.label} is currently unavailable.`
+                        ? info.reason ?? t('agent.currentlyUnavailable', { label: action.label })
                         : action.title;
             }
         }
@@ -595,13 +616,13 @@ export class Dialog {
         const unavailable = this.availability.find((a) => a.name === agent && !a.available);
         if (!configured) {
             this.setState('failed');
-            this.showError(`${AGENT_LABELS[agent] ?? agent} is not enabled.`);
+            this.showError(t('agent.notEnabled', { label: AGENT_LABELS[agent] ?? agent }));
             return;
         }
         if (unavailable) {
             this.setState('failed');
-            this.showError(`${AGENT_LABELS[agent] ?? agent} is unavailable.\n` +
-                (unavailable.reason ?? 'Check the adapter setup and try again.'));
+            this.showError(`${t('agent.unavailable', { label: AGENT_LABELS[agent] ?? agent })}\n` +
+                (unavailable.reason ?? t('agent.checkSetup')));
             return;
         }
         this.rememberAgent(agent);
@@ -633,7 +654,7 @@ export class Dialog {
         }
         this.showError(result.error ??
             unavailableReason ??
-            `${AGENT_LABELS[result.agent] ?? result.agent} failed to handle the request.`);
+            t('agent.failedHandle', { label: AGENT_LABELS[result.agent] ?? result.agent }));
     }
     /**
      * Show a user-facing dialog error.
@@ -745,6 +766,7 @@ export class Dialog {
         this.screenshots.reset();
         this.recordings.reset();
         this.references.reset();
+        this.styles.reset();
         this.editor.reset();
         this.lastAgent = draft.lastAgent || loadLastAgent(this.config);
         this.enableFocusGuard();

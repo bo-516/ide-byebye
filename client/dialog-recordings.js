@@ -2,7 +2,8 @@ import { el } from './dialog-utils.js';
 import { RecordingSession, recordingDurationMs, segmentsDuration, combineSegments } from './recorder.js';
 import { captureRecordingStill } from './recording-still.js';
 import { openRecordingViewer } from './recording-viewer.js';
-import { RECORDING_SCOPES, RECORDING_SCOPE_LABELS, uniqueSelector, scopeTargetElement } from './recording-scope.js';
+import { RECORDING_SCOPES, recordingScopeLabel, uniqueSelector, scopeTargetElement } from './recording-scope.js';
+import { t } from './i18n.js';
 
 /**
  * Format a millisecond duration as a compact `12.3s` badge label.
@@ -101,8 +102,8 @@ export class DialogRecordingController {
         const scope = el('div', 'cii-screenshot-picker cii-rec-scope-picker');
         this.scopeBtn = el('button', 'cii-rec-scope-btn');
         this.scopeBtn.type = 'button';
-        this.scopeBtn.title = '录制范围';
-        this.scopeLabel = el('span', 'cii-rec-scope-label', RECORDING_SCOPE_LABELS[this.scope]);
+        this.scopeBtn.title = t('recording.scope.title');
+        this.scopeLabel = el('span', 'cii-rec-scope-label', recordingScopeLabel(this.scope));
         this.scopeBtn.append(this.scopeLabel, el('span', 'cii-rec-scope-caret', '⌄'));
         this.scopeBtn.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -119,8 +120,8 @@ export class DialogRecordingController {
         // Record toggle button.
         this.button = el('button', 'cii-icon-btn cii-rec-toggle');
         this.button.type = 'button';
-        this.button.title = '录制元素行为';
-        this.button.setAttribute('aria-label', '录制元素行为');
+        this.button.title = t('recording.toggle.title');
+        this.button.setAttribute('aria-label', t('recording.toggle.title'));
         this.button.append(el('span', 'cii-rec-dot'));
         this.button.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -138,13 +139,13 @@ export class DialogRecordingController {
     renderScopeChoice(scope) {
         const button = el('button', 'cii-screenshot-choice');
         button.type = 'button';
-        button.append(el('span', 'cii-choice-mark'), el('span', 'cii-choice-label', RECORDING_SCOPE_LABELS[scope]));
+        button.append(el('span', 'cii-choice-mark'), el('span', 'cii-choice-label', recordingScopeLabel(scope)));
         button.addEventListener('click', (event) => {
             event.stopPropagation();
             this.scope = scope;
             this.updateScopeMarks();
             if (this.scopeLabel)
-                this.scopeLabel.textContent = RECORDING_SCOPE_LABELS[scope];
+                this.scopeLabel.textContent = recordingScopeLabel(scope);
             if (this.scopeMenu)
                 this.scopeMenu.hidden = true;
         });
@@ -230,7 +231,7 @@ export class DialogRecordingController {
         this.host.setDialogHidden(false);
         const durationMs = recordingDurationMs(events);
         if (events.length < 2 || durationMs <= 0) {
-            this.host.showError('录制时间太短，未生成片段');
+            this.host.showError(t('recording.tooShort'));
             return;
         }
         this.seq += 1;
@@ -267,8 +268,8 @@ export class DialogRecordingController {
         const control = el('div', 'cii-rec-indicator');
         control.style.pointerEvents = 'auto';
         const dot = el('span', 'cii-rec-indicator-dot');
-        this.controlLabel = el('span', 'cii-rec-indicator-text', '录制中 0.0s');
-        const stop = el('button', 'cii-rec-indicator-stop', '停止');
+        this.controlLabel = el('span', 'cii-rec-indicator-text', t('recording.indicator.recording', { time: durationLabel(0) }));
+        const stop = el('button', 'cii-rec-indicator-stop', t('recording.stop'));
         stop.type = 'button';
         stop.addEventListener('click', (event) => {
             event.preventDefault();
@@ -301,7 +302,7 @@ export class DialogRecordingController {
         this.updateButton();
         this.timerId = window.setInterval(() => {
             if (this.controlLabel && this.session)
-                this.controlLabel.textContent = `录制中 ${durationLabel(this.session.elapsedMs())}`;
+                this.controlLabel.textContent = t('recording.indicator.recording', { time: durationLabel(this.session.elapsedMs()) });
         }, 200);
     }
 
@@ -353,18 +354,18 @@ export class DialogRecordingController {
             const item = el('div', 'cii-screenshot-thumb cii-recording-thumb');
             item.tabIndex = 0;
             item.setAttribute('role', 'button');
-            item.setAttribute('aria-label', '查看/裁剪录制片段');
+            item.setAttribute('aria-label', t('recording.thumb.aria'));
             const media = el('div', 'cii-thumb-media');
             if (recording.still?.dataUrl) {
                 const img = document.createElement('img');
                 img.src = recording.still.dataUrl;
-                img.alt = '录制静帧';
+                img.alt = t('recording.still.alt');
                 media.append(img);
             }
             else {
                 media.append(el('span', 'cii-thumb-loading'));
             }
-            const badge = `${RECORDING_SCOPE_LABELS[recording.scope] || ''} ${durationLabel(segmentsDuration(recording.segments))}`.trim();
+            const badge = `${recordingScopeLabel(recording.scope) || ''} ${durationLabel(segmentsDuration(recording.segments))}`.trim();
             media.append(el('span', 'cii-rec-duration', badge));
             const open = () => this.openViewer(recording);
             item.addEventListener('click', open);
@@ -388,7 +389,7 @@ export class DialogRecordingController {
     renderRemove(recording) {
         const remove = el('button', 'cii-thumb-remove', '×');
         remove.type = 'button';
-        remove.setAttribute('aria-label', '移除录制片段');
+        remove.setAttribute('aria-label', t('recording.remove.aria'));
         remove.addEventListener('click', (event) => {
             event.stopPropagation();
             this.recordings = this.recordings.filter((item) => item !== recording);

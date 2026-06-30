@@ -1,16 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
-// Demo 直接相对 import 插件源码（source-tree usage），方便边改插件边测试。
-// 在真实项目里，应改成把 ../dist/code-intent-inspector.js 单文件复制进项目后 import。
+// The demo imports the plugin source directly (source-tree usage) so it can be edited and tested in place.
+// In a real project, copy the single-file ../dist/code-intent-inspector.js into the project and import that instead.
 import codeIntentInspectorPlugin from '../index.js';
 
 export default defineConfig({
   plugins: [
-    // 1) code-inspector-plugin 必须放在 @vitejs/plugin-react 之前，才能在 JSX
-    //    转换前给每个 DOM 元素注入 data-insp-path（源码 文件:行:列）。这里关掉
-    //    它自带的快捷键跳转 / 复制，只保留“注入定位信息”的能力，避免与下面我们
-    //    插件的 ⌘ + 点击 手势冲突。
+    // 1) code-inspector-plugin must run before @vitejs/plugin-react so it can inject data-insp-path
+    //    (source file:line:column) onto every DOM element before the JSX transform. Its built-in
+    //    jump-to-source / copy hotkeys are disabled here, keeping only the "inject location info"
+    //    capability, to avoid clashing with our plugin's ⌘ + click gesture below.
     codeInspectorPlugin({
       bundler: 'vite',
       pathType: 'absolute',
@@ -24,29 +24,29 @@ export default defineConfig({
 
     react(),
 
-    // 2) ai-inspector（本插件）：⌘ + 点击 任意元素 → 选中并弹出“意图”对话框 →
-    //    填写意图后，点对话框底部的 app 按钮把「元素源码 + 你的意图」整理成
-    //    结构化 Prompt 并打开对应 app 预填。
-    //    注意：对话框底部的按钮固定是 Codex App / Claude App / Cursor 三个，
-    //    所以这里必须把对应的 app agent 打开，按钮才可用（否则点了会提示
-    //    “… is not enabled.”）。这三个 agent 仅依赖 macOS 的 `open` 命令、
-    //    无需安装额外 npm 依赖，装了对应 app 即可响应 deeplink。
+    // 2) ai-inspector (this plugin): ⌘ + click any element -> select it and open the "intent" dialog ->
+    //    after filling in the intent, click an app button at the bottom of the dialog to assemble
+    //    "element source + your intent" into a structured prompt and open the matching app prefilled.
+    //    Note: the footer buttons are fixed to Codex App / Claude App / Cursor, so the corresponding app
+    //    agents must be enabled here for the buttons to work (otherwise clicking shows "… is not enabled.").
+    //    These three agents only rely on the macOS `open` command and need no extra npm deps; installing
+    //    the matching app is enough for it to respond to the deeplink.
     codeIntentInspectorPlugin({
-      defaultAgent: 'claude-app', // 回车提交的默认目标
-      clickModifier: 'meta', // macOS 的 ⌘；也可写 'command' / 'cmd'
-      // 元素行为录制（rrweb）。需在本 demo 安装 @rrweb/record / @rrweb/replay。
+      defaultAgent: 'claude-app', // default target submitted on Enter
+      clickModifier: 'meta', // macOS ⌘; 'command' / 'cmd' also work
+      // Element-behavior recording (rrweb). Requires @rrweb/record / @rrweb/replay installed in this demo.
       recording: { enabled: true },
       agents: {
-        claudeApp: true, // 打开 Claude，预填新对话
-        codexApp: { enabled: true }, // 打开 Codex App
-        cursorApp: { enabled: true, workspace: 'demo' }, // 打开 Cursor（按 workspace 名路由）
+        claudeApp: true, // open Claude with a prefilled new conversation
+        codexApp: { enabled: true }, // open Codex App
+        cursorApp: { enabled: true, workspace: 'demo' }, // open Cursor (routed by workspace name)
       },
     }),
   ],
   server: {
-    // 显式绑 IPv4：与插件内部固定使用的 http://127.0.0.1 origin 对齐。否则
-    // vite 默认 host=localhost 可能只解析到 IPv6(::1)，导致浏览器对插件
-    // /__intent-inspector 接口的 fetch 连不上。
+    // Bind IPv4 explicitly to match the fixed http://127.0.0.1 origin the plugin uses internally. Otherwise
+    // Vite's default host=localhost may resolve only to IPv6 (::1), so the browser's fetch to the plugin's
+    // /__intent-inspector endpoints cannot connect.
     host: '127.0.0.1',
     port: 5300,
     open: true,
