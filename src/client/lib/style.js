@@ -435,12 +435,20 @@ export const STYLE_TEXT = `
   font-weight: 700;
   text-align: center;
 }
+/* Record key: a thin red ring around a solid red core (camera-style record button) rather than a bare dot, so the control reads as deliberate and sits calmly among the icon buttons. */
 .cii-rec-dot {
-  width: 12px; height: 12px; border-radius: 50%;
-  background: #d92d20; display: inline-block;
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid #f0c2bd; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
 }
+.cii-rec-dot::after {
+  content: ""; width: 9px; height: 9px; border-radius: 50%;
+  background: #d92d20; transition: border-radius 120ms ease, background 120ms ease;
+}
+.cii-rec-toggle:hover:not(:disabled) .cii-rec-dot { border-color: #ea9b94; }
+.cii-rec-toggle:hover:not(:disabled) .cii-rec-dot::after { background: #c4271c; }
 .cii-rec-toggle.cii-rec-active { background: #fdecec; }
-.cii-rec-toggle.cii-rec-active .cii-rec-dot {
+.cii-rec-toggle.cii-rec-active .cii-rec-dot::after {
   border-radius: 2px;
   animation: cii-rec-pulse 1.2s ease-in-out infinite;
 }
@@ -529,15 +537,22 @@ export const STYLE_TEXT = `
 .cii-pin-orb-icon::before {
   content: "📌"; font-size: 18px; line-height: 20px;
 }
-.cii-rec-controls { display: inline-flex; align-items: center; gap: 6px; }
+.cii-rec-controls { display: inline-flex; align-items: center; gap: 10px; }
+/* Fence the recording group (scope + record key) off from the capture icons with a hairline — only when capture icons precede it, so a recording-only footer shows no stray divider. */
+.cii-footer-tools > .cii-rec-controls:not(:first-child) {
+  margin-left: 4px; padding-left: 14px;
+  border-left: 1px solid #e0e3e5;
+}
 .cii-rec-scope-picker { position: relative; }
+/* Footer scope trigger shares the ghost icon-button language (transparent until hover, no persistent border) so it reads as one of the icon buttons, not a separate boxed pill. */
 .cii-rec-scope-btn {
   display: inline-flex; align-items: center; gap: 6px;
   height: 36px; padding: 0 10px; border-radius: 8px;
-  border: 1px solid #d4d7dd; background: #fff; color: #334155;
+  border: 0; background: transparent; color: #424754;
   font-size: 13px; cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
-.cii-rec-scope-btn:hover:not(:disabled) { background: #f2f4f6; }
+.cii-rec-scope-btn:hover:not(:disabled) { background: #f2f4f6; color: #191c1e; }
 .cii-rec-scope-btn:disabled { opacity: 0.5; cursor: default; }
 .cii-rec-scope-caret { color: #94a3b8; font-size: 11px; }
 .cii-rec-indicator {
