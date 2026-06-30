@@ -1,3 +1,5 @@
+import { FocusTimer } from './FocusTimer.jsx';
+
 const LISTS = [
   { icon: '◷', label: 'Today', count: 6, active: true },
   { icon: '◍', label: 'Upcoming', count: 4 },
@@ -36,6 +38,8 @@ export function Sidebar() {
           ))}
         </div>
       </nav>
+
+      <FocusTimer />
 
       <button className="btn btn-primary btn-block" type="button">
         + New List

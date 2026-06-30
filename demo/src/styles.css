@@ -170,6 +170,128 @@ a {
   font-weight: 600;
 }
 
+/* ---------- focus timer (sidebar widget, auto-running so recordings move) ---------- */
+.focus {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--r);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
+.focus-ring {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex: none;
+}
+
+.focus-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.focus-ring-track {
+  fill: none;
+  stroke: #e2ede7;
+  stroke-width: 6;
+}
+
+.focus-ring-prog {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.95s linear;
+}
+
+.focus-time {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.focus-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.focus-cap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.focus-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  flex: none;
+}
+
+.focus-dot.is-live {
+  background: var(--brand);
+  animation: focus-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes focus-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+    opacity: 0.55;
+  }
+}
+
+.focus-task {
+  margin: 3px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.focus-btn {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: #eaf5ef;
+  color: var(--brand-d);
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+  transition: 0.15s;
+}
+
+.focus-btn:hover {
+  background: var(--brand-grad);
+  color: #fff;
+  border-color: transparent;
+}
+
 /* ---------- buttons ---------- */
 .btn {
   border: 1px solid transparent;
