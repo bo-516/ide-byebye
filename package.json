@@ -1,14 +1,73 @@
 {
-  "name": "code-intent-inspector-core",
-  "private": true,
+  "name": "ide-byebye",
+  "version": "0.1.0",
+  "description": "Vite dev plugin: ⌘-click any rendered element, describe the change in plain words, and hand the element's source + your intent to Codex App / Claude App / Cursor — no hunting through the IDE.",
   "type": "module",
+  "license": "MIT",
+  "author": "dravenLee <516342558@qq.com>",
+  "homepage": "https://github.com/dravenLee/ide-byebye#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dravenLee/ide-byebye.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dravenLee/ide-byebye/issues"
+  },
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "code-inspector",
+    "claude",
+    "codex",
+    "cursor",
+    "ai",
+    "devtools",
+    "intent",
+    "deeplink",
+    "rrweb"
+  ],
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "plugin.js",
+    "server",
+    "shared",
+    "dist",
+    "!**/*.test.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "node scripts/build-single-file.js",
-    "test": "node --test"
+    "test": "node --test",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@babel/parser": "^8.0.0",
+    "@babel/traverse": "^8.0.0"
   },
   "devDependencies": {
-    "@babel/parser": "^8.0.0",
-    "@babel/traverse": "^8.0.0",
     "rolldown": "^1.0.0-rc.12"
+  },
+  "peerDependencies": {
+    "vite": ">=4",
+    "code-inspector-plugin": ">=1.0.0",
+    "@rrweb/record": ">=2.0.0",
+    "@rrweb/replay": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "code-inspector-plugin": {
+      "optional": true
+    },
+    "@rrweb/record": {
+      "optional": true
+    },
+    "@rrweb/replay": {
+      "optional": true
+    }
   }
 }
