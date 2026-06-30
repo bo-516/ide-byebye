@@ -2,12 +2,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'rolldown';
-import { EMBEDDED_CLIENT_CODE_GLOBAL } from '../server/client-code.js';
+import { EMBEDDED_CLIENT_CODE_GLOBAL } from '../src/server/client-code.js';
 import { createCssTemplateMinifyPlugin } from './client-css-minifier.js';
 
 const ROOT_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
-const CLIENT_ENTRY = path.join(ROOT_DIR, 'client/entry.js');
+const CLIENT_ENTRY = path.join(ROOT_DIR, 'src/client/boot/entry.js');
 const SINGLE_FILE_ENTRY = path.join(DIST_DIR, 'code-intent-inspector.entry.tmp.js');
 const CLIENT_OUTPUT_FILE = path.join(DIST_DIR, 'client.js');
 const SINGLE_FILE_OUTPUT = path.join(DIST_DIR, 'code-intent-inspector.js');
@@ -31,8 +31,8 @@ const LEGACY_CLIENT_OUTPUT_FILE = path.join(ROOT_DIR, 'client.js');
  * @type {string[]} Absolute source files for build-time CSS template minification.
  */
 const CLIENT_CSS_TEMPLATE_MODULES = [
-    path.join(ROOT_DIR, 'client/style.js'),
-    path.join(ROOT_DIR, 'client/dialog-reference-style.js'),
+    path.join(ROOT_DIR, 'src/client/lib/style.js'),
+    path.join(ROOT_DIR, 'src/client/dialog/dialog-reference-style.js'),
 ];
 
 /**
@@ -68,7 +68,7 @@ async function removeIfExists(file) {
 /**
  * Bundle the browser runtime into a self-contained script.
  *
- * Boundary: `client/entry.js` must be browser-safe and must not rely on unresolved imports. If that entry is missing or
+ * Boundary: `src/client/boot/entry.js` must be browser-safe and must not rely on unresolved imports. If that entry is missing or
  * imports unsupported browser code, the single-file build fails before producing the Node plugin bundle. CSS template
  * exports from `CLIENT_CSS_TEMPLATE_MODULES` are compacted before JS minification. The generated `dist/client.js` is a
  * compatibility artifact for source-tree usage: comments are stripped by the bundler, and the file should not be
@@ -103,7 +103,7 @@ async function buildClientBundle() {
  */
 async function writeSingleFileEntry(clientCode) {
     const entry = [
-        `import { EMBEDDED_CLIENT_CODE_GLOBAL } from '../server/client-code.js';`,
+        `import { EMBEDDED_CLIENT_CODE_GLOBAL } from '../src/server/client-code.js';`,
         `globalThis[EMBEDDED_CLIENT_CODE_GLOBAL] = ${JSON.stringify(clientCode)};`,
         `export { codeIntentInspectorPlugin } from '../index.js';`,
         `export { default } from '../index.js';`,

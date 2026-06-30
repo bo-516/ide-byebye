@@ -1,13 +1,13 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { CLIENT_CONFIG_GLOBAL, ENDPOINTS, ROUTE_PREFIX, TOKEN_HEADER } from './shared/constants.js';
-import { resolveOptions } from './server/config.js';
-import { buildRegistry } from './server/agents/build.js';
-import { SessionStore } from './server/session-store.js';
-import { createLogger } from './server/logger.js';
-import { registerIntentInspectorRoutes } from './server/routes.js';
-import { cleanupNonScreenshotArtifacts } from './server/output-cleanup.js';
-import { loadClientCode } from './server/client-code.js';
+import { CLIENT_CONFIG_GLOBAL, ENDPOINTS, ROUTE_PREFIX, TOKEN_HEADER } from './src/shared/constants.js';
+import { resolveOptions } from './src/server/config.js';
+import { buildRegistry } from './src/server/agents/build.js';
+import { SessionStore } from './src/server/session-store.js';
+import { createLogger } from './src/server/logger.js';
+import { registerIntentInspectorRoutes } from './src/server/routes.js';
+import { cleanupNonScreenshotArtifacts } from './src/server/output-cleanup.js';
+import { loadClientCode } from './src/server/client-code.js';
 const PLUGIN_NAME = 'vite-plugin-code-intent-inspector';
 const INSPECTOR_DEV_SERVER_CORS = {
     origin: true,
