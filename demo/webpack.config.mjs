@@ -39,14 +39,7 @@ export default {
     new HtmlWebpackPlugin({ template: './webpack.html' }),
     // Zero-config: registers code-inspector (data-insp-path) internally and injects the inspector bootstrap into the
     // emitted HTML. No `bundler` to pass; ⌘/Ctrl-click on by default.
-    inspector({
-      defaultAgent: 'claude-app',
-      agents: {
-        claudeApp: true,
-        codexApp: { enabled: true },
-        cursorApp: { enabled: true, workspace: 'demo' },
-      },
-    }),
+    inspector(),
   ],
   devServer: {
     port: Number(process.env.PORT) || 5400,

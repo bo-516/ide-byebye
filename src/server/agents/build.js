@@ -9,8 +9,9 @@ import { createCursorAppAdapter } from './cursor-app.js';
 /**
  * Construct the agent registry from the (already-resolved) agent config map.
  *
- * Boundary: `clipboard` and `file` are enabled unless explicitly disabled; app/SDK adapters require truthy config
- * entries. Unknown agent keys are ignored so stale config does not register accidental adapters.
+ * Boundary: every agent is enabled by default; pass `agents.<name>: false` (or `{ enabled: false }` for the app
+ * agents) to opt out. App agents also accept an object config (e.g. `cursorApp.workspace`). Unknown agent keys are
+ * ignored so stale config does not register accidental adapters.
  *
  * @param {Record<string, unknown>} agents Resolved `agents` option map from plugin config.
  * @returns {AgentRegistry} Registry containing every enabled adapter.
@@ -21,13 +22,13 @@ export function buildRegistry(agents) {
         registry.register(clipboardAdapter);
     if (agents.file !== false)
         registry.register(fileAdapter);
-    const codexApp = coerceAgentConfig(agents.codexApp);
+    const codexApp = coerceAgentConfig(agents.codexApp ?? true);
     if (codexApp)
         registry.register(createCodexAppAdapter(codexApp));
-    const claudeApp = coerceAgentConfig(agents.claudeApp);
+    const claudeApp = coerceAgentConfig(agents.claudeApp ?? true);
     if (claudeApp)
         registry.register(createClaudeAppAdapter(claudeApp));
-    const cursorApp = coerceAgentConfig(agents.cursorApp);
+    const cursorApp = coerceAgentConfig(agents.cursorApp ?? true);
     if (cursorApp)
         registry.register(createCursorAppAdapter(cursorApp));
     return registry;

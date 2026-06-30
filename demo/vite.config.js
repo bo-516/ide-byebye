@@ -12,16 +12,9 @@ export default defineConfig({
     // plugins run before @vitejs/plugin-react's JSX transform regardless of array order. ⌘-click (Ctrl-click on
     // Windows/Linux) is enabled by default. After filling in the intent, click an app button at the bottom of the
     // dialog to assemble "element source + your intent" into a prompt and open the matching app prefilled.
-    codeIntentInspectorPlugin({
-      defaultAgent: 'claude-app', // default target submitted on Enter
-      // Element-behavior recording (rrweb). Requires @rrweb/record / @rrweb/replay installed in this demo.
-      recording: { enabled: true },
-      agents: {
-        claudeApp: true, // open Claude with a prefilled new conversation
-        codexApp: { enabled: true }, // open Codex App
-        cursorApp: { enabled: true, workspace: 'demo' }, // open Cursor (routed by workspace name)
-      },
-    }),
+    // Zero-config: recording on, clipboard/file + all three app agents enabled, Enter submits to claude-app.
+    // Override anything via options, e.g. codeIntentInspectorPlugin({ recording: false, agents: { cursorApp: false } }).
+    codeIntentInspectorPlugin(),
     react(),
   ],
   server: {

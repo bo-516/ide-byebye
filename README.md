@@ -65,12 +65,14 @@ npm i -D ide-byebye code-inspector-plugin
 `data-insp-path` attributes this plugin reads. Without it, elements have no
 source mapping and the picker shows *"no source mapping"*.
 
-Behavior recording is optional and only loaded when used. Enable it by also
-installing rrweb in your project:
+Behavior recording is **on by default** and lazy-loaded (it only costs anything
+when you actually record). For it to work, install rrweb in your project too:
 
 ```sh
 npm i -D @rrweb/record @rrweb/replay
 ```
+
+Disable it with `recording: false` if you don't want it.
 
 ## Quick start
 
@@ -96,24 +98,34 @@ export default defineConfig({
     react(),
 
     // 2) ide-byebye: the intent picker + app handoff.
+    //    Zero config works out of the box: all three app agents + clipboard +
+    //    file are enabled, recording is on, and Enter submits to Claude App.
     ideByebye({
-      // The dialog footer always shows Codex App / Claude App / Cursor, so the
-      // Enter-key default must be one of those three (not clipboard/file).
-      defaultAgent: 'claude-app',
       clickModifier: 'meta', // ⌘ + click to pick an element (macOS)
-      agents: {
-        claudeApp: true,
-        codexApp: { enabled: true },
-        cursorApp: { enabled: true, workspace: 'my-app' },
-      },
-      // Optional: element-behavior recording (needs @rrweb/* installed).
-      recording: { enabled: true },
     }),
   ],
   server: {
     // Bind IPv4 so it matches the http://127.0.0.1 origin the plugin uses.
     host: '127.0.0.1',
   },
+});
+```
+
+Everything above is already the default. You only pass options to **override** —
+for example to change the Enter-key target, route Cursor to a named workspace, or
+turn things off:
+
+```js
+ideByebye({
+  // The dialog footer always shows Codex App / Claude App / Cursor, so the
+  // Enter-key default must be one of those three (defaults to 'claude-app').
+  defaultAgent: 'codex-app',
+  agents: {
+    cursorApp: { workspace: 'my-app' }, // route Cursor by workspace name
+    codexApp: false,                    // disable an app agent you don't want
+    file: false,                        // disable a backend agent (clipboard/file)
+  },
+  recording: false, // opt out of element-behavior recording
 });
 ```
 
@@ -140,7 +152,7 @@ export default defineConfig({
 | **`@code` references** | The "add reference" button lets you pick **another** element and inserts an inline `@file #range` mention at the caret. | Duplicates are de-duped; order is preserved into the prompt. |
 | **Screenshots** | Capture `selection` / `parent` / `viewport` (multi-select, or none). | Choices persist as a local UI preference. |
 | **Rendered styles** | Attach the element's **computed** CSS (a curated catalog of ~110 properties) for the selected element only or the whole ancestor chain. | Opt-in (empty by default); read live at send time. |
-| **Recording** | rrweb element-behavior capture with a still frame the agent can read. | Opt-in via `recording` config; needs `@rrweb/*`. See below. |
+| **Recording** | rrweb element-behavior capture with a still frame the agent can read. | On by default; needs `@rrweb/*`. Disable with `recording: false`. See below. |
 | **Pin** | Collapse the dialog into a floating orb and keep editing across pages. | Warm restore keeps attachments; a full reload keeps text only. |
 
 ## Configuration reference
@@ -156,38 +168,40 @@ optional values fall back to the documented default.
 | `locale` | `'zh' \| 'en'` | auto | UI language. Anything starting with `zh` → Chinese, any other value → English. Unset auto-detects: `config.locale` → `navigator.language` → `zh`. (Only UI copy is localized; prompts and brand names are not.) |
 | `hotkey` | `string` | `'Alt+Shift+I'` | Combo that toggles picker mode. `+`-joined, case-insensitive. Modifiers: `alt`/`option`, `shift`, `ctrl`/`control`, `meta`/`cmd`/`command`. The last non-modifier token is the key, e.g. `'Meta+Shift+K'`. |
 | `clickModifier` | `string \| null` | `null` | Hold-to-pick modifier for a normal click (`'meta'`, `'ctrl'`, `'alt'`, `'shift'`). `null` disables click-to-pick (hotkey still works). |
-| `defaultAgent` | `string` | `'clipboard'` | Target for the Enter key. **Set this to one of `'codex-app'` / `'claude-app'` / `'cursor-app'`** — those are the only agents with footer buttons, so a `clipboard`/`file` default falls back to the first enabled app agent. |
+| `defaultAgent` | `string` | `'claude-app'` | Target for the Enter key. **Must be one of `'codex-app'` / `'claude-app'` / `'cursor-app'`** — those are the only agents with footer buttons, so a `clipboard`/`file` value falls back to the first enabled app agent. |
 | `applyMode` | `'prompt-only' \| 'agent-edit'` | `'prompt-only'` | Hint recorded with the request: propose a plan vs. allow edits. |
 | `outputDir` | `string` | `'.intent-inspector'` | Project-relative dir where the `file` agent and file-mode handoffs write. Must stay inside the project root. |
 | `maxSourceContextLines` | `number` | `60` | Source lines of context captured around the element's mapped location. |
 | `maxDomSnippetLength` | `number` | `1000` | Max characters of the element's captured DOM/HTML snippet. |
 | `apiOrigin` | `string \| null` | auto | Absolute `http(s)` origin the browser uses to reach the inspector server. Auto-detects the Vite loopback origin when unset. A non-origin value is ignored. |
-| `recording` | `boolean \| object` | off | Element-behavior recording. See [Recording](#recording-rrweb). |
-| `agents` | `object` | `{}` | Per-agent enable flags / overrides. See [Agents](#agents). |
+| `recording` | `boolean \| object` | on | Element-behavior recording. On by default; opt out with `recording: false`. See [Recording](#recording-rrweb). |
+| `agents` | `object` | `{}` | Per-agent enable flags / overrides. All five agents are on by default; use this to disable or configure them. See [Agents](#agents). |
 
 ### Agents
 
-Five agents exist. `clipboard` and `file` are **on by default** (disable with
-`agents.clipboard: false` / `agents.file: false`); the three **app agents are
-opt-in**. Only the app agents get footer buttons — `clipboard`/`file` are
-reachable through `defaultAgent` / the Enter key.
+Five agents exist and **all five are on by default**. Disable any of them with
+`agents.<name>: false`: `agents.clipboard: false` / `agents.file: false` for the
+two backend agents, and `agents.codexApp: false` / `agents.claudeApp: false` /
+`agents.cursorApp: false` for the app agents. Only the app agents get footer
+buttons — `clipboard`/`file` are reachable through `defaultAgent` / the Enter key.
 
 | Agent (`agents` key) | Adapter name | Default | Footer button | Purpose |
 | --- | --- | --- | --- | --- |
 | `clipboard` | `clipboard` | **on** | no | Copies the generated prompt to your clipboard. Always available; the safe fallback. |
 | `file` | `file` | **on** | no | Writes the request + prompt as Markdown under `outputDir/requests/`. Always available. |
-| `codexApp` | `codex-app` | off | yes | Opens **Codex App** prefilled. |
-| `claudeApp` | `claude-app` | off | yes | Opens **Claude App** prefilled; can attach files & folders. |
-| `cursorApp` | `cursor-app` | off | yes | Opens **Cursor** prefilled (routes by workspace name). |
+| `codexApp` | `codex-app` | **on** | yes | Opens **Codex App** prefilled. |
+| `claudeApp` | `claude-app` | **on** | yes | Opens **Claude App** prefilled; can attach files & folders. |
+| `cursorApp` | `cursor-app` | **on** | yes | Opens **Cursor** prefilled (routes by workspace name). |
 
-Each app agent accepts `true` (shorthand for `{ enabled: true }`) or a config
-object; `{ enabled: false }` (or a falsy value) leaves it unregistered.
+Each app agent accepts a config object to override its defaults; `false` (or
+`{ enabled: false }`) unregisters it, and `true` is the explicit shorthand for
+the on-by-default state.
 
 ```js
 agents: {
-  claudeApp: true,                 // shorthand
-  codexApp: { enabled: true },     // object form
-  cursorApp: { enabled: true, workspace: 'my-app' },
+  codexApp: false,                      // turn an app agent off
+  cursorApp: { workspace: 'my-app' },   // keep it on, but override options
+  clipboard: false,                     // turn a backend agent off
 }
 ```
 
@@ -243,16 +257,18 @@ is rasterized from the chosen moment (cropped to the scope) so the agent gets an
 image it can read. The raw event stream is saved for human replay but never put
 in the prompt, and the inspector's own UI is excluded from every recording.
 
-Recording is **opt-in** and lazy-loaded. Install rrweb and enable it:
+Recording is **on by default** (opt-out) and lazy-loaded. It only needs rrweb
+installed in your project:
 
 ```sh
 npm i -D @rrweb/record @rrweb/replay
 ```
 
+Pass `recording: false` to turn it off, or an object to tune it:
+
 ```js
 ideByebye({
   recording: {
-    enabled: true,
     maxDurationMs: 30000,      // rolling buffer; clamped to 300000 (5 min)
     mask: {
       allInputs: false,        // default off: dev tooling wants real form state
@@ -264,7 +280,7 @@ ideByebye({
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `recording` | `boolean` | `false` | `true` or `{ enabled: true }` turns it on; otherwise the Record button is hidden. |
+| `recording` | `boolean` | `true` | On by default; `false` (or `{ enabled: false }`) hides the Record button. |
 | `recording.maxDurationMs` | `number` | `30000` | In-browser rolling buffer length. Must be positive; clamped to a `300000`ms (5 min) ceiling. |
 | `recording.mask.allInputs` | `boolean` | `false` | Mask input values in the replay/still. Off by default (dev tool). |
 | `recording.mask.blockClass` | `string` | `'rr-block'` | Class marking elements excluded from capture. |
