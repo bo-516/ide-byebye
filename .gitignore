@@ -43,5 +43,3 @@ Thumbs.db
 *.swo
 
 
-# Legacy root browser bundle; generated artifacts live under dist/.
-/client.js

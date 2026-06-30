@@ -1,5 +1,4 @@
-- 尽量使用纯函数
-- 文件超过200行考虑拆分
-- 文件超过300行必须拆分
-- 更新任何代码时需要更新逻辑单元(函数/声明对象/组件)的注释,包括功能/作用/边界 并且指明参数以及参数和返回值的含义 不传/传错 会导致什么问题 不对外暴露的函数也需要写注释
-- 忽略 client.js 它是构建产物
+- Prefer pure functions whenever possible
+- Consider splitting a file once it exceeds 200 lines
+- A file must be split once it exceeds 300 lines
+- When updating any code, update the comments of the affected logical units (functions / declared objects / components), covering their purpose / responsibility / boundaries, and specify the parameters along with the meaning of the parameters and the return value, as well as what problems arise if an argument is omitted or passed incorrectly. Functions that are not exposed externally also require comments
