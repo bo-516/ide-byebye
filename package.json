@@ -1,7 +1,7 @@
 {
   "name": "ide-byebye",
   "version": "0.1.0",
-  "description": "Vite dev plugin: ⌘-click any rendered element, describe the change in plain words, and hand the element's source + your intent to Codex App / Claude App / Cursor — no hunting through the IDE.",
+  "description": "Dev plugin for Vite / webpack / rspack: ⌘-click any rendered element, describe the change in plain words, and hand the element's source + your intent to Codex App / Claude App / Cursor — no hunting through the IDE.",
   "type": "module",
   "license": "MIT",
   "author": "dravenLee <516342558@qq.com>",
@@ -16,6 +16,9 @@
   "keywords": [
     "vite",
     "vite-plugin",
+    "webpack",
+    "rspack",
+    "unplugin",
     "code-inspector",
     "claude",
     "codex",
@@ -28,11 +31,17 @@
   ],
   "main": "index.js",
   "exports": {
-    ".": "./index.js"
+    ".": "./index.js",
+    "./vite": "./vite.js",
+    "./webpack": "./webpack.js",
+    "./rspack": "./rspack.js"
   },
   "files": [
     "index.js",
     "plugin.js",
+    "vite.js",
+    "webpack.js",
+    "rspack.js",
     "src/server",
     "src/shared",
     "dist",
@@ -48,19 +57,28 @@
   },
   "dependencies": {
     "@babel/parser": "^8.0.0",
-    "@babel/traverse": "^8.0.0"
+    "@babel/traverse": "^8.0.0",
+    "code-inspector-plugin": "^1.6.2",
+    "unplugin": "^3.3.0"
   },
   "devDependencies": {
     "rolldown": "^1.0.0-rc.12"
   },
   "peerDependencies": {
-    "vite": ">=4",
-    "code-inspector-plugin": ">=1.0.0",
     "@rrweb/record": ">=2.0.0",
-    "@rrweb/replay": ">=2.0.0"
+    "@rrweb/replay": ">=2.0.0",
+    "@rspack/core": ">=0.5",
+    "vite": ">=4",
+    "webpack": ">=5"
   },
   "peerDependenciesMeta": {
-    "code-inspector-plugin": {
+    "vite": {
+      "optional": true
+    },
+    "webpack": {
+      "optional": true
+    },
+    "@rspack/core": {
       "optional": true
     },
     "@rrweb/record": {

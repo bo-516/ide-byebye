@@ -121,18 +121,21 @@ function setTokenCorsHeaders(req, res, token) {
 }
 
 /**
- * Registers local code-intent inspector HTTP routes on a Vite dev server.
+ * Builds the bundler-agnostic connect-style request handler that serves every inspector route.
  *
- * Boundary: routes are served only under `ROUTE_PREFIX`. API routes require the per-process token; cross-origin calls
- * are accepted only when that token is present so pages opened through a business dev domain can still reach the local
- * `ip:port` inspector server. Passing incomplete deps can make client serving, source resolution, or agent dispatch
- * fail at request time.
+ * Boundary: the returned `(req, res, next)` handler is transport-neutral — it reads only Node `http` primitives, so it
+ * can be mounted on a standalone `http.Server` (the default), a Vite/webpack/rspack dev server, or any connect stack.
+ * Routes are served only under `ROUTE_PREFIX`; non-matching requests fall through to `next()`. API routes require the
+ * per-process token, and cross-origin calls are accepted only when that token is present so pages opened through a
+ * business dev domain can still reach the local `ip:port` inspector server. Passing incomplete `deps` (missing
+ * `clientCode`, `registry`, `projectRoot`, `outputDirAbs`, …) makes the matching route fail at request time rather than
+ * at setup. Note this no longer takes a `server`; the caller mounts the handler.
  *
- * @param {{ server: import('vite').ViteDevServer, options: Record<string, unknown>, token: string, registry: Record<string, unknown>, sessionStore: Record<string, unknown>, logger: Record<string, Function>, clientCode: string, projectRoot: string, outputDirAbs: string }} deps Inspector route dependencies from the Vite plugin.
- * @returns {void} Mutates the Vite middleware stack by registering inspector handlers.
+ * @param {{ options: Record<string, unknown>, token: string, registry: Record<string, unknown>, sessionStore: Record<string, unknown>, logger: Record<string, Function>, clientCode: string, projectRoot: string, outputDirAbs: string }} deps Inspector route dependencies.
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void} Connect-style inspector request handler.
  */
-export function registerIntentInspectorRoutes(deps) {
-    const { server, options, token, registry, sessionStore, logger } = deps;
+export function createInspectorRequestHandler(deps) {
+    const { options, token, registry, sessionStore, logger } = deps;
     const guard = (req, res) => {
         const hasValidToken = tokenMatches(token, readToken(req));
         const hasTokenCors = readOrigin(req) != null && hasValidToken;
@@ -322,6 +325,5 @@ export function registerIntentInspectorRoutes(deps) {
         }
         next();
     };
-    server.middlewares.use(handler);
-    logger.info(`routes registered under ${ROUTE_PREFIX}`);
+    return handler;
 }

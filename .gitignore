@@ -43,4 +43,7 @@ Thumbs.db
 *.swp
 *.swo
 
+# AI agent / tooling
+.claude/
+
 

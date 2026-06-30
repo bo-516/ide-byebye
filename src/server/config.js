@@ -77,7 +77,9 @@ export function resolveOptions(options) {
         enabled: options.enabled ?? true,
         locale: normalizeLocale(options.locale),
         hotkey: options.hotkey ?? DEFAULT_HOTKEY,
-        clickModifier: options.clickModifier ?? null,
+        // 'auto' resolves per-platform in the browser (⌘ on macOS, Ctrl elsewhere) so ⌘/Ctrl-click works with zero
+        // config; pass an explicit modifier to override, or `false`/`null` to disable click-picking.
+        clickModifier: options.clickModifier ?? 'auto',
         defaultAgent: options.defaultAgent ?? 'clipboard',
         outputDir: options.outputDir ?? DEFAULT_OUTPUT_DIR,
         // prompt-only is the safer default: the agent proposes a plan rather than
