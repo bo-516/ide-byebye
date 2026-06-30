@@ -5,7 +5,7 @@ import { buildCursorAppDeepLink, buildCursorAppFilePrompt, resolveCursorAppWorks
 
 test('buildCursorAppDeepLink builds Cursor prompt route with optional routing params', () => {
     const url = new URL(buildCursorAppDeepLink({
-        prompt: '把按钮改成主按钮 & 加 loading',
+        prompt: 'make this the primary button & add loading',
         workspace: 'ai-inspector',
         mode: 'agent',
     }));
@@ -13,7 +13,7 @@ test('buildCursorAppDeepLink builds Cursor prompt route with optional routing pa
     assert.equal(url.protocol, 'cursor:');
     assert.equal(url.hostname, 'anysphere.cursor-deeplink');
     assert.equal(url.pathname, '/prompt');
-    assert.equal(url.searchParams.get('text'), '把按钮改成主按钮 & 加 loading');
+    assert.equal(url.searchParams.get('text'), 'make this the primary button & add loading');
     assert.equal(url.searchParams.get('workspace'), 'ai-inspector');
     assert.equal(url.searchParams.get('mode'), 'agent');
 });
@@ -45,11 +45,11 @@ test('buildCursorAppFilePrompt includes refs, handoff file, and intent', () => {
             filePath: '/tmp/project/src/Button.jsx',
             selectedNodeRange: { startLine: 4, endLine: 8 },
         },
-        intent: '请继续处理这个按钮',
+        intent: 'please keep working on this button',
     }, '/tmp/project/.intent-inspector/requests/request.md');
 
     assert.equal(
         prompt,
-        '@src/Button.jsx #4-8\n/tmp/project/.intent-inspector/requests/request.md\n\n请继续处理这个按钮\n',
+        '@src/Button.jsx #4-8\n/tmp/project/.intent-inspector/requests/request.md\n\nplease keep working on this button\n',
     );
 });

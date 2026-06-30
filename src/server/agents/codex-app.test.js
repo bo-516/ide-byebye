@@ -12,10 +12,10 @@ test('buildCodexAppPrompt uses markdown file links for code references', () => {
             filePath: '/tmp/project/AGENTS.md',
             selectedNodeRange: { startLine: 2, endLine: 3 },
         },
-        intent: '这里写的什么内容',
+        intent: 'what does this say',
     });
 
-    assert.equal(prompt, '[AGENTS.md #2-3](AGENTS.md#2-#3)\n\n这里写的什么内容\n');
+    assert.equal(prompt, '[AGENTS.md #2-3](AGENTS.md#2-#3)\n\nwhat does this say\n');
 });
 
 test('buildCodexAppPrompt rewrites inline at-mention labels without duplicating them', () => {
@@ -26,10 +26,10 @@ test('buildCodexAppPrompt rewrites inline at-mention labels without duplicating 
             filePath: '/tmp/project/AGENTS.md',
             selectedNodeRange: { startLine: 2, endLine: 3 },
         },
-        intent: '请解释 @AGENTS.md #2-3',
+        intent: 'explain @AGENTS.md #2-3',
     });
 
-    assert.equal(prompt, '请解释 [AGENTS.md #2-3](AGENTS.md#2-#3)\n');
+    assert.equal(prompt, 'explain [AGENTS.md #2-3](AGENTS.md#2-#3)\n');
 });
 
 test('buildCodexAppPrompt keeps only refs not already present in the intent header', () => {
@@ -61,10 +61,10 @@ test('buildCodexAppPrompt rewrites inline webp screenshot refs without duplicati
         screenshots: [
             { filePath: '/tmp/project/.intent-inspector/screenshots/shwf3fq.webp' },
         ],
-        intent: '看一下 @.intent-inspector/screenshots/shwf3fq.webp',
+        intent: 'take a look at @.intent-inspector/screenshots/shwf3fq.webp',
     });
 
-    assert.equal(prompt, '看一下 [.intent-inspector/screenshots/shwf3fq.webp](.intent-inspector/screenshots/shwf3fq.webp)\n');
+    assert.equal(prompt, 'take a look at [.intent-inspector/screenshots/shwf3fq.webp](.intent-inspector/screenshots/shwf3fq.webp)\n');
 });
 
 test('resolveCodexAppProjectRoot prefers configured projectRoot', () => {
