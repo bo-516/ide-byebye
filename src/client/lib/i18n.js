@@ -72,6 +72,16 @@ const STRINGS = {
         zh: '在 Cursor 中打开并预填本次 UI 修改意图。',
         en: 'Open Cursor with this UI change intent prefilled.',
     },
+    'agent.clipboard.label': { zh: '复制 Prompt', en: 'Copy prompt' },
+    'agent.clipboard.title': {
+        zh: '把整理好的 Prompt 复制到剪贴板，可粘贴到任意 AI。',
+        en: 'Copy the assembled prompt to your clipboard — paste it into any AI.',
+    },
+    'clipboard.copied': { zh: '✓ 已复制到剪贴板', en: '✓ Copied to clipboard' },
+    'clipboard.copyFailed': {
+        zh: '复制失败，请手动复制。',
+        en: 'Copy failed — please copy it manually.',
+    },
     'agent.notEnabled': { zh: '{label} 未启用。', en: '{label} is not enabled.' },
     'agent.unavailable': { zh: '{label} 不可用。', en: '{label} is unavailable.' },
     'agent.checkSetup': {
