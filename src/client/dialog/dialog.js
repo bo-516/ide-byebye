@@ -247,6 +247,14 @@ export class Dialog {
             tools.append(recordButton);
         const actions = el('div', 'cii-action-buttons');
         this.actionButtons = new Map();
+        // Clipboard is a first-class footer action: it copies the assembled prompt so the user can paste it into any
+        // AI, with no app/deeplink dependency. It is deliberately kept out of `configuredActions()` so the Enter key
+        // still targets an app agent rather than the clipboard.
+        const clipboardButton = el('button', 'cii-btn cii-btn-primary cii-agent-action cii-agent-clipboard', t('agent.clipboard.label'));
+        clipboardButton.title = t('agent.clipboard.title');
+        clipboardButton.addEventListener('click', () => void this.send('clipboard'));
+        this.actionButtons.set('clipboard', clipboardButton);
+        actions.append(clipboardButton);
         for (const action of configuredActions()) {
             const button = el('button', 'cii-btn cii-btn-primary cii-agent-action', action.label);
             button.title = action.title;
@@ -625,7 +633,9 @@ export class Dialog {
                 (unavailable.reason ?? t('agent.checkSetup')));
             return;
         }
-        this.rememberAgent(agent);
+        // Only app agents drive the Enter-key default; clipboard is an auxiliary action that must not hijack it.
+        if (configuredActions().some((a) => a.name === agent))
+            this.rememberAgent(agent);
         this.setState('sending');
         try {
             const payload = await this.buildPayload(agent);
@@ -647,6 +657,12 @@ export class Dialog {
      * @returns {void}
      */
     renderResult(result, unavailableReason) {
+        // Clipboard agents return the assembled prompt as `output` for the browser to copy; app agents already acted
+        // server-side (deeplink) and just need the dialog to close.
+        if (result.ok && typeof result.output === 'string') {
+            void this.copyOutput(result.output);
+            return;
+        }
         this.setState(result.ok ? 'completed' : 'failed');
         if (result.ok) {
             this.close();
@@ -655,6 +671,45 @@ export class Dialog {
         this.showError(result.error ??
             unavailableReason ??
             t('agent.failedHandle', { label: AGENT_LABELS[result.agent] ?? result.agent }));
+    }
+    /**
+     * Copy a clipboard agent's prompt into the OS clipboard and flash success on the Copy button.
+     *
+     * Boundary: `navigator.clipboard.writeText` runs after the async send, so a browser that requires a fresh user
+     * gesture (or a non-secure context) may reject it; that path surfaces a manual-copy hint instead of failing
+     * silently. The dialog stays open so the user can read the feedback and still hand off to an app afterwards.
+     *
+     * @param {string} text Assembled prompt returned by the clipboard adapter.
+     * @returns {Promise<void>} Resolves after the copy attempt and its feedback are applied.
+     */
+    async copyOutput(text) {
+        let copied = false;
+        try {
+            await navigator.clipboard.writeText(text);
+            copied = true;
+        }
+        catch {
+            copied = false;
+        }
+        if (!copied) {
+            this.setState('failed');
+            this.showError(t('clipboard.copyFailed'));
+            return;
+        }
+        this.setState('idle');
+        const button = this.actionButtons.get('clipboard');
+        if (!button)
+            return;
+        if (this.copyResetTimer)
+            clearTimeout(this.copyResetTimer);
+        if (button.dataset.label == null)
+            button.dataset.label = button.textContent ?? '';
+        button.textContent = t('clipboard.copied');
+        button.classList.add('cii-agent-copied');
+        this.copyResetTimer = setTimeout(() => {
+            button.textContent = button.dataset.label ?? '';
+            button.classList.remove('cii-agent-copied');
+        }, 1800);
     }
     /**
      * Show a user-facing dialog error.

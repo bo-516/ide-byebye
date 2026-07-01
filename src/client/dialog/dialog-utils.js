@@ -26,6 +26,7 @@ export const AGENT_LABELS = {
     'codex-app': 'Codex App',
     'claude-app': 'Claude App',
     'cursor-app': 'Cursor',
+    clipboard: 'Clipboard',
 };
 /**
  * App-agent actions displayed in the dialog footer.
