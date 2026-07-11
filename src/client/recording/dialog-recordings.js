@@ -1,4 +1,4 @@
-import { el } from '../dialog/dialog-utils.js';
+import { el, revealDropdownPanel } from '../dialog/dialog-utils.js';
 import { RecordingSession, recordingDurationMs, segmentsDuration, combineSegments } from './recorder.js';
 import { captureRecordingStill } from './recording-still.js';
 import { openRecordingViewer } from './recording-viewer.js';
@@ -102,13 +102,17 @@ export class DialogRecordingController {
         const scope = el('div', 'cii-screenshot-picker cii-rec-scope-picker');
         this.scopeBtn = el('button', 'cii-rec-scope-btn');
         this.scopeBtn.type = 'button';
-        this.scopeBtn.title = t('recording.scope.title');
+        this.scopeBtn.dataset.ciiTip = t('recording.scope.title');
         this.scopeLabel = el('span', 'cii-rec-scope-label', recordingScopeLabel(this.scope));
         this.scopeBtn.append(this.scopeLabel, el('span', 'cii-rec-scope-caret', '⌄'));
         this.scopeBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            if (this.scopeMenu)
-                this.scopeMenu.hidden = !this.scopeMenu.hidden;
+            if (!this.scopeMenu)
+                return;
+            if (this.scopeMenu.hidden)
+                revealDropdownPanel(this.scopeBtn, this.scopeMenu);
+            else
+                this.scopeMenu.hidden = true;
         });
         this.scopeMenu = el('div', 'cii-screenshot-menu');
         this.scopeMenu.hidden = true;
@@ -120,7 +124,7 @@ export class DialogRecordingController {
         // Record toggle button.
         this.button = el('button', 'cii-icon-btn cii-rec-toggle');
         this.button.type = 'button';
-        this.button.title = t('recording.toggle.title');
+        this.button.dataset.ciiTip = t('recording.toggle.title');
         this.button.setAttribute('aria-label', t('recording.toggle.title'));
         this.button.append(el('span', 'cii-rec-dot'));
         this.button.addEventListener('click', (event) => {

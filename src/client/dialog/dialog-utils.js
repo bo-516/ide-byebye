@@ -1,11 +1,20 @@
 import { basename, parseInspPathLite } from '../inspect/dom.js';
 import { t } from '../lib/i18n.js';
 import { validStyleKeys } from '../style/style-keys.js';
+import { clampNodeLimit, DEFAULT_NODE_LIMIT } from '../style/style-capture.js';
 
 export const SCREENSHOT_PREF_KEY = 'code-intent-inspector:screenshot-scopes';
 export const LAST_AGENT_PREF_KEY = 'code-intent-inspector:last-app-agent';
 export const STYLE_KEYS_PREF_KEY = 'code-intent-inspector:style-keys';
 export const STYLE_SCOPE_PREF_KEY = 'code-intent-inspector:style-scope';
+export const STYLE_NODES_PREF_KEY = 'code-intent-inspector:style-nodes';
+
+/**
+ * Style-capture scopes in render and persistence order.
+ * Boundary: values must match the `captureStyles` scope branches; a stale or unsupported stored value falls back to
+ * `self` in {@link loadStyleScope} so a bad preference cannot widen the capture unexpectedly.
+ */
+export const STYLE_SCOPE_ORDER = ['self', 'children', 'ancestors', 'both'];
 
 /**
  * Screenshot scopes in render and persistence order.
@@ -242,6 +251,125 @@ export function clamp(value, min, max) {
 }
 
 /**
+ * Decide where an absolutely-placed dropdown panel should sit so it stays fully inside the viewport.
+ *
+ * Boundary: this is the pure geometry behind {@link placeDropdownPanel}, split out so it can be unit-tested without a
+ * DOM. All inputs are in viewport coordinates (as {@link Element.getBoundingClientRect} returns); the returned edge
+ * offsets are wrapper-relative (subtracting the wrapper origin) so the caller can write them straight to inline
+ * `top`/`bottom`/`left`. Exactly one of `top`/`bottom` is a number and the other is `null`, mirroring the pinned edge.
+ * Placement rules: keep the panel above the trigger when the room above can hold it; otherwise flip below when the room
+ * below is larger; clamp the height (`maxHeight`, non-null only when the panel must shrink) to the chosen side so it
+ * scrolls internally instead of spilling; and clamp the horizontal position so a trigger near either rail cannot push a
+ * wide panel off-screen. The `margin`/`gap` arithmetic guarantees the resulting panel rect stays within `margin` of
+ * every viewport edge (down to a `minHeight` floor for pathologically short viewports).
+ *
+ * @param {{ anchor: { top: number, bottom: number, left: number, right: number }, wrap: { top: number, bottom: number, left: number }, panelHeight: number, panelWidth: number, viewportWidth: number, viewportHeight: number, gap: number, margin: number, minHeight: number }} input Measured rects and spacing.
+ * @returns {{ openDown: boolean, top: number | null, bottom: number | null, left: number, maxHeight: number | null }} Wrapper-relative placement.
+ */
+export function computeDropdownPlacement(input) {
+    const { anchor, wrap, panelHeight, panelWidth, viewportWidth, viewportHeight, gap, margin, minHeight } = input;
+    // Vertical: prefer opening upward (the design default); flip below only when the room above cannot hold the panel
+    // and the room below is larger. Clamp the height to the chosen side so the list scrolls instead of leaving the view.
+    const spaceAbove = anchor.top - margin;
+    const spaceBelow = viewportHeight - anchor.bottom - margin;
+    const openDown = panelHeight + gap > spaceAbove && spaceBelow > spaceAbove;
+    const room = (openDown ? spaceBelow : spaceAbove) - gap;
+    const maxHeight = panelHeight > room ? Math.max(minHeight, room) : null;
+    // Horizontal: keep the panel right-aligned to the trigger, then clamp both edges into the viewport so a trigger near
+    // either rail cannot shove a wide panel off-screen.
+    const rightAlignedLeft = anchor.right - panelWidth;
+    const clampedLeft = clamp(rightAlignedLeft, margin, Math.max(margin, viewportWidth - panelWidth - margin));
+    const left = clampedLeft - wrap.left;
+    if (openDown)
+        return { openDown, top: (anchor.bottom + gap) - wrap.top, bottom: null, left, maxHeight };
+    return { openDown, top: null, bottom: wrap.bottom - (anchor.top - gap), left, maxHeight };
+}
+
+/**
+ * Position an absolutely-placed dropdown panel so it stays fully inside the viewport.
+ *
+ * Boundary: the panel must be a `position: absolute` child of its trigger's `position: relative` wrapper (its
+ * `offsetParent`) and already un-hidden so it can be measured. The stylesheet default opens these panels upward and
+ * right-aligned relative to the trigger, which clips whenever the dialog sits high in — or hard against a side of — the
+ * viewport. This measures the trigger against the live viewport, delegates the geometry to
+ * {@link computeDropdownPlacement}, and writes `top`/`bottom`/`left`/`right`/`max-height` inline. All inline overrides
+ * are cleared first so a re-open re-measures from the natural, stylesheet-capped size. Exactly one vertical edge is
+ * pinned and the other forced to `auto`; the stylesheet default sets `bottom`, so leaving it in place while opening
+ * downward would stretch the panel between both edges instead of letting it size to its content.
+ *
+ * @param {HTMLElement} button Trigger button the panel anchors to.
+ * @param {HTMLElement} panel Absolutely-positioned dropdown panel, already visible.
+ * @param {{ gap?: number, margin?: number, minHeight?: number }} [options] Spacing overrides (px).
+ * @returns {void}
+ */
+export function placeDropdownPanel(button, panel, options = {}) {
+    const gap = options.gap ?? 8;
+    const margin = options.margin ?? 8;
+    const minHeight = options.minHeight ?? 140;
+    // Drop prior overrides so the measurement below reflects the natural, stylesheet-capped size, not last open's clamp.
+    panel.style.top = '';
+    panel.style.bottom = '';
+    panel.style.left = '';
+    panel.style.right = '';
+    panel.style.maxHeight = '';
+    panel.style.overflowY = '';
+
+    const placement = computeDropdownPlacement({
+        anchor: button.getBoundingClientRect(),
+        wrap: (panel.offsetParent ?? button).getBoundingClientRect(),
+        panelHeight: panel.offsetHeight,
+        panelWidth: panel.offsetWidth,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        gap,
+        margin,
+        minHeight,
+    });
+
+    if (placement.maxHeight != null) {
+        panel.style.maxHeight = `${placement.maxHeight}px`;
+        panel.style.overflowY = 'auto';
+    }
+    if (placement.openDown) {
+        panel.style.top = `${placement.top}px`;
+        panel.style.bottom = 'auto';
+    }
+    else {
+        panel.style.bottom = `${placement.bottom}px`;
+        panel.style.top = 'auto';
+    }
+    panel.style.left = `${placement.left}px`;
+    panel.style.right = 'auto';
+}
+
+/**
+ * Reveal a hidden dropdown panel at its viewport-fitted position without a first-frame flash.
+ *
+ * Boundary: opening a panel with `hidden = false` and then positioning it can let the browser paint one frame at the
+ * stylesheet default (up + right-aligned) before {@link placeDropdownPanel}'s computed offsets apply — seen as the panel
+ * appearing in one spot and jumping to another. Un-hiding under `visibility: hidden` keeps the panel laid out (so it is
+ * measurable) but unpainted; only after it is placed do we clear `visibility`, so the panel's first painted frame is
+ * already at its final spot. Callers own the toggle: this is the open half; closing stays a plain `hidden = true`.
+ *
+ * @param {HTMLElement} button Trigger button the panel anchors to.
+ * @param {HTMLElement} panel Absolutely-positioned dropdown panel to open.
+ * @param {{ gap?: number, margin?: number, minHeight?: number }} [options] Spacing overrides forwarded to placement.
+ * @returns {void}
+ */
+export function revealDropdownPanel(button, panel, options = {}) {
+    panel.style.visibility = 'hidden';
+    panel.hidden = false;
+    try {
+        placeDropdownPanel(button, panel, options);
+    }
+    finally {
+        // Always restore visibility, even if measurement threw — a panel stuck at `visibility: hidden` would be open
+        // but invisible, worse than an unpositioned one.
+        panel.style.visibility = '';
+    }
+}
+
+/**
  * Convert a screenshot scope into the localized label used in previews.
  *
  * Boundary: unknown scopes are treated as viewport screenshots so stale stored choices still get a stable label.
@@ -300,14 +428,15 @@ export function saveStyleChoices(choices) {
 /**
  * Load the persisted style-capture scope.
  *
- * Boundary: only `self` and `ancestors` are valid; any other stored value falls back to `self` so a stale preference
- * cannot widen the capture unexpectedly.
+ * Boundary: only values in {@link STYLE_SCOPE_ORDER} are valid; any other stored value falls back to `self` so a stale
+ * preference cannot widen the capture unexpectedly.
  *
- * @returns {'self' | 'ancestors'} Persisted scope, defaulting to `self`.
+ * @returns {'self' | 'children' | 'ancestors' | 'both'} Persisted scope, defaulting to `self`.
  */
 export function loadStyleScope() {
     try {
-        return window.localStorage.getItem(STYLE_SCOPE_PREF_KEY) === 'ancestors' ? 'ancestors' : 'self';
+        const value = window.localStorage.getItem(STYLE_SCOPE_PREF_KEY);
+        return STYLE_SCOPE_ORDER.includes(value) ? value : 'self';
     }
     catch {
         return 'self';
@@ -317,16 +446,39 @@ export function loadStyleScope() {
 /**
  * Persist the style-capture scope as a best-effort preference.
  *
- * @param {'self' | 'ancestors'} scope Scope chosen in the current dialog.
+ * @param {'self' | 'children' | 'ancestors' | 'both'} scope Scope chosen in the current dialog.
  * @returns {void}
  */
 export function saveStyleScope(scope) {
     try {
-        window.localStorage.setItem(STYLE_SCOPE_PREF_KEY, scope === 'ancestors' ? 'ancestors' : 'self');
+        window.localStorage.setItem(STYLE_SCOPE_PREF_KEY, STYLE_SCOPE_ORDER.includes(scope) ? scope : 'self');
     }
     catch {
         // Preference persistence is best effort.
     }
+}
+
+/**
+ * Load the persisted node-count cap for the tree scopes (children/ancestors).
+ *
+ * Boundary: the cap is a per-user preference reused as the initial value on the next open; an absent or malformed value
+ * yields {@link DEFAULT_NODE_LIMIT}. The value is clamped into the supported range so a hand-edited store cannot push
+ * the capture past what the server also enforces.
+ *
+ * @returns {number} Node cap in the supported range.
+ */
+export function loadStyleNodeLimit() {
+    return clampNodeLimit(readJsonStore(STYLE_NODES_PREF_KEY, DEFAULT_NODE_LIMIT));
+}
+
+/**
+ * Persist the node-count cap as a best-effort preference.
+ *
+ * @param {number} limit Node cap chosen in the current dialog.
+ * @returns {void}
+ */
+export function saveStyleNodeLimit(limit) {
+    writeJsonStore(STYLE_NODES_PREF_KEY, clampNodeLimit(limit));
 }
 
 /**

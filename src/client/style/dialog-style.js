@@ -1,6 +1,6 @@
-import { el, loadStyleChoices, saveStyleChoices, loadStyleScope, saveStyleScope } from '../dialog/dialog-utils.js';
+import { el, loadStyleChoices, saveStyleChoices, loadStyleScope, saveStyleScope, loadStyleNodeLimit, saveStyleNodeLimit, STYLE_SCOPE_ORDER, revealDropdownPanel } from '../dialog/dialog-utils.js';
 import { STYLE_PROPERTY_KEYS, DEFAULT_STYLE_KEYS, orderStyleKeys } from './style-keys.js';
-import { captureStyles } from './style-capture.js';
+import { captureStyles, clampNodeLimit, DEFAULT_NODE_LIMIT } from './style-capture.js';
 import { t } from '../lib/i18n.js';
 
 /**
@@ -21,8 +21,11 @@ export class DialogStyleController {
     previewEl = null;
     scopeButtons = new Map();
     optionButtons = new Map();
+    nodeLimitRow = null;
+    nodeLimitValueEl = null;
     choices = new Set();
     scope = 'self';
+    nodeLimit = DEFAULT_NODE_LIMIT;
     filter = '';
 
     /**
@@ -41,6 +44,7 @@ export class DialogStyleController {
     reset() {
         this.choices = loadStyleChoices();
         this.scope = loadStyleScope();
+        this.nodeLimit = loadStyleNodeLimit();
         this.filter = '';
         if (this.panel)
             this.panel.hidden = true;
@@ -76,8 +80,14 @@ export class DialogStyleController {
         this.button.append(el('span', 'cii-style-icon'));
         this.button.addEventListener('click', (event) => {
             event.stopPropagation();
-            if (this.panel)
-                this.panel.hidden = !this.panel.hidden;
+            if (!this.panel)
+                return;
+            // Measure against the live viewport on open (gated so it paints only at the final spot) so a dialog sitting
+            // high or near a side rail flips/clamps the panel into view instead of clipping it off-screen.
+            if (this.panel.hidden)
+                revealDropdownPanel(this.button, this.panel);
+            else
+                this.panel.hidden = true;
         });
         this.panel = this.renderPanel();
         wrapper.append(this.button, this.panel);
@@ -95,11 +105,11 @@ export class DialogStyleController {
 
         panel.append(el('div', 'cii-style-panel-title', t('styles.panel.title')));
 
-        // Scope toggle (selected element only / element + ancestors).
+        // Scope toggle (selected element only / element + descendants / element + ancestors).
         panel.append(el('div', 'cii-style-scope-label', t('styles.scope.label')));
         const scopeRow = el('div', 'cii-style-scope');
         this.scopeButtons = new Map();
-        for (const value of ['self', 'ancestors']) {
+        for (const value of STYLE_SCOPE_ORDER) {
             const btn = el('button', 'cii-style-scope-btn', t(`styles.scope.${value}`));
             btn.type = 'button';
             btn.addEventListener('click', (event) => {
@@ -114,6 +124,9 @@ export class DialogStyleController {
             scopeRow.append(btn);
         }
         panel.append(scopeRow);
+
+        // Node cap for the tree scopes (children/ancestors); hidden for `self`, which is always a single node.
+        panel.append(this.renderNodeLimit());
 
         // Search filter.
         this.searchEl = el('input', 'cii-style-search');
@@ -157,6 +170,54 @@ export class DialogStyleController {
         this.updateScope();
         this.renderList();
         return panel;
+    }
+
+    /**
+     * Build the node-cap stepper shown for the tree scopes.
+     * Boundary: `self` always captures exactly one node, so the row is hidden for that scope (see {@link updateScope}).
+     * The chosen value persists and is reused as the initial value on the next open; it is clamped to the supported range
+     * (the server backstop) so a larger request is never silently truncated.
+     * @returns {HTMLElement} Node-limit row.
+     */
+    renderNodeLimit() {
+        const row = el('div', 'cii-style-nodes');
+        row.append(el('span', 'cii-style-nodes-label', t('styles.nodes.label')));
+        const stepper = el('div', 'cii-style-nodes-stepper');
+        const dec = el('button', 'cii-style-nodes-btn', '−');
+        dec.type = 'button';
+        dec.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.setNodeLimit(this.nodeLimit - 1);
+        });
+        this.nodeLimitValueEl = el('span', 'cii-style-nodes-value', String(this.nodeLimit));
+        const inc = el('button', 'cii-style-nodes-btn', '+');
+        inc.type = 'button';
+        inc.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.setNodeLimit(this.nodeLimit + 1);
+        });
+        stepper.append(dec, this.nodeLimitValueEl, inc);
+        row.append(stepper);
+        this.nodeLimitRow = row;
+        return row;
+    }
+
+    /**
+     * Apply a new node cap: clamp, persist, refresh the stepper label, and re-run the preview/dependents.
+     * Boundary: a no-op change (already at a clamp bound) skips the refresh so a repeated click at the edge does nothing.
+     * @param {number} value Requested node cap.
+     * @returns {void}
+     */
+    setNodeLimit(value) {
+        const next = clampNodeLimit(value);
+        if (next === this.nodeLimit)
+            return;
+        this.nodeLimit = next;
+        saveStyleNodeLimit(next);
+        if (this.nodeLimitValueEl)
+            this.nodeLimitValueEl.textContent = String(next);
+        this.updatePreview();
+        this.host.onChange?.();
     }
 
     /**
@@ -238,10 +299,12 @@ export class DialogStyleController {
             mark.textContent = active ? '✓' : '';
     }
 
-    /** Refresh the active scope toggle button. @returns {void} */
+    /** Refresh the active scope toggle button and toggle the node-cap row (hidden for the single-node `self` scope). @returns {void} */
     updateScope() {
         for (const [value, button] of this.scopeButtons)
             button.classList.toggle('cii-style-scope-active', value === this.scope);
+        if (this.nodeLimitRow)
+            this.nodeLimitRow.hidden = this.scope === 'self';
     }
 
     /** Refresh the selected-count label. @returns {void} */
@@ -260,7 +323,7 @@ export class DialogStyleController {
         const active = this.choices.size > 0;
         this.button.classList.toggle('cii-icon-btn-active', active);
         const title = active ? t('styles.summary', { n: this.choices.size }) : t('styles.button.title');
-        this.button.title = title;
+        this.button.dataset.ciiTip = title;
         this.button.setAttribute('aria-label', t('styles.button.title'));
     }
 
@@ -331,7 +394,7 @@ export class DialogStyleController {
             return undefined;
         const element = this.host.selectedElement();
         const payload = element
-            ? (captureStyles(element, { scope: this.scope, properties: orderStyleKeys(this.choices) }) ?? undefined)
+            ? (captureStyles(element, { scope: this.scope, properties: orderStyleKeys(this.choices), maxNodes: this.nodeLimit }) ?? undefined)
             : undefined;
         if (!payload && options.strict)
             throw new Error(t('styles.error.elementGone'));
