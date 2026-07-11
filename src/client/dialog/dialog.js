@@ -41,8 +41,7 @@ export class Dialog {
         this.closeFromEscape(e);
     };
     resizeHandler = () => {
-        if (this.dialogEl)
-            this.positionDialog(this.dialogEl, this.anchor);
+        this.repositionForContent();
     };
     /**
      * Build the stateful dialog controller.
@@ -60,10 +59,7 @@ export class Dialog {
         this.lastAgent = loadLastAgent(config);
         this.editor = createDialogEditor({
             placeholder: t('intent.placeholder'),
-            onChange: () => {
-                if (this.dialogEl)
-                    this.positionDialog(this.dialogEl, this.anchor);
-            },
+            onChange: () => this.repositionForContent(),
         });
         this.references = new DialogReferenceController(config, overlay, {
             captureIntentCursor: () => this.editor.captureCursor(),
@@ -78,18 +74,12 @@ export class Dialog {
             focusIntent: () => this.focusIntent(),
             isOpen: () => this.isOpen(),
             showError: (text) => this.showError(text),
-            reposition: () => {
-                if (this.dialogEl)
-                    this.positionDialog(this.dialogEl, this.anchor);
-            },
+            reposition: () => this.repositionForContent(),
         });
         this.screenshots = new DialogScreenshotController({
             selectedElement: () => this.screenshotElement ?? this.selectedElement,
             backdrop: () => this.backdrop,
-            reposition: () => {
-                if (this.dialogEl)
-                    this.positionDialog(this.dialogEl, this.anchor);
-            },
+            reposition: () => this.repositionForContent(),
             showError: (text) => this.showError(text),
         });
         this.recordings = new DialogRecordingController({
@@ -102,22 +92,13 @@ export class Dialog {
                     this.backdrop.hidden = hidden;
                 this.setHostInteractive(!hidden);
             },
-            reposition: () => {
-                if (this.dialogEl)
-                    this.positionDialog(this.dialogEl, this.anchor);
-            },
+            reposition: () => this.repositionForContent(),
             showError: (text) => this.showError(text),
-            onChange: () => {
-                if (this.dialogEl)
-                    this.positionDialog(this.dialogEl, this.anchor);
-            },
+            onChange: () => this.repositionForContent(),
         });
         this.styles = new DialogStyleController({
             selectedElement: () => this.selectedElement,
-            onChange: () => {
-                if (this.dialogEl)
-                    this.positionDialog(this.dialogEl, this.anchor);
-            },
+            onChange: () => this.repositionForContent(),
         });
         this.pin = new DialogPin(parent, { onRestore: () => this.handleOrbRestore() });
     }
@@ -392,6 +373,39 @@ export class Dialog {
         dialog.style.left = `${clamp(Math.round(x), margin, maxX)}px`;
         dialog.style.top = `${clamp(Math.round(y), margin, maxY)}px`;
     }
+
+    /**
+     * Re-clamp the already-open dialog into the viewport after its content or the window size changed.
+     *
+     * Boundary: this is the shared handler for every "the dialog resized itself" signal — typing, toggling a style
+     * property, adding/removing a screenshot or recording preview, or a window resize. Unlike {@link positionDialog} it
+     * deliberately does NOT re-anchor to the click point: re-deriving `top` from the live height on each such signal is
+     * what made the dialog (and any panel open inside it) jump on every keystroke/toggle. A closed dialog is a no-op.
+     * @returns {void}
+     */
+    repositionForContent() {
+        if (this.dialogEl)
+            this.keepDialogInView(this.dialogEl);
+    }
+
+    /**
+     * Keep a positioned dialog fully inside the viewport without moving it unless a size change pushed it out of bounds.
+     *
+     * Boundary: reads the dialog's current top/left (its `style` coordinates equal viewport coordinates because the
+     * shadow host is a `position: fixed; inset: 0` box) and only pulls it back when its right/bottom edge would cross the
+     * margin {@link positionDialog} uses. Growing content therefore expands the box in place — the top stays put — until
+     * it reaches the viewport edge, instead of the box hopping to a freshly re-anchored spot on each change.
+     * @param {HTMLElement} dialog Positioned dialog element.
+     * @returns {void}
+     */
+    keepDialogInView(dialog) {
+        const margin = 12;
+        const rect = dialog.getBoundingClientRect();
+        const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
+        const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
+        dialog.style.left = `${clamp(Math.round(rect.left), margin, maxX)}px`;
+        dialog.style.top = `${clamp(Math.round(rect.top), margin, maxY)}px`;
+    }
     /**
      * Decide whether an Enter press in the intent editor should submit to the remembered app.
      *
@@ -637,14 +651,56 @@ export class Dialog {
         if (configuredActions().some((a) => a.name === agent))
             this.rememberAgent(agent);
         this.setState('sending');
+        // Must start synchronously inside the click stack: the screenshot/send round-trip below outlives the user
+        // activation that clipboard access is tied to (strictly enforced by Safari).
+        const eagerCopy = agent === 'clipboard' ? this.beginEagerClipboardWrite() : null;
         try {
             const payload = await this.buildPayload(agent);
             const result = await this.api.send(payload);
-            this.renderResult(result);
+            if (eagerCopy) {
+                if (result.ok && typeof result.output === 'string')
+                    eagerCopy.resolveText(result.output);
+                else
+                    eagerCopy.rejectText(new Error(result.error ?? 'No prompt returned'));
+            }
+            this.renderResult(result, undefined, eagerCopy?.written);
         }
         catch (err) {
+            eagerCopy?.rejectText(err instanceof Error ? err : new Error(String(err)));
             this.setState('failed');
             this.showError(err instanceof Error ? err.message : String(err));
+        }
+    }
+    /**
+     * Start an OS clipboard write while the click's user activation is still alive, deferring the actual text.
+     *
+     * Boundary: must be called synchronously inside the user gesture. Browsers without promise-valued
+     * `ClipboardItem` support return null so the caller falls back to the post-response copy path. The returned
+     * `written` promise never rejects; the deferred text must be resolved or rejected exactly once, otherwise the
+     * pending write is left to the browser's own gesture timeout.
+     *
+     * @returns {{ resolveText: Function, rejectText: Function, written: Promise<boolean> } | null} Deferred write handle.
+     */
+    beginEagerClipboardWrite() {
+        if (!navigator.clipboard?.write || typeof ClipboardItem !== 'function')
+            return null;
+        let resolveText;
+        let rejectText;
+        const text = new Promise((resolve, reject) => {
+            resolveText = resolve;
+            rejectText = reject;
+        });
+        try {
+            const item = new ClipboardItem({
+                'text/plain': text.then((value) => new Blob([value], { type: 'text/plain' })),
+            });
+            const written = navigator.clipboard.write([item]).then(() => true, () => false);
+            return { resolveText, rejectText, written };
+        }
+        catch {
+            // ClipboardItem exists but rejects promise-valued entries — settle the deferred so it cannot dangle.
+            resolveText('');
+            return null;
         }
     }
     /**
@@ -654,13 +710,15 @@ export class Dialog {
      *
      * @param {Record<string, unknown>} result Agent adapter result from the server.
      * @param {string | undefined} unavailableReason Optional fallback error text.
+     * @param {Promise<boolean> | undefined} eagerWritten Outcome of the gesture-time clipboard write, if one started.
      * @returns {void}
      */
-    renderResult(result, unavailableReason) {
-        // Clipboard agents return the assembled prompt as `output` for the browser to copy; app agents already acted
-        // server-side (deeplink) and just need the dialog to close.
-        if (result.ok && typeof result.output === 'string') {
-            void this.copyOutput(result.output);
+    renderResult(result, unavailableReason, eagerWritten) {
+        // Only the clipboard agent's `output` is prompt text meant for the browser to copy. App agents also return an
+        // `output` status string, but they already acted server-side (deeplink) — copying that string would both spam
+        // the clipboard and fail whenever the opened app steals focus from the page.
+        if (result.ok && result.agent === 'clipboard' && typeof result.output === 'string') {
+            void this.copyOutput(result.output, eagerWritten);
             return;
         }
         this.setState(result.ok ? 'completed' : 'failed');
@@ -680,22 +738,91 @@ export class Dialog {
      * silently. The dialog stays open so the user can read the feedback and still hand off to an app afterwards.
      *
      * @param {string} text Assembled prompt returned by the clipboard adapter.
+     * @param {Promise<boolean> | undefined} eagerWritten Outcome of the gesture-time clipboard write, if one started.
      * @returns {Promise<void>} Resolves after the copy attempt and its feedback are applied.
      */
-    async copyOutput(text) {
-        let copied = false;
-        try {
-            await navigator.clipboard.writeText(text);
-            copied = true;
-        }
-        catch {
-            copied = false;
-        }
-        if (!copied) {
-            this.setState('failed');
-            this.showError(t('clipboard.copyFailed'));
+    async copyOutput(text, eagerWritten) {
+        // The gesture-time write is the reliable path; retry with the direct APIs only when it failed or never started.
+        if ((eagerWritten && (await eagerWritten)) || (await this.writeClipboard(text))) {
+            this.flashCopied();
             return;
         }
+        // Automatic copy was rejected — most often because the click's user activation lapsed during the
+        // screenshot/send round-trip, or another surface (e.g. DevTools) holds focus so the page can't reach the
+        // clipboard at all. Surface the assembled prompt in a native prompt, pre-selected, so "copy manually" is
+        // actionable instead of a dead-end alert. The dialog returns to idle so the user can still hand off to an app.
+        this.setState('idle');
+        if (typeof window.prompt === 'function')
+            window.prompt(t('clipboard.copyFailed'), text);
+        else
+            this.showError(t('clipboard.copyFailed'));
+    }
+    /**
+     * Place text on the OS clipboard, preferring the async Clipboard API and falling back to the legacy execCommand
+     * path when it is unavailable or rejected.
+     *
+     * Boundary: `navigator.clipboard.writeText` requires a secure context and a focused document; when either is
+     * missing it rejects, so the synchronous execCommand path gets a second chance before the caller surfaces a
+     * manual-copy affordance.
+     *
+     * @param {string} text Prompt text to copy.
+     * @returns {Promise<boolean>} True if either path reported success.
+     */
+    async writeClipboard(text) {
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+        }
+        catch {
+            // Async path blocked (insecure context, unfocused document, or lapsed activation) — try execCommand.
+        }
+        return this.execCommandCopy(text);
+    }
+    /**
+     * Legacy clipboard copy via a detached textarea and `document.execCommand('copy')`.
+     *
+     * Boundary: appended to the light DOM (not the plugin shadow root) because execCommand copies the document
+     * selection, which is most reliable outside a shadow boundary. The node is removed synchronously afterwards.
+     *
+     * @param {string} text Prompt text to copy.
+     * @returns {boolean} True if the command reported success.
+     */
+    execCommandCopy(text) {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '0';
+            ta.style.left = '0';
+            ta.style.width = '1px';
+            ta.style.height = '1px';
+            ta.style.opacity = '0';
+            document.body.append(ta);
+            ta.select();
+            ta.setSelectionRange(0, text.length);
+            let ok = false;
+            try {
+                ok = document.execCommand('copy');
+            }
+            catch {
+                ok = false;
+            }
+            ta.remove();
+            return ok;
+        }
+        catch {
+            return false;
+        }
+    }
+    /**
+     * Flash the Copy button into its "copied" confirmation state and reset it after a short delay.
+     *
+     * @returns {void}
+     */
+    flashCopied() {
         this.setState('idle');
         const button = this.actionButtons.get('clipboard');
         if (!button)

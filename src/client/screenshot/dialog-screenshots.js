@@ -1,5 +1,5 @@
 import { captureScreenshot } from './screenshot.js';
-import { el, loadScreenshotChoices, saveScreenshotChoices, SCREENSHOT_SCOPE_ORDER, screenshotScopeLabel, screenshotScopeTitleLabel, } from '../dialog/dialog-utils.js';
+import { el, loadScreenshotChoices, saveScreenshotChoices, SCREENSHOT_SCOPE_ORDER, screenshotScopeLabel, screenshotScopeTitleLabel, revealDropdownPanel, } from '../dialog/dialog-utils.js';
 import { t } from '../lib/i18n.js';
 
 /**
@@ -84,12 +84,15 @@ export class DialogScreenshotController {
         const wrapper = el('div', 'cii-screenshot-picker');
         this.button = el('button', 'cii-icon-btn');
         this.button.type = 'button';
-        this.button.title = t('screenshot.settings.title');
+        this.button.dataset.ciiTip = t('screenshot.settings.title');
         this.button.setAttribute('aria-label', t('screenshot.settings.title'));
         this.button.append(el('span', 'cii-shot-icon'));
         this.button.addEventListener('click', (event) => {
             event.stopPropagation();
-            this.menu.hidden = !this.menu.hidden;
+            if (this.menu.hidden)
+                revealDropdownPanel(this.button, this.menu);
+            else
+                this.menu.hidden = true;
         });
         this.menu = el('div', 'cii-screenshot-menu');
         this.menu.hidden = true;
@@ -204,7 +207,7 @@ export class DialogScreenshotController {
     updatePicker() {
         const hasScreenshots = this.choices.size > 0;
         this.button.classList.toggle('cii-icon-btn-active', hasScreenshots);
-        this.button.title = hasScreenshots
+        this.button.dataset.ciiTip = hasScreenshots
             ? t('screenshot.summary', {
                 list: Array.from(this.choices)
                     .map((scope) => screenshotScopeTitleLabel(scope))

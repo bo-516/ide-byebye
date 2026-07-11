@@ -59,7 +59,7 @@ export class DialogReferenceController {
     renderButton() {
         this.button = el('button', 'cii-icon-btn cii-reference-btn');
         this.button.type = 'button';
-        this.button.title = t('reference.add.title');
+        this.button.dataset.ciiTip = t('reference.add.title');
         this.button.setAttribute('aria-label', t('reference.add.title'));
         this.button.append(el('span', 'cii-code-ref-icon'));
         this.button.addEventListener('click', (event) => {

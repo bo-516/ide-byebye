@@ -368,6 +368,62 @@ export const STYLE_TEXT = `
   color: #191c1e;
 }
 .cii-icon-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* --- Footer control tooltips ---
+   A dark hover bubble (with a downward caret) that replaces the browser's native title= tooltip on the capture/record
+   icons: same look everywhere, no ~1s browser delay, and readable text instead of a system pill. Driven purely by a
+   \`data-cii-tip\` attribute so any control can opt in. The bubble opens upward out of the footer (the dialog is
+   overflow:visible, so it is not clipped) and is suppressed while that control's own dropdown is open so it can never
+   sit on top of the menu. */
+[data-cii-tip] { position: relative; }
+[data-cii-tip]::after,
+[data-cii-tip]::before {
+  position: absolute;
+  left: 50%;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 110ms ease;
+  z-index: ${DIALOG_Z_INDEX};
+}
+[data-cii-tip]::after {
+  content: attr(data-cii-tip);
+  bottom: calc(100% + 7px);
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: #26292e;
+  color: #fff;
+  font: 550 11.5px/1.35 system-ui, -apple-system, sans-serif;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.20), 0 1px 2px rgba(0,0,0,0.14);
+}
+/* Caret: a small rotated square whose centre is pushed ~2px up into the bubble body, so the bubble paints over its
+   top half and the two read as one seamless shape (the earlier version only touched at a point and split apart). */
+[data-cii-tip]::before {
+  content: "";
+  bottom: calc(100% + 4px);
+  width: 8px;
+  height: 8px;
+  background: #26292e;
+  border-radius: 1.5px;
+  transform: translateX(-50%) rotate(45deg);
+}
+[data-cii-tip]:hover::after,
+[data-cii-tip]:hover::before,
+[data-cii-tip]:focus-visible::after,
+[data-cii-tip]:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 70ms;
+}
+/* While a footer dropdown (screenshot / style / recording-scope) is open it also opens upward — hide that control's
+   tooltip so the bubble does not overlap the menu. Higher specificity than the :hover rule, so it wins. */
+.cii-screenshot-picker:has(> .cii-screenshot-menu:not([hidden])) > [data-cii-tip]::after,
+.cii-screenshot-picker:has(> .cii-screenshot-menu:not([hidden])) > [data-cii-tip]::before {
+  opacity: 0;
+  visibility: hidden;
+}
 .cii-code-ref-icon {
   font: 700 20px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -585,24 +641,26 @@ export const STYLE_TEXT = `
   letter-spacing: -1px;
 }
 .cii-style-panel {
-  width: 256px;
-  max-width: 80vw;
+  width: 340px;
+  max-width: 90vw;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: min(360px, 60vh);
+  max-height: min(440px, 68vh);
 }
 .cii-style-panel-title { font-size: 12px; font-weight: 600; color: #334155; padding: 0 2px; }
 .cii-style-scope-label { font-size: 11px; font-weight: 600; color: #64748b; padding: 0 2px; }
 .cii-style-scope {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 3px;
   background: #eef2f6;
   border-radius: 8px;
 }
 .cii-style-scope-btn {
-  flex: 1 1 0;
+  flex: 1 1 40%;
+  min-width: 96px;
   padding: 6px 8px;
   border: 0;
   border-radius: 6px;
@@ -614,6 +672,46 @@ export const STYLE_TEXT = `
 }
 .cii-style-scope-btn:hover:not(.cii-style-scope-active) { background: #e2e8f0; }
 .cii-style-scope-active { background: #ffffff; color: #0058be; box-shadow: 0 1px 3px rgba(15,23,42,0.12); }
+.cii-style-nodes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+.cii-style-nodes[hidden] { display: none; }
+.cii-style-nodes-label { font-size: 11px; font-weight: 600; color: #64748b; }
+.cii-style-nodes-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  background: #eef2f6;
+  border-radius: 8px;
+}
+.cii-style-nodes-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0058be;
+  font: 15px/1 system-ui, sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.12);
+}
+.cii-style-nodes-btn:hover { background: #f2f4f6; }
+.cii-style-nodes-value {
+  min-width: 22px;
+  text-align: center;
+  font: 12px/1 system-ui, sans-serif;
+  font-weight: 600;
+  color: #334155;
+}
 .cii-style-search {
   width: 100%;
   padding: 7px 10px;
