@@ -221,12 +221,16 @@ export function createInspectorRequestHandler(deps) {
                 try {
                     const resolved = resolveSelection(payload, deps.projectRoot, options);
                     const request = buildIntentRequest(payload, resolved, deps.projectRoot, options);
+                    const pathOptions = {
+                        pathStyle: options.pathStyle,
+                        artifactPathStyle: options.artifactPathStyle,
+                    };
                     const response = {
                         ok: true,
                         selection: resolved.selection,
                         source: resolved.source,
-                        reference: buildPromptReferenceLines(request)[0],
-                        prompt: buildPrompt(request),
+                        reference: buildPromptReferenceLines(request, pathOptions)[0],
+                        prompt: buildPrompt(request, pathOptions),
                     };
                     sendJson(res, 200, response);
                 }
@@ -256,7 +260,10 @@ export function createInspectorRequestHandler(deps) {
                     request.screenshots = saveScreenshotPayloads(payload.screenshots ?? (payload.screenshot ? [payload.screenshot] : undefined), request, deps.outputDirAbs);
                     request.screenshot = request.screenshots?.[0];
                     request.recordings = saveRecordingPayloads(payload.recordings, request, deps.outputDirAbs);
-                    const prompt = buildPrompt(request);
+                    const prompt = buildPrompt(request, {
+                        pathStyle: options.pathStyle,
+                        artifactPathStyle: options.artifactPathStyle,
+                    });
                     const events = [];
                     const context = {
                         projectRoot: deps.projectRoot,

@@ -76,3 +76,63 @@ test('buildPromptMarkdownReferenceLines uses markdown links for webp screenshots
         '[.intent-inspector/screenshots/shwf3fq.webp](.intent-inspector/screenshots/shwf3fq.webp)',
     ]);
 });
+
+test('buildPrompt defaults screenshot artifacts to absolute paths (source stays relative)', () => {
+    const prompt = buildPrompt({
+        projectRoot: '/tmp/project',
+        selection: { line: 2 },
+        source: {
+            filePath: '/tmp/project/src/App.jsx',
+            selectedNodeRange: { startLine: 2, endLine: 4 },
+        },
+        screenshots: [
+            { filePath: '/tmp/project/.intent-inspector/screenshots/n708w16.webp' },
+        ],
+        intent: 'fix the height',
+    });
+
+    assert.equal(
+        prompt,
+        '@src/App.jsx #2-4\n@/tmp/project/.intent-inspector/screenshots/n708w16.webp\n\nfix the height\n',
+    );
+});
+
+test('buildPrompt pathStyle absolute makes source absolute; artifacts stay absolute by default', () => {
+    const prompt = buildPrompt({
+        projectRoot: '/tmp/project',
+        selection: { line: 2 },
+        source: {
+            filePath: '/tmp/project/src/App.jsx',
+            selectedNodeRange: { startLine: 2, endLine: 4 },
+        },
+        screenshots: [
+            { filePath: '/tmp/project/.intent-inspector/screenshots/n708w16.webp' },
+        ],
+        intent: 'look',
+    }, { pathStyle: 'absolute' });
+
+    assert.equal(
+        prompt,
+        '@/tmp/project/src/App.jsx #2-4\n@/tmp/project/.intent-inspector/screenshots/n708w16.webp\n\nlook\n',
+    );
+});
+
+test('buildPrompt artifactPathStyle relative keeps short screenshot chips', () => {
+    const prompt = buildPrompt({
+        projectRoot: '/tmp/project',
+        selection: { line: 2 },
+        source: {
+            filePath: '/tmp/project/src/App.jsx',
+            selectedNodeRange: { startLine: 2, endLine: 4 },
+        },
+        screenshots: [
+            { filePath: '/tmp/project/.intent-inspector/screenshots/n708w16.webp' },
+        ],
+        intent: 'look',
+    }, { pathStyle: 'relative', artifactPathStyle: 'relative' });
+
+    assert.equal(
+        prompt,
+        '@src/App.jsx #2-4\n@.intent-inspector/screenshots/n708w16.webp\n\nlook\n',
+    );
+});

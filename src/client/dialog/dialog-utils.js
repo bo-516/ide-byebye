@@ -35,6 +35,7 @@ export const AGENT_LABELS = {
     'codex-app': 'Codex App',
     'claude-app': 'Claude App',
     'cursor-app': 'Cursor',
+    'grok-build': 'Grok Build',
     clipboard: 'Clipboard',
 };
 /**
@@ -42,7 +43,8 @@ export const AGENT_LABELS = {
  *
  * Boundary: this list is UI-only; availability still comes from the server registry. Adding an action without a
  * matching registered adapter shows an unavailable button instead of sending to a missing route. `titleKey` is resolved
- * to a localized title at call time by `configuredActions()`, so the tooltip follows the active locale.
+ * to a localized title at call time by `configuredActions()`, so the tooltip follows the active locale. Grok Build is a
+ * CLI handoff (Terminal launcher) rather than an app deeplink, but it still gets a footer button like the app agents.
  *
  * @type {Array<{ name: string, label: string, titleKey: string }>} Ordered footer app actions.
  */
@@ -61,6 +63,11 @@ export const AGENT_ACTIONS = [
         name: 'cursor-app',
         label: 'Cursor',
         titleKey: 'agent.cursorApp.title',
+    },
+    {
+        name: 'grok-build',
+        label: 'Grok Build',
+        titleKey: 'agent.grokBuild.title',
     },
 ];
 
@@ -87,8 +94,8 @@ export function el(tag, className, text) {
 /**
  * Return the app actions displayed in the dialog footer.
  *
- * Boundary: this currently exposes only app deeplink agents; adding non-app agents here also makes Enter target them,
- * so callers should keep the list limited to user-visible app buttons.
+ * Boundary: this currently exposes footer handoff agents (app deeplinks + Grok Build). Adding agents here also makes
+ * Enter target them, so callers should keep the list limited to user-visible footer buttons.
  *
  * @returns {Array<{ name: string, label: string, title: string }>} Ordered footer app actions.
  */

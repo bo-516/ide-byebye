@@ -69,7 +69,8 @@ test('prompt references include the recording still frame but never the event JS
     };
 
     const plain = buildPromptReferenceLines(request);
-    assert.deepEqual(plain, ['@.intent-inspector/recordings/abc1234.webp']);
+    // Recording stills default to absolute artifact paths (same as screenshots).
+    assert.deepEqual(plain, ['@/tmp/project/.intent-inspector/recordings/abc1234.webp']);
     assert.ok(!plain.some((ref) => ref.includes('.rrweb.json')), 'plain prompt never references the event JSON');
 
     const markdown = buildPromptMarkdownReferenceLines(request);

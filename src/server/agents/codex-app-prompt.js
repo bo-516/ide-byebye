@@ -14,7 +14,13 @@ import { buildStyleContextLines } from '../styles.js';
  */
 function codexAppPromptParts(request) {
     let intent = String(request.intent ?? '').trim();
-    const sourceRefs = buildPromptReferenceLines(request);
+    // Codex App rewrites plain `@path` chips into Markdown links. Matching must use project-relative forms so they
+    // line up with what the mention editor serializes and with `buildPromptMarkdownReferenceLines` (which is always
+    // relative). Global `artifactPathStyle: 'absolute'` only affects plain `@` agents (clipboard / file / Grok).
+    const sourceRefs = buildPromptReferenceLines(request, {
+        pathStyle: 'relative',
+        artifactPathStyle: 'relative',
+    });
     const markdownRefs = buildPromptMarkdownReferenceLines(request);
     const inlineRefs = new Set();
 
