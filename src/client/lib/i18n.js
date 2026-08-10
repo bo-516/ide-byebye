@@ -72,6 +72,10 @@ const STRINGS = {
         zh: '在 Cursor 中打开并预填本次 UI 修改意图。',
         en: 'Open Cursor with this UI change intent prefilled.',
     },
+    'agent.grokBuild.title': {
+        zh: '在终端打开 Grok Build，并预填本次 UI 修改意图。',
+        en: 'Open Grok Build in Terminal with this UI change intent prefilled.',
+    },
     'agent.clipboard.label': { zh: '复制 Prompt', en: 'Copy prompt' },
     'agent.clipboard.title': {
         zh: '把整理好的 Prompt 复制到剪贴板，可粘贴到任意 AI。',

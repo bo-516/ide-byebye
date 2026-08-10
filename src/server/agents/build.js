@@ -5,13 +5,14 @@ import { fileAdapter } from './file.js';
 import { createCodexAppAdapter } from './codex-app.js';
 import { createClaudeAppAdapter } from './claude-app.js';
 import { createCursorAppAdapter } from './cursor-app.js';
+import { createGrokBuildAdapter } from './grok-build.js';
 
 /**
  * Construct the agent registry from the (already-resolved) agent config map.
  *
  * Boundary: every agent is enabled by default; pass `agents.<name>: false` (or `{ enabled: false }` for the app
- * agents) to opt out. App agents also accept an object config (e.g. `cursorApp.workspace`). Unknown agent keys are
- * ignored so stale config does not register accidental adapters.
+ * agents) to opt out. App agents also accept an object config (e.g. `cursorApp.workspace` / `grokBuild.command`).
+ * Unknown agent keys are ignored so stale config does not register accidental adapters.
  *
  * @param {Record<string, unknown>} agents Resolved `agents` option map from plugin config.
  * @returns {AgentRegistry} Registry containing every enabled adapter.
@@ -31,5 +32,8 @@ export function buildRegistry(agents) {
     const cursorApp = coerceAgentConfig(agents.cursorApp ?? true);
     if (cursorApp)
         registry.register(createCursorAppAdapter(cursorApp));
+    const grokBuild = coerceAgentConfig(agents.grokBuild ?? true);
+    if (grokBuild)
+        registry.register(createGrokBuildAdapter(grokBuild));
     return registry;
 }

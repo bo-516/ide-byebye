@@ -40,6 +40,5 @@ export const ALL_AGENT_NAMES = [
     'codex-app',
     'claude-app',
     'cursor-app',
-    'claude-cli',
-    'claude-agent-sdk',
+    'grok-build',
 ];

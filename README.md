@@ -2,15 +2,18 @@
 
 > ⌘-click any rendered element in your dev server, describe the change in plain
 > words, and hand the element's **source location + your intent** straight to
-> **Codex App**, **Claude App**, or **Cursor** — no hunting through the IDE.
+> **Codex App**, **Claude App**, **Cursor**, or **Grok Build** — no hunting
+> through the IDE.
 
-`ide-byebye` is a Vite **dev-only** plugin. It overlays a source-aware element
-picker on your running app: pick a button, type *"make this the primary button
-and add a loading state"*, optionally attach screenshots / captured styles / a
-short interaction recording, then click an app button. The plugin assembles a
-structured prompt (the element's `file:line`, surrounding source context, your
-intent, and any attachments) and opens the target app via its deeplink with that
-prompt prefilled.
+`ide-byebye` is a **dev-only** multi-bundler plugin (Vite / webpack / rspack /
+rsbuild / esbuild / Farm, plus Turbopack & Mako path injection). It overlays a
+source-aware element picker on your running app: pick a button, type *"make this
+the primary button and add a loading state"*, optionally attach screenshots /
+captured styles / a short interaction recording, then click an agent button. The
+plugin assembles a structured prompt (the element's `file:line`, surrounding
+source context, your intent, and any attachments) and hands it to the chosen
+agent — via app deeplink for Codex / Claude / Cursor, or via a Terminal launcher
+for Grok Build.
 
 It is glue, not a model: it never edits your files itself and ships no AI SDK.
 The actual change is made by whichever coding agent you hand off to.
@@ -48,12 +51,14 @@ The actual change is made by whichever coding agent you hand off to.
 2. **Describe** — an intent dialog opens anchored to the element. Type what you
    want changed. Optionally add more `@code` references, screenshots, captured
    computed styles, or an interaction recording.
-3. **Hand off** — click **Codex App / Claude App / Cursor**. The plugin's local
-   dev-server endpoint resolves the source context, builds a prompt, and opens
-   the chosen app via deeplink with everything prefilled.
+3. **Hand off** — click **Codex App / Claude App / Cursor / Grok Build**. The
+   plugin's local dev-server endpoint resolves the source context, builds a
+   prompt, and opens the chosen agent (deeplink or Terminal) with everything
+   prefilled.
 
 Nothing leaves your machine except the deeplink you trigger; the server half
-runs as Vite middleware on `127.0.0.1` and is gated by a per-process token.
+runs as a standalone loopback HTTP server on `127.0.0.1` and is gated by a
+per-process token. Bundler adapters only inject the bootstrap into your HTML.
 
 ## Install
 
@@ -61,9 +66,9 @@ runs as Vite middleware on `127.0.0.1` and is gated by a per-process token.
 npm i -D ide-byebye code-inspector-plugin
 ```
 
-`code-inspector-plugin` is a **peer dependency** — it injects the
-`data-insp-path` attributes this plugin reads. Without it, elements have no
-source mapping and the picker shows *"no source mapping"*.
+`code-inspector-plugin` is a **dependency** (also listed so you can pin it) — it
+injects the `data-insp-path` attributes this plugin reads. Without it, elements
+have no source mapping and the picker shows *"no source mapping"*.
 
 Behavior recording is **on by default** and lazy-loaded (it only costs anything
 when you actually record). For it to work, install rrweb in your project too:
@@ -76,20 +81,64 @@ Disable it with `recording: false` if you don't want it.
 
 ## Quick start
 
+### Vite (default export)
+
 ```js
 // vite.config.js
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import ideByebye from 'ide-byebye';
+import react from '@vitejs/plugin-react'; // or @vitejs/plugin-vue
+import ideByebye from 'ide-byebye';       // same as 'ide-byebye/vite'
 
 export default defineConfig({
   plugins: [
-    // Zero config. ide-byebye registers code-inspector-plugin internally (it injects the data-insp-path attribute
-    // before the JSX transform — you don't add it yourself). Out of the box: ⌘/Ctrl-click to pick an element, all
-    // three app agents + clipboard + file enabled, recording on, and Enter submits to Claude App.
+    // Zero config. Registers code-inspector-plugin internally (data-insp-path)
+    // before the framework transform. Out of the box: ⌘/Ctrl-click to pick,
+    // all footer agents + clipboard + file enabled, recording on, Enter → Claude App.
     ideByebye(),
     react(),
   ],
+});
+```
+
+### Other bundlers
+
+Pick the matching subpath — **never** pass a `bundler` string yourself:
+
+| Bundler | Import | Notes |
+| --- | --- | --- |
+| **Vite** | `ide-byebye` / `ide-byebye/vite` | Full zero-config (default). |
+| **webpack** | `ide-byebye/webpack` | `plugins: [inspector()]` — injects into HtmlWebpackPlugin output. |
+| **rspack** | `ide-byebye/rspack` | Same shape as webpack. |
+| **rsbuild** | `ide-byebye/rsbuild` | `plugins: [inspector()]`. |
+| **esbuild** | `ide-byebye/esbuild` | Pass `htmlFiles: ['./index.html']` if HTML is not in `outdir`. |
+| **Farm** | `ide-byebye/farm` | Returns `[codeInspector, inspector]` — spread into Farm plugins. |
+| **Turbopack** (Next) | `ide-byebye/turbopack` | Returns **rules only** (`data-insp-path`). Bootstrap must be mounted by the app. |
+| **Mako** (Umi) | `ide-byebye/mako` | Same caveat as Turbopack — path injection only. |
+
+```js
+// webpack.config.js
+import inspector from 'ide-byebye/webpack';
+export default {
+  plugins: [new HtmlWebpackPlugin({ template: './index.html' }), inspector()],
+};
+```
+
+```js
+// rsbuild.config.ts
+import { defineConfig } from '@rsbuild/core';
+import inspector from 'ide-byebye/rsbuild';
+export default defineConfig({ plugins: [inspector()] });
+```
+
+```js
+// esbuild
+import * as esbuild from 'esbuild';
+import inspector from 'ide-byebye/esbuild';
+await esbuild.context({
+  entryPoints: ['src/main.jsx'],
+  bundle: true,
+  outdir: 'dist',
+  plugins: inspector({ htmlFiles: ['./index.html'] }), // rewrites HTML after build
 });
 ```
 
@@ -99,11 +148,12 @@ turn things off:
 
 ```js
 ideByebye({
-  // The dialog footer always shows Codex App / Claude App / Cursor, so the
-  // Enter-key default must be one of those three (defaults to 'claude-app').
+  // The dialog footer shows Codex App / Claude App / Cursor / Grok Build, so the
+  // Enter-key default must be one of those four (defaults to 'claude-app').
   defaultAgent: 'codex-app',
   agents: {
     cursorApp: { workspace: 'my-app' }, // route Cursor by workspace name
+    grokBuild: { permissionMode: 'plan' }, // optional Grok Build CLI flags
     codexApp: false,                    // disable an app agent you don't want
     file: false,                        // disable a backend agent (clipboard/file)
   },
@@ -112,18 +162,31 @@ ideByebye({
 ```
 
 > The default export and the named export `codeIntentInspectorPlugin` are the
-> same function — use whichever you prefer.
+> same function (Vite) — use whichever you prefer.
+
+### Vue
+
+Works with Vue 2/3 SFCs for **DOM → source path** mapping (via code-inspector).
+Prompt **source context** for `.vue` files is best-effort: the template around
+the click is sliced by line (not a full `@vue/compiler-dom` AST). That is enough
+to hand an agent the right file and region; JSX/TSX still get the richer AST path.
+
+See `demo/vue` for a runnable Vue 3 + Vite / webpack playground.
 
 ## Requirements
 
-- **Vite** `>=4` (tested on Vite 8) — it's a Vite plugin and only runs in dev.
-- **`code-inspector-plugin`** in the host project, ordered **before** your
-  framework plugin, with its own hotkeys disabled.
-- **macOS** for the three app agents out of the box: they open deeplinks via the
-  native `open` command. On Linux/Windows, set `openCommand` per agent (see
+- **A supported bundler in dev** — Vite `>=4`, webpack `>=5`, rspack, rsbuild,
+  esbuild, or Farm for the full zero-config experience. Turbopack / Mako only
+  provide `data-insp-path` (you mount the bootstrap yourself).
+- **`code-inspector-plugin`** is bundled as a dependency; you do not need to
+  register it by hand when using the adapters above.
+- **macOS** for the footer agents out of the box: app agents open deeplinks via
+  the native `open` command, and Grok Build opens a `.command` launcher the same
+  way. On Linux/Windows, set `openCommand` per agent (see
   [App-agent options](#app-agent-options)).
-- **The target app installed** (Codex App / Claude App / Cursor) so it can
-  respond to its deeplink. No extra npm deps are needed for the app agents.
+- **The target agent installed** (Codex App / Claude App / Cursor / [Grok Build
+  CLI](https://x.ai/cli)) so it can respond to the handoff. No extra npm deps are
+  needed for these agents.
 
 ## The intent dialog
 
@@ -150,22 +213,25 @@ optional values fall back to the documented default.
 | `locale` | `'zh' \| 'en'` | auto | UI language. Anything starting with `zh` → Chinese, any other value → English. Unset auto-detects: `config.locale` → `navigator.language` → `zh`. (Only UI copy is localized; prompts and brand names are not.) |
 | `hotkey` | `string` | `'Alt+Shift+I'` | Combo that toggles picker mode. `+`-joined, case-insensitive. Modifiers: `alt`/`option`, `shift`, `ctrl`/`control`, `meta`/`cmd`/`command`. The last non-modifier token is the key, e.g. `'Meta+Shift+K'`. |
 | `clickModifier` | `string \| null` | `'auto'` | Hold-to-pick modifier for a normal click. `'auto'` resolves per-platform (⌘ on macOS, Ctrl elsewhere); pass `'meta'`/`'ctrl'`/`'alt'`/`'shift'` to force one, or `null`/`false` to disable click-to-pick (the hotkey still works). |
-| `defaultAgent` | `string` | `'claude-app'` | Target for the Enter key. **Must be one of `'codex-app'` / `'claude-app'` / `'cursor-app'`** — those are the only agents with footer buttons, so a `clipboard`/`file` value falls back to the first enabled app agent. |
+| `defaultAgent` | `string` | `'claude-app'` | Target for the Enter key. **Must be one of `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'`** — those are the only agents with footer buttons, so a `clipboard`/`file` value falls back to the first enabled footer agent. |
 | `applyMode` | `'prompt-only' \| 'agent-edit'` | `'prompt-only'` | Hint recorded with the request: propose a plan vs. allow edits. |
 | `outputDir` | `string` | `'.intent-inspector'` | Project-relative dir where the `file` agent and file-mode handoffs write. Must stay inside the project root. |
 | `maxSourceContextLines` | `number` | `60` | Source lines of context captured around the element's mapped location. |
 | `maxDomSnippetLength` | `number` | `1000` | Max characters of the element's captured DOM/HTML snippet. |
 | `apiOrigin` | `string \| null` | auto | Absolute `http(s)` origin the browser uses to reach the inspector server. Auto-detects the Vite loopback origin when unset. A non-origin value is ignored. |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | How source file paths appear in plain `@` prompts (clipboard / file / Grok Build). `'relative'` → `@src/App.tsx`; `'absolute'` → `@/abs/path/src/App.tsx`. For Grok Build monorepos prefer `agents.grokBuild.projectRoot` (relative refs become `@apps/pkg/…`) over forcing absolute. |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | How screenshots / recording stills appear in plain `@` prompts. Defaults to **absolute** so agents can open images regardless of cwd / monorepo layout; set `'relative'` for short `@.intent-inspector/…` chips under the same root as source. |
 | `recording` | `boolean \| object` | on | Element-behavior recording. On by default; opt out with `recording: false`. See [Recording](#recording-rrweb). |
 | `agents` | `object` | `{}` | Per-agent enable flags / overrides. All five agents are on by default; use this to disable or configure them. See [Agents](#agents). |
 
 ### Agents
 
-Five agents exist and **all five are on by default**. Disable any of them with
+Six agents exist and **all six are on by default**. Disable any of them with
 `agents.<name>: false`: `agents.clipboard: false` / `agents.file: false` for the
 two backend agents, and `agents.codexApp: false` / `agents.claudeApp: false` /
-`agents.cursorApp: false` for the app agents. Only the app agents get footer
-buttons — `clipboard`/`file` are reachable through `defaultAgent` / the Enter key.
+`agents.cursorApp: false` / `agents.grokBuild: false` for the footer agents.
+Only the footer agents get buttons — `clipboard`/`file` are reachable through
+`defaultAgent` / the Enter key.
 
 | Agent (`agents` key) | Adapter name | Default | Footer button | Purpose |
 | --- | --- | --- | --- | --- |
@@ -174,8 +240,9 @@ buttons — `clipboard`/`file` are reachable through `defaultAgent` / the Enter 
 | `codexApp` | `codex-app` | **on** | yes | Opens **Codex App** prefilled. |
 | `claudeApp` | `claude-app` | **on** | yes | Opens **Claude App** prefilled; can attach files & folders. |
 | `cursorApp` | `cursor-app` | **on** | yes | Opens **Cursor** prefilled (routes by workspace name). |
+| `grokBuild` | `grok-build` | **on** | yes | Opens **Grok Build** in Terminal with the prompt prefilled. |
 
-Each app agent accepts a config object to override its defaults; `false` (or
+Each footer agent accepts a config object to override its defaults; `false` (or
 `{ enabled: false }`) unregisters it, and `true` is the explicit shorthand for
 the on-by-default state.
 
@@ -183,22 +250,30 @@ the on-by-default state.
 agents: {
   codexApp: false,                      // turn an app agent off
   cursorApp: { workspace: 'my-app' },   // keep it on, but override options
+  grokBuild: {
+    permissionMode: 'plan',
+    // monorepo: hand off with Grok --cwd at the repo root; @ refs become
+    // @apps/desktop/src/… relative to that cwd (no need for pathStyle: 'absolute')
+    projectRoot: path.resolve(__dirname, '../..'),
+  },
   clipboard: false,                     // turn a backend agent off
 }
 ```
 
 ### App-agent options
 
-All three share `openCommand` / `openArgs` (how the deeplink is opened) and a
-`promptMode`. They become **unavailable** (button greyed out) when no opener
-resolves — i.e. non-macOS without an explicit `openCommand`.
+Codex / Claude / Cursor share `openCommand` / `openArgs` (how the deeplink is
+opened) and a `promptMode`. Grok Build reuses the same opener knobs for its
+Terminal launcher. They become **unavailable** (button greyed out) when no opener
+resolves — i.e. non-macOS without an explicit `openCommand`. Grok Build is also
+unavailable when the `grok` CLI is not on PATH (and not at `~/.grok/bin/grok`).
 
-**Common to every app agent**
+**Common to every footer agent**
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `openCommand` | `string` | `'open'` on macOS, else none | Executable used to open the deeplink. Set it on Linux/Windows (e.g. `'xdg-open'`). |
-| `openArgs` | `string[]` | `[]` | Extra args placed before the URL when spawning the opener. |
+| `openCommand` | `string` | `'open'` on macOS, else none | Executable used to open the deeplink / launcher. Set it on Linux/Windows (e.g. `'xdg-open'`). |
+| `openArgs` | `string[]` | `[]` | Extra args placed before the URL / launcher path when spawning the opener. |
 | `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` writes the full context to a Markdown handoff file and sends a compact prompt pointing at it. |
 
 **`agents.claudeApp`**
@@ -228,6 +303,17 @@ resolves — i.e. non-macOS without an explicit `openCommand`.
 | `scheme` | `string` | `'cursor'` | Deeplink scheme. |
 | `authority` | `string` | `'anysphere.cursor-deeplink'` | Deeplink authority — only change for custom Cursor builds. |
 | `route` | `string` | `'prompt'` | Deeplink route segment. |
+
+**`agents.grokBuild`**
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `command` | `string` | `'grok'` (then `~/.grok/bin/grok`) | Grok Build CLI binary. Absolute path recommended if Node's PATH differs from your login shell. |
+| `projectRoot` | `string` | Vite project root | Working directory passed to `grok --cwd` and the launcher `cd`. Relative `@` refs are also stripped against this root, so monorepos that point it at the repo root get `@apps/pkg/src/…` instead of long absolute paths. |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | How source paths appear in the Grok prompt `@` refs. Default relative (against `projectRoot` / Grok cwd) keeps chips short (`@src/App.tsx` or `@apps/desktop/src/App.tsx`). Prefer relative + `projectRoot` over absolute for monorepos; use absolute only when files sit outside Grok's cwd. |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | How screenshots / stills appear in the Grok prompt. Defaults to absolute (cwd-safe); set `'relative'` to match monorepo-rooted source chips. |
+| `permissionMode` | `string` | none | Optional `--permission-mode` value (`plan`, `acceptEdits`, `default`, …). |
+| `promptArgLimit` | `number` | `12000` | In `auto` `promptMode`, prompts longer than this switch to a file handoff so the Terminal argv stays under ARG_MAX. |
 
 ### Recording (rrweb)
 
@@ -299,7 +385,9 @@ Everything is written under `outputDir` (default `.intent-inspector/`, inside
 your project root — add it to `.gitignore`):
 
 - `requests/<timestamp>-<id>.md` — full request + prompt, written by the `file`
-  agent and by any app agent in `promptMode: 'file'`.
+  agent and by any footer agent in `promptMode: 'file'` (or auto size overflow).
+- `launches/<timestamp>-<id>.command` + `.prompt.txt` — Grok Build Terminal
+  launcher and the prompt body it feeds to `grok --verbatim`.
 - `recordings/<id>.rrweb.json` + `<id>.webp` — recording event stream and still
   frame (when recording is used).
 - screenshot artifacts referenced by the prompt.
@@ -320,8 +408,9 @@ ideByebye({ locale: 'en' });
 
 ## Security & privacy
 
-- **Dev-only.** The plugin attaches middleware to the Vite dev server; it is not
-  meant for production builds.
+- **Dev-only.** Adapters refuse production mode (Vite `apply: 'serve'`, webpack
+  `mode === 'production'` skip, etc.); the inspector is not meant for production
+  builds.
 - **Token-gated.** Every inspector request carries a per-process token; the
   browser fetches go to an explicit `127.0.0.1` origin, not your app's domain.
 - **Stays in the project root.** File writes are guarded to remain inside the
@@ -337,9 +426,9 @@ npm run build    # regenerate dist/
 npm test         # node:test suite
 ```
 
-Source layout: `client/` (browser runtime), `server/` (Vite middleware + agent
-adapters), `shared/` (isomorphic constants/helpers), `plugin.js` (Vite plugin
-entry), `scripts/build-single-file.js` (bundler).
+Source layout: `src/client/` (browser runtime), `src/server/` (loopback inspector
+server + agent adapters), `src/shared/` (isomorphic constants/helpers),
+`plugin.js` (multi-bundler unplugin factory), `scripts/build-single-file.js`.
 
 ## License
 

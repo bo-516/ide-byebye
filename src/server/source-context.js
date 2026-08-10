@@ -3,6 +3,7 @@ import path from 'node:path';
 import { parse } from '@babel/parser';
 import traverseImport from '@babel/traverse';
 import { DEFAULT_MAX_COMPONENT_LINES, DEFAULT_MAX_SOURCE_CONTEXT_LINES, } from '../shared/constants.js';
+import { extractVueSourceContext } from './source-context-vue.js';
 // `@babel/traverse` is a CJS module whose callable lives on `.default` under
 // ESM interop.
 const traverse = (traverseImport.default ??
@@ -31,6 +32,10 @@ export function detectLanguage(file) {
         case '.mjs':
         case '.cjs':
             return 'js';
+        case '.vue':
+            return 'vue';
+        case '.svelte':
+            return 'svelte';
         default:
             return 'unknown';
     }
@@ -120,10 +125,80 @@ function findComponentNode(jsxPath) {
     }
     return candidate.node;
 }
+
+/**
+ * Run the JSX AST extractor on a pure JS/TS/JSX source string (no file I/O).
+ *
+ * Used by the Vue script-block path (offset-adjusted) and the main JSX file path.
+ *
+ * @returns {Partial<{ selectedNodeCode: string, selectedNodeRange: object, containingComponentCode: string, containingComponentRange: object, importsCode: string, importsRange: object, astError: string }>}
+ */
+function extractJsxFromCode(code, line, column, maxContextLines, maxComponentLines) {
+    const lines = code.split('\n');
+    const out = {};
+    void maxContextLines;
+    const ast = parse(code, {
+        sourceType: 'module',
+        plugins: [...PARSER_PLUGINS],
+        ranges: true,
+        errorRecovery: true,
+    });
+    const matches = {};
+    const imports = [];
+    traverse(ast, {
+        ImportDeclaration(p) {
+            imports.push(p.node);
+        },
+        'JSXElement|JSXFragment'(p) {
+            const node = p.node;
+            if (nodeContains(node, line, column)) {
+                if (!matches.chosen || spanLength(node) < spanLength(matches.chosen.node)) {
+                    matches.chosen = { node, path: p };
+                }
+            }
+            else if (nodeSpansLine(node, line)) {
+                if (!matches.lineFallback ||
+                    spanLength(node) < spanLength(matches.lineFallback.node)) {
+                    matches.lineFallback = { node, path: p };
+                }
+            }
+        },
+    });
+    const hit = matches.chosen ?? matches.lineFallback;
+    if (imports.length > 0) {
+        const first = imports[0];
+        const last = imports[imports.length - 1];
+        if (first.start != null && last.end != null) {
+            out.importsCode = code.slice(first.start, last.end);
+            if (first.loc && last.loc) {
+                out.importsRange = {
+                    startLine: first.loc.start.line,
+                    endLine: last.loc.end.line,
+                };
+            }
+        }
+    }
+    if (hit) {
+        out.selectedNodeCode = cappedComponentCode(code, lines, hit.node, line, maxComponentLines);
+        out.selectedNodeRange = nodeRange(hit.node);
+        const componentNode = findComponentNode(hit.path);
+        if (componentNode) {
+            out.containingComponentCode = cappedComponentCode(code, lines, componentNode, line, maxComponentLines);
+            out.containingComponentRange = nodeRange(componentNode);
+        }
+    }
+    else {
+        out.astError = 'No JSX element found at the selected position';
+    }
+    return out;
+}
+
 /**
  * Read a file and build a `SourceContext`: a focused excerpt plus, when AST
- * parsing succeeds, the selected JSX node, its containing component, and the
- * import block. AST failures degrade to a plain line-context window.
+ * parsing succeeds, the selected JSX/template node, its containing component,
+ * and the import block. AST failures degrade to a plain line-context window.
+ *
+ * Vue SFCs (`.vue`) take a dedicated path in {@link extractVueSourceContext}.
  */
 export function extractSourceContext(opts) {
     const { file, line, column, maxContextLines = DEFAULT_MAX_SOURCE_CONTEXT_LINES, maxComponentLines = DEFAULT_MAX_COMPONENT_LINES, } = opts;
@@ -138,64 +213,42 @@ export function extractSourceContext(opts) {
         startLine: window.startLine,
         endLine: window.endLine,
     };
+
+    if (language === 'vue') {
+        return extractVueSourceContext({
+            code,
+            lines,
+            line,
+            column,
+            maxContextLines,
+            maxComponentLines,
+            base,
+            extractJsx: extractJsxFromCode,
+        });
+    }
+
     try {
-        const ast = parse(code, {
-            sourceType: 'module',
-            plugins: [...PARSER_PLUGINS],
-            ranges: true,
-            errorRecovery: true,
-        });
-        const matches = {};
-        const imports = [];
-        traverse(ast, {
-            ImportDeclaration(p) {
-                imports.push(p.node);
-            },
-            'JSXElement|JSXFragment'(p) {
-                const node = p.node;
-                if (nodeContains(node, line, column)) {
-                    if (!matches.chosen || spanLength(node) < spanLength(matches.chosen.node)) {
-                        matches.chosen = { node, path: p };
-                    }
-                }
-                else if (nodeSpansLine(node, line)) {
-                    if (!matches.lineFallback ||
-                        spanLength(node) < spanLength(matches.lineFallback.node)) {
-                        matches.lineFallback = { node, path: p };
-                    }
-                }
-            },
-        });
-        const hit = matches.chosen ?? matches.lineFallback;
-        if (imports.length > 0) {
-            const first = imports[0];
-            const last = imports[imports.length - 1];
-            if (first.start != null && last.end != null) {
-                base.importsCode = code.slice(first.start, last.end);
-                if (first.loc && last.loc) {
-                    base.importsRange = {
-                        startLine: first.loc.start.line,
-                        endLine: last.loc.end.line,
-                    };
-                }
+        const inner = extractJsxFromCode(code, line, column, maxContextLines, maxComponentLines);
+        if (inner.importsCode) {
+            base.importsCode = inner.importsCode;
+        }
+        if (inner.importsRange) {
+            base.importsRange = inner.importsRange;
+        }
+        if (inner.selectedNodeCode) {
+            base.selectedNodeCode = inner.selectedNodeCode;
+            base.selectedNodeRange = inner.selectedNodeRange;
+        }
+        if (inner.containingComponentCode) {
+            base.containingComponentCode = inner.containingComponentCode;
+            base.containingComponentRange = inner.containingComponentRange;
+            if (inner.containingComponentRange) {
+                base.startLine = Math.min(base.startLine, inner.containingComponentRange.startLine);
+                base.endLine = Math.max(base.endLine, inner.containingComponentRange.endLine);
             }
         }
-        if (hit) {
-            base.selectedNodeCode = cappedComponentCode(code, lines, hit.node, line, maxComponentLines);
-            base.selectedNodeRange = nodeRange(hit.node);
-            const componentNode = findComponentNode(hit.path);
-            if (componentNode) {
-                base.containingComponentCode = cappedComponentCode(code, lines, componentNode, line, maxComponentLines);
-                base.containingComponentRange = nodeRange(componentNode);
-                if (componentNode.loc) {
-                    // Widen the reported excerpt range to span the component.
-                    base.startLine = Math.min(base.startLine, componentNode.loc.start.line);
-                    base.endLine = Math.max(base.endLine, componentNode.loc.end.line);
-                }
-            }
-        }
-        if (!hit) {
-            base.astError = 'No JSX element found at the selected position';
+        if (inner.astError) {
+            base.astError = inner.astError;
         }
     }
     catch (err) {

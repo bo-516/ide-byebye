@@ -415,6 +415,10 @@ a {
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
 }
 
+.add-form .btn {
+  border-radius: 999px;
+}
+
 .filters {
   display: flex;
   gap: 6px;
