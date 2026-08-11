@@ -17,6 +17,20 @@ hand off to does the actual change.
 
 ---
 
+![⌘-click an element, describe the change, hand off to an agent](./demo-recording.gif)
+
+**What the clip shows** (Vue demo → agent):
+
+1. **Pick** — hold ⌘ and click a rendered node; the overlay resolves
+   `data-insp-path` to source (`src/App.vue #99-129` in the recording).
+2. **Describe** — type plain-language intent in the dialog (optional `@code`,
+   screenshots, styles, or recording).
+3. **Hand off** — choose **Codex App / Claude App / Cursor / Grok Build**;
+   the loopback server builds a structured prompt and opens the agent with
+   `file:line` + intent already filled in.
+
+---
+
 ## Table of contents
 
 - [How it works](#how-it-works)
@@ -156,18 +170,6 @@ for `.vue` is best-effort (template line slice, not a full Vue AST). JSX/TSX
 still get the richer AST path. See [`demo/vue`](./demo/vue).
 
 ## Demo
-
-![⌘-click an element, describe the change, hand off to an agent](./demo-recording.gif)
-
-**What the clip shows** (Vue demo → agent):
-
-1. **Pick** — hold ⌘ and click a rendered node; the overlay resolves
-   `data-insp-path` to source (`src/App.vue #99-129` in the recording).
-2. **Describe** — type plain-language intent in the dialog (optional `@code`,
-   screenshots, styles, or recording).
-3. **Hand off** — choose **Codex App / Claude App / Cursor / Grok Build**;
-   the loopback server builds a structured prompt and opens the agent with
-   `file:line` + intent already filled in.
 
 Playground under [`demo/`](./demo) (React + Vue × Vite / webpack / rspack):
 

@@ -14,6 +14,18 @@ Farm；Turbopack & Mako 仅做路径注入）。在运行中的应用上叠加�
 
 ---
 
+![⌘-点击元素、描述改动、交给 Agent](./demo-recording.gif)
+
+**录屏演示**（Vue demo → Agent）：
+
+1. **选取** — 按住 ⌘ 点击渲染节点；浮层把 `data-insp-path` 解析到源码
+   （录屏中为 `src/App.vue #99-129`）。
+2. **描述** — 在弹窗里用自然语言写意图（可选 `@code`、截图、样式或录制）。
+3. **交接** — 选择 **Codex App / Claude App / Cursor / Grok Build**；
+   loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。
+
+---
+
 ## 目录
 
 - [工作原理](#工作原理)
@@ -149,16 +161,6 @@ DOM → 源码映射对 Vue 2/3 SFC 经 code-inspector 可用。`.vue` 的 promp
 [`demo/vue`](./demo/vue)。
 
 ## 演示
-
-![⌘-点击元素、描述改动、交给 Agent](./demo-recording.gif)
-
-**录屏演示**（Vue demo → Agent）：
-
-1. **选取** — 按住 ⌘ 点击渲染节点；浮层把 `data-insp-path` 解析到源码
-   （录屏中为 `src/App.vue #99-129`）。
-2. **描述** — 在弹窗里用自然语言写意图（可选 `@code`、截图、样式或录制）。
-3. **交接** — 选择 **Codex App / Claude App / Cursor / Grok Build**；
-   loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。
 
 演示场在 [`demo/`](./demo)（React + Vue × Vite / webpack / rspack）：
 
