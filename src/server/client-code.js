@@ -77,5 +77,6 @@ export function loadClientCode({ pluginName = 'vite-plugin-code-intent-inspector
     }
 
     throw new Error(`[${pluginName}] Could not find the browser client bundle. ` +
-        'Expected core/dist/client.js, legacy core/client.js, host dist/client.js, or an embedded single-file bundle before starting the dev server.');
+        'Expected package dist/client.js, legacy client.js, host dist/client.js, or an embedded single-file bundle. ' +
+        'For source-tree usage run `npm run build` in the package root (produces dist/client.js), then reload the page.');
 }

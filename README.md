@@ -152,7 +152,7 @@ ideByebye({
   // Enter-key default must be one of those four (defaults to 'claude-app').
   defaultAgent: 'codex-app',
   agents: {
-    cursorApp: { workspace: 'my-app' }, // route Cursor by workspace name
+    cursorApp: { workspace: 'my-app' }, // optional: override auto git-root workspace name
     grokBuild: { permissionMode: 'plan' }, // optional Grok Build CLI flags
     codexApp: false,                    // disable an app agent you don't want
     file: false,                        // disable a backend agent (clipboard/file)
@@ -297,7 +297,7 @@ unavailable when the `grok` CLI is not on PATH (and not at `~/.grok/bin/grok`).
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `workspace` | `string \| false` | project folder name | Workspace **name** Cursor routes the prompt window to. Set it if Cursor shows a different name than the folder; `false` omits it. |
+| `workspace` | `string \| false` | nearest git root name (else run-dir name) | Workspace **name** Cursor routes the prompt window to. Default: walk up from the bundler root to the nearest `.git` and use that folder's basename; if none, the run directory basename. Set an explicit string if Cursor's window title differs; `false` omits the param. |
 | `mode` | `string` | none | Optional Cursor mode passed through as the `mode` param. |
 | `promptUrlLimit` | `number` | `10000` | In `auto` `promptMode`, prompts whose encoded length exceeds this switch to a file handoff (Cursor rejects oversized prompt URLs). |
 | `scheme` | `string` | `'cursor'` | Deeplink scheme. |

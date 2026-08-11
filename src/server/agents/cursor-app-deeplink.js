@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
+import { resolveDefaultWorkspaceName, workspaceNameFromDir } from '../workspace-root.js';
 
 /**
  * Default Cursor URL scheme declared by Cursor.app.
@@ -26,14 +27,6 @@ const DEFAULT_AUTHORITY = 'anysphere.cursor-deeplink';
  * @type {string} Deeplink path segment without a leading slash.
  */
 const DEFAULT_ROUTE = 'prompt';
-/**
- * Workspace file suffix stripped when deriving a Cursor workspace name.
- *
- * Boundary: only display/routing names are changed; filesystem paths are not modified by this constant.
- *
- * @type {string} Cursor/VS Code workspace filename suffix.
- */
-const WORKSPACE_FILE_SUFFIX = '.code-workspace';
 
 /**
  * Normalize the URL scheme used for Cursor deeplinks.
@@ -108,8 +101,14 @@ export function buildCursorAppDeepLink(input) {
 /**
  * Resolve the Cursor workspace name used for prompt-window routing.
  *
- * Boundary: Cursor's prompt deeplink accepts a workspace name, not an arbitrary folder path. `cursorApp.workspace`
- * wins, `false` omits the parameter, and otherwise the basename of `projectRoot` is used.
+ * Boundary: Cursor's prompt deeplink accepts a workspace **name**, not an arbitrary folder path.
+ * Precedence:
+ * 1. `cursorApp.workspace` string — explicit name
+ * 2. `cursorApp.workspace: false` — omit the param (Cursor picks the focused window)
+ * 3. `cursorApp.projectRoot` — name derived from that directory only (no git walk); use when the open window is a
+ *    nested package, not the git root
+ * 4. default — walk from the bundler run directory (`context.projectRoot`) up to the nearest git root and use that
+ *    folder's basename; if no `.git` exists, use the run directory basename
  *
  * @param {Record<string, unknown>} config Cursor App adapter config.
  * @param {{ projectRoot: string }} context Agent context carrying the Vite project root.
@@ -120,13 +119,11 @@ export function resolveCursorAppWorkspace(config, context) {
         return undefined;
     if (typeof config.workspace === 'string' && config.workspace.trim())
         return config.workspace.trim();
-    const configuredRoot = typeof config.projectRoot === 'string' && config.projectRoot.trim()
-        ? path.resolve(config.projectRoot.trim())
-        : context.projectRoot;
-    const basename = path.basename(configuredRoot);
-    return basename.endsWith(WORKSPACE_FILE_SUFFIX)
-        ? basename.slice(0, -WORKSPACE_FILE_SUFFIX.length)
-        : basename;
+    // Explicit projectRoot pins the name to that folder (no git walk) so monorepo packages can opt out of repo root.
+    if (typeof config.projectRoot === 'string' && config.projectRoot.trim()) {
+        return workspaceNameFromDir(path.resolve(config.projectRoot.trim()));
+    }
+    return resolveDefaultWorkspaceName(context.projectRoot);
 }
 
 /**

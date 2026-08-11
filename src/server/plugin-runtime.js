@@ -110,9 +110,19 @@ export function createInspectorRuntime(options = {}) {
         logger: null,
         registry: buildRegistry(resolved.agents),
         sessionStore: null,
+        /** @type {string | null} Cached browser client source; only set after a successful load. */
         clientCode: null,
         serverPromise: null,
     };
+
+    /**
+     * One-shot stub served when `dist/client.js` (or an embedded bundle) is missing.
+     *
+     * Boundary: returned only for the current call — failures are NOT cached on `ctx.clientCode`, so a later
+     * `ensureServer` / HTML inject after `npm run build` can pick up the real bundle without restarting Vite.
+     */
+    const MISSING_CLIENT_STUB =
+        `console.warn(${JSON.stringify('[code-intent-inspector] client bundle missing; expected dist/client.js or an embedded single-file bundle. Run `npm run build` in the package root, then reload.')});`;
 
     function initPaths(rootDir) {
         ctx.projectRoot = rootDir || process.cwd();
@@ -121,18 +131,28 @@ export function createInspectorRuntime(options = {}) {
         ctx.sessionStore = new SessionStore(ctx.outputDirAbs);
     }
 
+    /**
+     * Load (and cache) the browser client bundle for the loopback server.
+     *
+     * Purpose: serve `/__intent-inspector/client.js` without re-reading the file on every request once found.
+     * Boundary: successful loads are cached for the process lifetime. Failed loads are not cached — each call
+     * retries `loadClientCode` so a mid-session `npm run build` can recover on the next HTML inject / page load
+     * without a full bundler restart. Returning the stub must never poison `ctx.clientCode`.
+     *
+     * @returns {string} Browser client JavaScript, or a console.warn stub when the bundle is still missing.
+     */
     function loadClient() {
         if (ctx.clientCode != null) {
             return ctx.clientCode;
         }
         try {
             ctx.clientCode = loadClientCode({ pluginName: PLUGIN_NAME });
+            return ctx.clientCode;
         }
         catch (err) {
             ctx.logger?.warn?.(err instanceof Error ? err.message : String(err));
-            ctx.clientCode = `console.warn(${JSON.stringify('[code-intent-inspector] client bundle missing; expected dist/client.js or an embedded single-file bundle.')});`;
+            return MISSING_CLIENT_STUB;
         }
-        return ctx.clientCode;
     }
 
     function serverDeps() {
@@ -152,15 +172,19 @@ export function createInspectorRuntime(options = {}) {
     }
 
     async function ensureServer() {
+        let firstStart = false;
         if (!ctx.serverPromise) {
+            firstStart = true;
+            // serverDeps() may still return the missing-client stub; we always refresh via
+            // updateDeps below so a build that finishes mid-boot is visible without a full restart.
             ctx.serverPromise = createInspectorServer(serverDeps());
-            const info = await ctx.serverPromise;
-            ctx.logger?.info?.(`enabled. inspector server ${info.origin} routes under ${ROUTE_PREFIX} ` +
-                `hotkey=${resolved.hotkey} clickModifier=${resolved.clickModifier} agents=[${ctx.registry.names().join(', ')}]`);
-            return info;
         }
         const info = await ctx.serverPromise;
         info.updateDeps(serverDeps());
+        if (firstStart) {
+            ctx.logger?.info?.(`enabled. inspector server ${info.origin} routes under ${ROUTE_PREFIX} ` +
+                `hotkey=${resolved.hotkey} clickModifier=${resolved.clickModifier} agents=[${ctx.registry.names().join(', ')}]`);
+        }
         return info;
     }
 

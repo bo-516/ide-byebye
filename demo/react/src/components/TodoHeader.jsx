@@ -1,10 +1,10 @@
-export function TodoHeader({ total, done }) {
+export function TodoHeader({ title = 'Today', total, done }) {
   const pct = total ? Math.round((done / total) * 100) : 0;
   return (
     <header className="todo-head">
       <div className="todo-head-row">
         <div>
-          <h1 className="page-title">Today</h1>
+          <h1 className="page-title">{title}</h1>
           <p className="page-sub">Hold ⌘ and click any element to jump to its source</p>
         </div>
         <div className="progress-badge">

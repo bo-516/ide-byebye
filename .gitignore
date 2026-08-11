@@ -47,3 +47,6 @@ Thumbs.db
 .claude/
 
 
+
+# Local docs (not published with the package)
+docs/

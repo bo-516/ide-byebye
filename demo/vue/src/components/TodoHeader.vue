@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 const props = defineProps({
+  title: { type: String, default: 'Today' },
   total: { type: Number, required: true },
   done: { type: Number, required: true },
 });
@@ -13,7 +14,7 @@ const pct = computed(() => (props.total ? Math.round((props.done / props.total) 
   <header class="todo-head">
     <div class="todo-head-row">
       <div>
-        <h1 class="page-title">Today</h1>
+        <h1 class="page-title">{{ title }}</h1>
         <p class="page-sub">Hold ⌘ and click any element to jump to its Vue source</p>
       </div>
       <div class="progress-badge">
