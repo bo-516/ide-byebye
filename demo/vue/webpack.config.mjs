@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { VueLoaderPlugin } from 'vue-loader';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 // Source-tree usage: `import inspector from 'ide-byebye/webpack'` in real projects.
-import inspector from '../../webpack.js';
+import inspector from '../../dist/adapters/webpack.js';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 

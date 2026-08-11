@@ -46,7 +46,7 @@ Every app uses zero-config inspector registration:
 
 ```js
 // Vite (react/vite.config.js, vue/vite.config.js)
-import inspector from 'ide-byebye'; // demo uses ../../index.js
+import inspector from 'ide-byebye'; // demo uses ../../dist/index.js
 plugins: [inspector(), react() /* or vue() */]
 ```
 
@@ -69,7 +69,7 @@ See the package root `../README.md` for the full option list (agents, recording,
 This demo imports the plugin **source tree** directly so you can edit the plugin and test in place:
 
 ```js
-import codeIntentInspectorPlugin from '../../index.js';
+import codeIntentInspectorPlugin from '../../dist/index.js';
 ```
 
 In a real project, install the package and import the matching adapter:

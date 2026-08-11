@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
  * Shorthand flags: --react / --vue / --vite / --webpack / --rspack
  *
  * Before starting any bundler, ensures the parent package has `dist/client.js`
- * (source-tree demos load the plugin from `../../index.js`, which serves that file).
+ * (source-tree demos load the plugin from `../../dist/index.js`, which serves that file).
  */
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(dir, '..');
@@ -72,7 +72,7 @@ else {
 }
 
 /**
- * Source-tree demos import `../../index.js`, which serves the browser runtime from
+ * Source-tree demos import `../../dist/index.js`, which serves the browser runtime from
  * `dist/client.js`. Without that artifact the inspector injects a no-op warn stub.
  *
  * Boundary: only builds when the file is missing (or empty). Does not rebuild on every

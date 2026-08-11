@@ -38,80 +38,62 @@
     "deeplink",
     "rrweb"
   ],
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
-      "default": "./index.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./vite": {
-      "types": "./vite.d.ts",
-      "default": "./vite.js"
+      "types": "./dist/adapters/vite.d.ts",
+      "default": "./dist/adapters/vite.js"
     },
     "./webpack": {
-      "types": "./webpack.d.ts",
-      "default": "./webpack.js"
+      "types": "./dist/adapters/webpack.d.ts",
+      "default": "./dist/adapters/webpack.js"
     },
     "./rspack": {
-      "types": "./rspack.d.ts",
-      "default": "./rspack.js"
+      "types": "./dist/adapters/rspack.d.ts",
+      "default": "./dist/adapters/rspack.js"
     },
     "./rsbuild": {
-      "types": "./rsbuild.d.ts",
-      "default": "./rsbuild.js"
+      "types": "./dist/adapters/rsbuild.d.ts",
+      "default": "./dist/adapters/rsbuild.js"
     },
     "./esbuild": {
-      "types": "./esbuild.d.ts",
-      "default": "./esbuild.js"
+      "types": "./dist/adapters/esbuild.d.ts",
+      "default": "./dist/adapters/esbuild.js"
     },
     "./farm": {
-      "types": "./farm.d.ts",
-      "default": "./farm.js"
+      "types": "./dist/adapters/farm.d.ts",
+      "default": "./dist/adapters/farm.js"
     },
     "./turbopack": {
-      "types": "./turbopack.d.ts",
-      "default": "./turbopack.js"
+      "types": "./dist/adapters/turbopack.d.ts",
+      "default": "./dist/adapters/turbopack.js"
     },
     "./mako": {
-      "types": "./mako.d.ts",
-      "default": "./mako.js"
+      "types": "./dist/adapters/mako.d.ts",
+      "default": "./dist/adapters/mako.js"
     }
   },
   "files": [
-    "index.js",
-    "index.d.ts",
-    "plugin.js",
-    "vite.js",
-    "vite.d.ts",
-    "webpack.js",
-    "webpack.d.ts",
-    "rspack.js",
-    "rspack.d.ts",
-    "rsbuild.js",
-    "rsbuild.d.ts",
-    "esbuild.js",
-    "esbuild.d.ts",
-    "farm.js",
-    "farm.d.ts",
-    "turbopack.js",
-    "turbopack.d.ts",
-    "mako.js",
-    "mako.d.ts",
-    "src/server",
-    "src/shared",
     "dist",
-    "!**/*.test.js"
+    "!dist/**/*.test.*",
+    "!dist/**/*.entry.tmp.js",
+    "!dist/code-intent-inspector.entry.tmp.js"
   ],
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "build": "node scripts/build-single-file.js",
-    "test": "node --test",
+    "build": "tsc && node --import tsx scripts/build-single-file.ts",
+    "test": "node --import tsx --test src/**/*.test.ts src/**/**/*.test.ts src/**/**/**/*.test.ts",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "prepublishOnly": "npm run build && npm test",
-    "release": "node scripts/publish.js",
-    "release:dry": "node scripts/publish.js --dry-run"
+    "release": "node --import tsx scripts/publish.ts",
+    "release:dry": "node --import tsx scripts/publish.ts --dry-run"
   },
   "dependencies": {
     "code-inspector-plugin": "^1.6.2",
@@ -119,14 +101,17 @@
     "unplugin": "^3.3.0"
   },
   "devDependencies": {
-    "rolldown": "^1.0.0-rc.12"
+    "@types/node": "^26.2.0",
+    "rolldown": "^1.0.0-rc.12",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
+    "@farmfe/core": ">=1",
     "@rrweb/record": ">=2.0.0",
     "@rrweb/replay": ">=2.0.0",
-    "@rspack/core": ">=0.5",
     "@rsbuild/core": ">=0.5",
-    "@farmfe/core": ">=1",
+    "@rspack/core": ">=0.5",
     "esbuild": ">=0.17",
     "vite": ">=4",
     "webpack": ">=5"

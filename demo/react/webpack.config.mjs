@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 // Source-tree usage: `import inspector from 'ide-byebye/webpack'` in real projects.
-import inspector from '../../webpack.js';
+import inspector from '../../dist/adapters/webpack.js';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 

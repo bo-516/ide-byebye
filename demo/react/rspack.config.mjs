@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rspack } from '@rspack/core';
 // Source-tree usage: `import inspector from 'ide-byebye/rspack'` in real projects.
-import inspector from '../../rspack.js';
+import inspector from '../../dist/adapters/rspack.js';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
