@@ -72,7 +72,9 @@
   "scripts": {
     "build": "node scripts/build-single-file.js",
     "test": "node --test",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "release": "node scripts/publish.js",
+    "release:dry": "node scripts/publish.js --dry-run"
   },
   "dependencies": {
     "@babel/parser": "^8.0.0",
