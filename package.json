@@ -39,28 +39,65 @@
     "rrweb"
   ],
   "main": "index.js",
+  "types": "index.d.ts",
   "exports": {
-    ".": "./index.js",
-    "./vite": "./vite.js",
-    "./webpack": "./webpack.js",
-    "./rspack": "./rspack.js",
-    "./rsbuild": "./rsbuild.js",
-    "./esbuild": "./esbuild.js",
-    "./farm": "./farm.js",
-    "./turbopack": "./turbopack.js",
-    "./mako": "./mako.js"
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./vite": {
+      "types": "./vite.d.ts",
+      "default": "./vite.js"
+    },
+    "./webpack": {
+      "types": "./webpack.d.ts",
+      "default": "./webpack.js"
+    },
+    "./rspack": {
+      "types": "./rspack.d.ts",
+      "default": "./rspack.js"
+    },
+    "./rsbuild": {
+      "types": "./rsbuild.d.ts",
+      "default": "./rsbuild.js"
+    },
+    "./esbuild": {
+      "types": "./esbuild.d.ts",
+      "default": "./esbuild.js"
+    },
+    "./farm": {
+      "types": "./farm.d.ts",
+      "default": "./farm.js"
+    },
+    "./turbopack": {
+      "types": "./turbopack.d.ts",
+      "default": "./turbopack.js"
+    },
+    "./mako": {
+      "types": "./mako.d.ts",
+      "default": "./mako.js"
+    }
   },
   "files": [
     "index.js",
+    "index.d.ts",
     "plugin.js",
     "vite.js",
+    "vite.d.ts",
     "webpack.js",
+    "webpack.d.ts",
     "rspack.js",
+    "rspack.d.ts",
     "rsbuild.js",
+    "rsbuild.d.ts",
     "esbuild.js",
+    "esbuild.d.ts",
     "farm.js",
+    "farm.d.ts",
     "turbopack.js",
+    "turbopack.d.ts",
     "mako.js",
+    "mako.d.ts",
     "src/server",
     "src/shared",
     "dist",
