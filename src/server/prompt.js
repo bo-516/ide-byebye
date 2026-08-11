@@ -88,9 +88,10 @@ function screenshotRef(screenshot, projectRoot, pathStyle = 'absolute') {
 /**
  * Pick the source range that should be referenced for one resolved selection.
  *
- * Boundary: the selected JSX node wins when it spans multiple lines, then the containing component, then the selected
- * line/context fallback. Missing range data falls back to the exact clicked line so prompt generation never emits an
- * empty reference.
+ * Boundary: prefer the clicked element's AST span (`selectedNodeRange`, including single-line nodes) so the chip /
+ * `@path #range` matches `data-insp-path` rather than the whole containing component. Fall back to the insp-path line,
+ * then the containing component / context window, then the clicked line so prompt generation never emits an empty
+ * reference.
  *
  * @param {Record<string, unknown>} selection Resolved browser selection with line information.
  * @param {Record<string, unknown>} source Extracted source context for that selection.
@@ -98,14 +99,14 @@ function screenshotRef(screenshot, projectRoot, pathStyle = 'absolute') {
  */
 function pickSourceRange(selection, source) {
     const selected = source.selectedNodeRange;
-    if (selected && selected.endLine > selected.startLine) {
+    if (selected) {
         return selected;
+    }
+    if (selection.line != null) {
+        return { startLine: selection.line, endLine: selection.line };
     }
     if (source.containingComponentRange) {
         return source.containingComponentRange;
-    }
-    if (selected) {
-        return selected;
     }
     if (source.startLine != null) {
         return { startLine: source.startLine, endLine: source.endLine };

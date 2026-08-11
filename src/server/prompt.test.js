@@ -26,6 +26,35 @@ test('buildPrompt keeps sdk source references in at-mention format', () => {
     assert.equal(prompt, '@AGENTS.md #2-3\n\nExplain it\n');
 });
 
+test('buildPrompt prefers the clicked element range over the containing component', () => {
+    const prompt = buildPrompt({
+        projectRoot: '/tmp/project',
+        selection: { line: 26 },
+        source: {
+            filePath: '/tmp/project/src/pages/Home.jsx',
+            selectedNodeRange: { startLine: 26, endLine: 26 },
+            containingComponentRange: { startLine: 4, endLine: 46 },
+        },
+        intent: 'Align the card copy',
+    });
+
+    assert.equal(prompt, '@src/pages/Home.jsx #26\n\nAlign the card copy\n');
+});
+
+test('buildPrompt falls back to the insp-path line when the AST node range is missing', () => {
+    const prompt = buildPrompt({
+        projectRoot: '/tmp/project',
+        selection: { line: 26 },
+        source: {
+            filePath: '/tmp/project/src/pages/Home.jsx',
+            containingComponentRange: { startLine: 4, endLine: 46 },
+        },
+        intent: 'Align the card copy',
+    });
+
+    assert.equal(prompt, '@src/pages/Home.jsx #26\n\nAlign the card copy\n');
+});
+
 test('buildPrompt keeps the primary reference on top and drops inlined extra references', () => {
     const prompt = buildPrompt({
         projectRoot: '/tmp/project',

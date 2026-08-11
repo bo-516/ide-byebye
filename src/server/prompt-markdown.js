@@ -98,8 +98,9 @@ function markdownLineRef(filePath, projectRoot, startLine, endLine) {
 /**
  * Pick the source range for a Markdown app reference.
  *
- * Boundary: this mirrors the plain prompt formatter so SDK and App prompts point at the same source span. Missing
- * source range data falls back to the clicked line; missing selection line data can still emit an undefined anchor.
+ * Boundary: mirrors the plain prompt formatter so SDK and App prompts share the same span. Prefer the clicked element's
+ * AST range (including single-line nodes) over the containing component, then the insp-path line, so labels stay aligned
+ * with `data-insp-path`. Missing selection line data can still emit an undefined anchor.
  *
  * @param {Record<string, unknown>} selection Resolved browser selection with line information.
  * @param {Record<string, unknown>} source Extracted source context for that selection.
@@ -107,14 +108,14 @@ function markdownLineRef(filePath, projectRoot, startLine, endLine) {
  */
 function pickSourceRange(selection, source) {
     const selected = source.selectedNodeRange;
-    if (selected && selected.endLine > selected.startLine) {
+    if (selected) {
         return selected;
+    }
+    if (selection.line != null) {
+        return { startLine: selection.line, endLine: selection.line };
     }
     if (source.containingComponentRange) {
         return source.containingComponentRange;
-    }
-    if (selected) {
-        return selected;
     }
     if (source.startLine != null) {
         return { startLine: source.startLine, endLine: source.endLine };
