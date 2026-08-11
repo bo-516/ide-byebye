@@ -5,7 +5,7 @@
  * run explicitly: `node --test src/server/ast/jsx-locator.diff.test.js`
  * (node --test still picks it up if you pass the path; default `npm test` runs all
  * `*.test.js` — this file is intentionally named `.diff.test.js` and is included
- * when the runner globs `**/*test.js`. If suite time grows, rename or exclude.)
+ * when the runner globs any `*test.js` path. If suite time grows, rename or exclude.)
  *
  * Asserts deepStrictEqual on all SourceContext-like fields except `astError`
  * text; for `astError`, only presence/absence must match.
