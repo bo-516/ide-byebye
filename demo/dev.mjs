@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,8 +14,13 @@ import { fileURLToPath } from 'node:url';
  *   node dev.mjs --app react --bundler rspack
  *
  * Shorthand flags: --react / --vue / --vite / --webpack / --rspack
+ *
+ * Before starting any bundler, ensures the parent package has `dist/client.js`
+ * (source-tree demos load the plugin from `../../index.js`, which serves that file).
  */
 const dir = path.dirname(fileURLToPath(import.meta.url));
+const packageRoot = path.resolve(dir, '..');
+const clientBundlePath = path.join(packageRoot, 'dist', 'client.js');
 const args = process.argv.slice(2);
 
 function flagValue(name) {
@@ -64,6 +70,44 @@ else {
   // rspack
   cmdArgs = [bin('rspack'), ['serve', '--mode', 'development', '--config', path.join(appDir, 'rspack.config.mjs')]];
 }
+
+/**
+ * Source-tree demos import `../../index.js`, which serves the browser runtime from
+ * `dist/client.js`. Without that artifact the inspector injects a no-op warn stub.
+ *
+ * Boundary: only builds when the file is missing (or empty). Does not rebuild on every
+ * demo start — run `npm run build` in the package root after client source changes.
+ */
+function ensureClientBundle() {
+  let needsBuild = true;
+  try {
+    needsBuild = !fs.existsSync(clientBundlePath) || fs.statSync(clientBundlePath).size === 0;
+  }
+  catch {
+    needsBuild = true;
+  }
+  if (!needsBuild) {
+    return;
+  }
+
+  console.log('[demo] dist/client.js missing — building package (npm run build)…');
+  const result = spawnSync('npm', ['run', 'build'], {
+    cwd: packageRoot,
+    stdio: 'inherit',
+    env: process.env,
+    shell: process.platform === 'win32',
+  });
+  if (result.status !== 0) {
+    console.error('[demo] package build failed; the inspector client will not load.');
+    process.exit(result.status ?? 1);
+  }
+  if (!fs.existsSync(clientBundlePath)) {
+    console.error(`[demo] build finished but ${clientBundlePath} is still missing.`);
+    process.exit(1);
+  }
+}
+
+ensureClientBundle();
 
 console.log(`[demo] launching ${app} · ${bundler}`);
 console.log(`[demo] cwd=${appDir}`);

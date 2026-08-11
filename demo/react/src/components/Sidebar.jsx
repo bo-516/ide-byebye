@@ -1,15 +1,27 @@
 import { FocusTimer } from './FocusTimer.jsx';
 
-const LISTS = [
-  { icon: '◷', label: 'Today', count: 6, active: true },
-  { icon: '◍', label: 'Upcoming', count: 4 },
-  { icon: '★', label: 'Personal', count: 3 },
-  { icon: '▣', label: 'Work', count: 8 },
-];
-
-const TAGS = ['design', 'urgent', 'ideas'];
-
-export function Sidebar() {
+/**
+ * Sidebar — list/tag navigation plus focus timer.
+ * @param {object} props
+ * @param {{ id: string, icon: string, label: string }[]} props.lists
+ * @param {string} props.activeList
+ * @param {string[]} props.tags
+ * @param {string | null} props.activeTag
+ * @param {Record<string, number>} props.counts
+ * @param {(id: string) => void} props.onSelectList
+ * @param {(tag: string | null) => void} props.onSelectTag
+ * @param {() => void} props.onAddList
+ */
+export function Sidebar({
+  lists,
+  activeList,
+  tags,
+  activeTag,
+  counts,
+  onSelectList,
+  onSelectTag,
+  onAddList,
+}) {
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -21,27 +33,40 @@ export function Sidebar() {
 
       <nav className="menu">
         <p className="menu-cap">My Lists</p>
-        {LISTS.map((item) => (
-          <a key={item.label} href="#" className={`list-item ${item.active ? 'is-active' : ''}`}>
+        {lists.map((item) => (
+          <a
+            key={item.id}
+            href="#"
+            className={`list-item ${activeList === item.id ? 'is-active' : ''}`}
+            onClick={(e) => {
+              e.preventDefault();
+              onSelectList(item.id);
+            }}
+          >
             <span className="list-icon">{item.icon}</span>
             <span className="list-label">{item.label}</span>
-            <span className="list-count">{item.count}</span>
+            <span className="list-count">{counts[item.id] ?? 0}</span>
           </a>
         ))}
 
         <p className="menu-cap">Tags</p>
         <div className="tag-row">
-          {TAGS.map((tag) => (
-            <span key={tag} className="tag">
+          {tags.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              className={`tag ${activeTag === tag ? 'is-active' : ''}`}
+              onClick={() => onSelectTag(activeTag === tag ? null : tag)}
+            >
               #{tag}
-            </span>
+            </button>
           ))}
         </div>
       </nav>
 
       <FocusTimer />
 
-      <button className="btn btn-primary btn-block" type="button">
+      <button className="btn btn-primary btn-block" type="button" onClick={onAddList}>
         + New List
       </button>
     </aside>

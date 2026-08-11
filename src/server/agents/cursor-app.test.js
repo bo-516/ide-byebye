@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { buildCursorAppDeepLink, buildCursorAppFilePrompt, resolveCursorAppWorkspace } from './cursor-app.js';
@@ -18,7 +20,7 @@ test('buildCursorAppDeepLink builds Cursor prompt route with optional routing pa
     assert.equal(url.searchParams.get('mode'), 'agent');
 });
 
-test('resolveCursorAppWorkspace uses explicit workspace, false opt-out, then project basename', () => {
+test('resolveCursorAppWorkspace uses explicit workspace, false opt-out, then git-aware default', () => {
     assert.equal(resolveCursorAppWorkspace(
         { workspace: 'frontend' },
         { projectRoot: '/tmp/project' },
@@ -27,14 +29,29 @@ test('resolveCursorAppWorkspace uses explicit workspace, false opt-out, then pro
         { workspace: false },
         { projectRoot: '/tmp/project' },
     ), undefined);
-    assert.equal(resolveCursorAppWorkspace(
-        {},
-        { projectRoot: '/tmp/workspaces/example.code-workspace' },
-    ), 'example');
+
+    // Explicit cursorApp.projectRoot pins the name to that folder (no git walk).
     assert.equal(resolveCursorAppWorkspace(
         { projectRoot: 'fixtures/app' },
         { projectRoot: '/tmp/vite-root' },
     ), path.basename(path.resolve('fixtures/app')));
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-inspector-cursor-ws-'));
+    try {
+        const repo = path.join(tmp, 'ai-inspector');
+        const runDir = path.join(repo, 'demo', 'vue');
+        fs.mkdirSync(runDir, { recursive: true });
+        fs.mkdirSync(path.join(repo, '.git'));
+        assert.equal(resolveCursorAppWorkspace({}, { projectRoot: runDir }), 'ai-inspector');
+
+        // No git: fall back to the run directory basename (incl. .code-workspace stem).
+        const bare = path.join(tmp, 'workspaces', 'example.code-workspace');
+        fs.mkdirSync(bare, { recursive: true });
+        assert.equal(resolveCursorAppWorkspace({}, { projectRoot: bare }), 'example');
+    }
+    finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
 });
 
 test('buildCursorAppFilePrompt includes refs, handoff file, and intent', () => {

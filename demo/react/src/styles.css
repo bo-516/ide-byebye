@@ -124,6 +124,7 @@ a {
   color: var(--ink-2);
   font-weight: 500;
   transition: 0.15s;
+  cursor: pointer;
 }
 
 .list-item:hover {
@@ -161,6 +162,7 @@ a {
 }
 
 .tag {
+  font: inherit;
   font-size: 12.5px;
   padding: 5px 11px;
   border-radius: 999px;
@@ -168,6 +170,20 @@ a {
   color: var(--brand-d);
   border: 1px solid var(--line);
   font-weight: 600;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.tag:hover {
+  background: #d9f0e3;
+  border-color: #c5e4d2;
+}
+
+.tag.is-active {
+  background: var(--brand-grad);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28);
 }
 
 /* ---------- focus timer (sidebar widget, auto-running so recordings move) ---------- */

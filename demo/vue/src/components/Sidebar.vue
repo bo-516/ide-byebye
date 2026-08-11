@@ -1,14 +1,32 @@
 <script setup>
+import { computed } from 'vue';
 import FocusTimer from './FocusTimer.vue';
 
-const LISTS = [
-  { icon: '◷', label: 'Today', count: 6, active: true },
-  { icon: '◍', label: 'Upcoming', count: 4 },
-  { icon: '★', label: 'Personal', count: 3 },
-  { icon: '▣', label: 'Work', count: 8 },
-];
+const props = defineProps({
+  lists: { type: Array, required: true },
+  activeList: { type: String, required: true },
+  tags: { type: Array, required: true },
+  activeTag: { type: String, default: null },
+  counts: { type: Object, required: true },
+});
 
-const TAGS = ['design', 'urgent', 'ideas'];
+const emit = defineEmits(['select-list', 'select-tag', 'add-list']);
+
+const listCounts = computed(() =>
+  props.lists.map((item) => ({
+    ...item,
+    count: props.counts[item.id] ?? 0,
+  })),
+);
+
+const onSelectList = (e, id) => {
+  e.preventDefault();
+  emit('select-list', id);
+};
+
+const onSelectTag = (tag) => {
+  emit('select-tag', props.activeTag === tag ? null : tag);
+};
 </script>
 
 <template>
@@ -21,11 +39,12 @@ const TAGS = ['design', 'urgent', 'ideas'];
     <nav class="menu">
       <p class="menu-cap">My Lists</p>
       <a
-        v-for="item in LISTS"
-        :key="item.label"
+        v-for="item in listCounts"
+        :key="item.id"
         href="#"
         class="list-item"
-        :class="{ 'is-active': item.active }"
+        :class="{ 'is-active': activeList === item.id }"
+        @click="onSelectList($event, item.id)"
       >
         <span class="list-icon">{{ item.icon }}</span>
         <span class="list-label">{{ item.label }}</span>
@@ -34,12 +53,23 @@ const TAGS = ['design', 'urgent', 'ideas'];
 
       <p class="menu-cap">Tags</p>
       <div class="tag-row">
-        <span v-for="tag in TAGS" :key="tag" class="tag">#{{ tag }}</span>
+        <button
+          v-for="tag in tags"
+          :key="tag"
+          type="button"
+          class="tag"
+          :class="{ 'is-active': activeTag === tag }"
+          @click="onSelectTag(tag)"
+        >
+          #{{ tag }}
+        </button>
       </div>
     </nav>
 
     <FocusTimer />
 
-    <button class="btn btn-primary btn-block" type="button">+ New List</button>
+    <button class="btn btn-primary btn-block" type="button" @click="emit('add-list')">
+      + New List
+    </button>
   </aside>
 </template>
