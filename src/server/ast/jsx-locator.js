@@ -102,6 +102,11 @@ function walkAst(root, visit) {
  * Purpose: promote `() => <div/>` to `const X = () => …` / `export default …`
  * so the prompt shows the full declaration, matching Babel `path.findParent`.
  *
+ * Boundary: oxc models class methods as `MethodDefinition.value = FunctionExpression`,
+ * while Babel uses `ClassMethod` (not a Function*). Skipping that method body is
+ * required so we promote to `ClassDeclaration` / `ClassExpression` instead of
+ * returning only `render()`. Omitting the skip regresses class-component slices.
+ *
  * @param {object[]} ancestors Ancestor stack from root to parent of the hit (not including hit).
  * @returns {object|undefined} Component AST node to slice.
  */
@@ -109,10 +114,20 @@ function findComponentNode(ancestors) {
     // Scan from hit's parent toward root (stack is root→parent, so walk reverse).
     let fnIndex = -1;
     for (let i = ancestors.length - 1; i >= 0; i--) {
-        if (FN_TYPES.has(ancestors[i].type)) {
-            fnIndex = i;
-            break;
+        const node = ancestors[i];
+        if (!FN_TYPES.has(node.type)) {
+            continue;
         }
+        // See Boundary above: do not stop on a class method's FunctionExpression.
+        const parent = i > 0 ? ancestors[i - 1] : null;
+        if (
+            (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression')
+            && parent?.type === 'MethodDefinition'
+        ) {
+            continue;
+        }
+        fnIndex = i;
+        break;
     }
     if (fnIndex < 0)
         return undefined;
