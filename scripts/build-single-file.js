@@ -61,6 +61,19 @@ const BUNDLER_RUNTIME_EXTERNALS = [
 ];
 
 /**
+ * Native (napi) modules that cannot be inlined into the single-file bundle.
+ *
+ * Boundary: `oxc-parser` ships a platform-specific `.node` binary through optional deps. Bundling it
+ * would produce a file that throws at import time on every platform. Keeping it external means the
+ * single-file artifact needs `oxc-parser` installed, which npm consumers get as a declared dependency.
+ *
+ * @type {string[]} Package names kept as external imports in the single-file Node bundle.
+ */
+const NATIVE_MODULE_EXTERNALS = [
+    'oxc-parser',
+];
+
+/**
  * Remove a generated file when it exists.
  *
  * Boundary: this helper only unlinks the exact file path passed to it. Passing a directory or an unrelated path will
@@ -132,9 +145,11 @@ async function writeSingleFileEntry(clientCode) {
 /**
  * Bundle the Node-side Vite plugin and embedded browser runtime into one compact ESM file.
  *
- * Boundary: Node built-ins remain external through `platform: "node"`, and optional agent SDK packages remain external
- * through `OPTIONAL_AGENT_EXTERNALS`. Output comments are stripped and code is minified; removing those externals can
- * make the bundle require optional packages even when their agents are disabled.
+ * Boundary: Node built-ins remain external through `platform: "node"`. Optional agent SDKs,
+ * bundler runtime packages, and native napi modules stay external via
+ * `OPTIONAL_AGENT_EXTERNALS` / `BUNDLER_RUNTIME_EXTERNALS` / `NATIVE_MODULE_EXTERNALS`.
+ * Output comments are stripped and code is minified; removing those externals can make the
+ * bundle require optional packages even when their agents are disabled, or break on wrong platforms.
  *
  * @param {string} entry Absolute path to the temporary single-file entry.
  * @returns {Promise<void>} Resolves after `dist/code-intent-inspector.js` is written.
@@ -149,7 +164,11 @@ async function buildPluginBundle(entry) {
             comments: false,
         },
         platform: 'node',
-        external: [...OPTIONAL_AGENT_EXTERNALS, ...BUNDLER_RUNTIME_EXTERNALS],
+        external: [
+            ...OPTIONAL_AGENT_EXTERNALS,
+            ...BUNDLER_RUNTIME_EXTERNALS,
+            ...NATIVE_MODULE_EXTERNALS,
+        ],
     });
 }
 

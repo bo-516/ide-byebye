@@ -2,10 +2,7 @@
 node_modules/
 
 # Build output
-dist
-!dist/
-!dist/client.js
-!dist/code-intent-inspector.js
+dist/
 build/
 coverage/
 

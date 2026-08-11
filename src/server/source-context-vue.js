@@ -1,8 +1,9 @@
 /**
  * Best-effort Vue SFC source extraction for intent prompts.
  *
- * Purpose: Babel cannot parse a full `.vue` file, so the JSX path always failed with "No JSX element found". Templates
- * are sliced by line (open-tag walk); `<script>` blocks optionally re-use the caller's JSX extractor with line offsets.
+ * Purpose: neither Babel nor oxc can parse a full `.vue` file, so a naive JSX path always failed with
+ * "No JSX element found". Templates are sliced by line (open-tag walk); `<script>` blocks optionally
+ * re-use the caller's JSX extractor with line offsets.
  *
  * Boundary: not a replacement for `@vue/compiler-dom`. Nested slots, pug templates, and multi-root fragments may yield
  * a wider-than-ideal slice, but the prompt always gets a useful excerpt + `fileLanguage: 'vue'` instead of an AST error.

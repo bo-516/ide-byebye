@@ -5,13 +5,13 @@
   "type": "module",
   "license": "MIT",
   "author": "dravenLee <516342558@qq.com>",
-  "homepage": "https://github.com/dravenLee/ide-byebye#readme",
+  "homepage": "https://github.com/bo-516/ide-byebye#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dravenLee/ide-byebye.git"
+    "url": "git+https://github.com/bo-516/ide-byebye.git"
   },
   "bugs": {
-    "url": "https://github.com/dravenLee/ide-byebye/issues"
+    "url": "https://github.com/bo-516/ide-byebye/issues"
   },
   "keywords": [
     "vite",
@@ -77,9 +77,8 @@
     "release:dry": "node scripts/publish.js --dry-run"
   },
   "dependencies": {
-    "@babel/parser": "^8.0.0",
-    "@babel/traverse": "^8.0.0",
     "code-inspector-plugin": "^1.6.2",
+    "oxc-parser": "^0.143.0",
     "unplugin": "^3.3.0"
   },
   "devDependencies": {
