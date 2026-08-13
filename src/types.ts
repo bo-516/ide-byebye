@@ -39,9 +39,12 @@ export type ClickModifier =
 export interface AgentOpenOptions {
   /** `false` unregisters the agent. Default when using an object: on. */
   enabled?: boolean;
-  /** Executable for deeplink / launcher (`'open'` on macOS by default). */
+  /** Executable for deeplink / launcher. Default: `open` (macOS), `cmd` (Windows), `xdg-open` (Linux). */
   openCommand?: string;
-  /** Extra args before the URL / launcher path. */
+  /**
+   * Extra args before the URL / launcher path.
+   * Appended after the platform default prefix when `openCommand` is omitted.
+   */
   openArgs?: string[];
   /**
    * `'file'` writes a Markdown handoff and sends a compact pointer prompt.

@@ -180,6 +180,67 @@ export function buildGrokBuildLauncherScript(input) {
 }
 
 /**
+ * Single-quote a string for PowerShell so paths survive `-EncodedCommand` decoding.
+ *
+ * Boundary: only `'` is doubled. The result must be used as a complete single-quoted token.
+ *
+ * @param {string} value Raw path or literal.
+ * @returns {string} PowerShell single-quoted literal.
+ */
+export function powershellSingleQuote(value) {
+    return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+/**
+ * Build a cmd.exe wrapper that launches interactive Grok Build via PowerShell.
+ *
+ * Purpose: Windows has no Terminal.app for `.command` bash scripts. `start file.cmd` opens a console;
+ * the prompt is read from disk so argv never hits cmd's ~8191 character limit.
+ * Boundary: the PowerShell program is UTF-16LE base64 (`-EncodedCommand`) so cwd / grok / prompt
+ * paths are not subject to cmd metacharacters. The prompt body is still read at runtime from `promptPath`.
+ *
+ * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string }} input Launcher fields.
+ * @returns {string} `.cmd` file contents (CRLF).
+ */
+export function buildGrokBuildWindowsLauncherScript(input) {
+    const permissionArgs = typeof input.permissionMode === 'string' && input.permissionMode.trim()
+        ? ` --permission-mode ${powershellSingleQuote(input.permissionMode.trim())}`
+        : '';
+    const program = [
+        `Set-Location -LiteralPath ${powershellSingleQuote(input.cwd)}`,
+        `$prompt = Get-Content -LiteralPath ${powershellSingleQuote(input.promptPath)} -Raw -Encoding UTF8`,
+        `& ${powershellSingleQuote(input.command)} --cwd ${powershellSingleQuote(input.cwd)}${permissionArgs} --verbatim $prompt`,
+    ].join('; ');
+    const encoded = Buffer.from(program, 'utf16le').toString('base64');
+    return `@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}\r\n`;
+}
+
+/**
+ * Launcher file suffix for the current (or injected) platform.
+ *
+ * Boundary: Windows uses `.cmd` so `cmd /c start` can run it; other platforms keep macOS `.command`.
+ *
+ * @param {string} [platform=process.platform] Node platform id.
+ * @returns {'.cmd' | '.command'} File suffix including the dot.
+ */
+export function grokBuildLauncherExtension(platform = process.platform) {
+    return platform === 'win32' ? '.cmd' : '.command';
+}
+
+/**
+ * Build the launcher file body for the given platform.
+ *
+ * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string }} input Launcher fields.
+ * @param {string} [platform=process.platform] Node platform id.
+ * @returns {string} Script contents to write.
+ */
+export function buildGrokBuildLauncherFile(input, platform = process.platform) {
+    return platform === 'win32'
+        ? buildGrokBuildWindowsLauncherScript(input)
+        : buildGrokBuildLauncherScript(input);
+}
+
+/**
  * Candidate absolute/relative paths used to locate the Grok Build CLI.
  *
  * Boundary: `config.command` wins when set. Otherwise the bare `grok` name is tried first (inherits the Vite process

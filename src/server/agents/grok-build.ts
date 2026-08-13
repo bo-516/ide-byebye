@@ -5,24 +5,30 @@ import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
 import {
     buildGrokBuildFilePrompt,
-    buildGrokBuildLauncherScript,
+    buildGrokBuildLauncherFile,
     buildGrokBuildPrompt,
+    grokBuildLauncherExtension,
     resolveGrokBuildCommandCandidates,
     resolveGrokBuildProjectRoot,
     shouldWriteGrokBuildPromptFile,
 } from './grok-build-launcher.js';
+import { openTarget } from './opener.js';
 
 export {
     buildGrokBuildFilePrompt,
+    buildGrokBuildLauncherFile,
     buildGrokBuildLauncherScript,
     buildGrokBuildPrompt,
     formatGrokBuildHandoffPath,
+    grokBuildLauncherExtension,
+    powershellSingleQuote,
     resolveGrokBuildCommandCandidates,
     resolveGrokBuildPathStyleOptions,
     resolveGrokBuildProjectRoot,
     shellSingleQuote,
     shouldWriteGrokBuildPromptFile,
     withGrokBuildPathRoot,
+    buildGrokBuildWindowsLauncherScript,
 } from './grok-build-launcher.js';
 
 /**
@@ -97,65 +103,6 @@ export async function resolveGrokBuildCommand(config) {
 }
 
 /**
- * Resolve the OS command used to open the generated launcher script.
- *
- * Boundary: custom `openCommand` wins; otherwise only macOS receives the native `open` (which runs `.command` files in
- * Terminal.app). Non-macOS callers must configure an opener explicitly.
- *
- * @param {Record<string, unknown>} config Grok Build adapter config.
- * @returns {string | null} Executable name/path, or null when unavailable.
- */
-function resolveOpenCommand(config) {
-    if (typeof config.openCommand === 'string' && config.openCommand.trim())
-        return config.openCommand.trim();
-    return process.platform === 'darwin' ? 'open' : null;
-}
-
-/**
- * Build process arguments for the launcher opener.
- *
- * Boundary: `openArgs` must be iterable. The launcher path is appended last so wrappers can prepend app-specific flags.
- *
- * @param {Record<string, unknown>} config Grok Build adapter config.
- * @param {string} launchPath Absolute path to the generated `.command` / script file.
- * @returns {string[]} Arguments passed to the opener process.
- */
-function buildOpenArgs(config, launchPath) {
-    return [...(config.openArgs ?? []), launchPath];
-}
-
-/**
- * Spawn the OS command that opens the Grok Build launcher.
- *
- * Boundary: this observes only opener startup and exit status; the Terminal session may still fail after a successful
- * `open` (missing login PATH, auth, etc.).
- *
- * @param {string} command Executable used to open the launcher.
- * @param {string[]} args Arguments for the opener command.
- * @returns {Promise<void>} Resolves after a zero exit status, rejects otherwise.
- */
-function openLauncher(command, args) {
-    return new Promise<any>((resolve, reject) => {
-        let settled = false;
-        const child = spawn(command, args, { stdio: 'ignore' });
-        const finish = (err) => {
-            if (settled)
-                return;
-            settled = true;
-            err ? reject(err) : resolve(undefined);
-        };
-        child.once('error', (err) => finish(err));
-        child.once('close', (code, signal) => {
-            if (code === 0) {
-                finish(undefined);
-                return;
-            }
-            finish(new Error(`${command} failed with ${signal ?? `exit code ${code ?? 'unknown'}`}`));
-        });
-    });
-}
-
-/**
  * Write the full request markdown under the inspector output directory.
  *
  * Boundary: the target `requests` directory must stay inside the trusted project root. Outside paths throw before any
@@ -178,7 +125,8 @@ function writePromptFile(request, context) {
  * Write the interactive prompt body and the executable launcher script.
  *
  * Boundary: both files stay under `outputDir/launches` inside the project root. The prompt file holds the exact text
- * passed to `grok --verbatim`; the launcher never embeds that text, only its path.
+ * passed to `grok --verbatim`; the launcher never embeds that text, only its path. Windows writes a `.cmd` wrapper;
+ * other platforms write a bash `.command` file.
  *
  * @param {{ request: Record<string, unknown>, context: { outputDir: string, projectRoot: string }, command: string, cwd: string, prompt: string, permissionMode?: string }} input Write inputs.
  * @returns {{ launchPath: string, promptPath: string }} Absolute paths of the launcher and prompt files.
@@ -189,11 +137,11 @@ function writeLauncherFiles(input) {
     fs.mkdirSync(launchesDir, { recursive: true });
     const stamp = `${fileStamp(new Date(input.request.createdAt))}-${input.request.id}`;
     const promptPath = path.join(launchesDir, `${stamp}.prompt.txt`);
-    const launchPath = path.join(launchesDir, `${stamp}.command`);
+    const launchPath = path.join(launchesDir, `${stamp}${grokBuildLauncherExtension()}`);
     fs.writeFileSync(promptPath, input.prompt.endsWith('\n') ? input.prompt : `${input.prompt}\n`, 'utf8');
     fs.writeFileSync(
         launchPath,
-        buildGrokBuildLauncherScript({
+        buildGrokBuildLauncherFile({
             command: input.command,
             cwd: input.cwd,
             promptPath,
@@ -208,8 +156,8 @@ function writeLauncherFiles(input) {
  * Create the Grok Build CLI adapter.
  *
  * Boundary: this adapter opens a local Terminal session running interactive `grok` with the intent prompt prefilled; it
- * does not apply edits itself. Grok Build has no app deeplink, so handoff is via an executable `.command` launcher.
- * Availability requires a working `grok` binary plus macOS `open` (or a configured `openCommand`).
+ * does not apply edits itself. Grok Build has no app deeplink, so handoff is via a launcher file (`.command` on macOS /
+ * Linux, `.cmd` on Windows). Availability requires a working `grok` binary; the OS opener is always resolved.
  *
  * @param {Record<string, unknown>} config Grok Build adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
@@ -225,12 +173,6 @@ export function createGrokBuildAdapter(config: any = {}) {
                     reason: `"${resolveGrokBuildCommandCandidates(config)[0]}" not found. Install Grok Build (https://x.ai/cli) and ensure it is on PATH.`,
                 };
             }
-            if (!resolveOpenCommand(config)) {
-                return {
-                    available: false,
-                    reason: 'Grok Build handoff requires macOS "open" or a configured grokBuild.openCommand.',
-                };
-            }
             return { available: true };
         },
         async send(request, context) {
@@ -242,10 +184,6 @@ export function createGrokBuildAdapter(config: any = {}) {
                     throw new Error(
                         `"${resolveGrokBuildCommandCandidates(config)[0]}" not found. Install Grok Build (https://x.ai/cli) and ensure it is on PATH.`,
                     );
-                }
-                const openCommand = resolveOpenCommand(config);
-                if (!openCommand) {
-                    throw new Error('Grok Build handoff requires macOS "open" or a configured grokBuild.openCommand.');
                 }
 
                 // Rebuild with agent pathStyle (default relative); do not assume context.prompt matches Grok config.
@@ -276,7 +214,7 @@ export function createGrokBuildAdapter(config: any = {}) {
                 events.push(launchEvent);
                 context.emit(launchEvent);
 
-                await openLauncher(openCommand, buildOpenArgs(config, launchPath));
+                await openTarget(config, launchPath);
                 const completed = { type: 'completed', text: 'Grok Build opened with a prefilled prompt' };
                 events.push(completed);
                 context.emit(completed);

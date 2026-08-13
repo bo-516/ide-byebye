@@ -28,6 +28,7 @@ Farm；Turbopack & Mako 仅做路径注入）。在运行中的应用上叠加�
 
 ## 目录
 
+- [如何使用](#如何使用)
 - [工作原理](#工作原理)
 - [安装](#安装)
 - [快速开始](#快速开始)
@@ -38,6 +39,7 @@ Farm；Turbopack & Mako 仅做路径注入）。在运行中的应用上叠加�
   - [最小配置](#最小配置)
   - [可选配置项（逐项）](#可选配置项逐项)
   - [Agents](#agents)
+  - [Windows](#windows)
   - [录制（rrweb）](#录制-rrweb)
 - [产物](#产物)
 - [本地化](#本地化)
@@ -46,6 +48,25 @@ Farm；Turbopack & Mako 仅做路径注入）。在运行中的应用上叠加�
 - [许可证](#许可证)
 
 ---
+
+## 如何使用
+
+复制下面的 GitHub README 地址，在已打开本项目的 Cursor / Claude / Codex / Grok
+里发给 AI：
+
+```
+https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md
+```
+
+然后发送：
+
+```
+按 https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md 把 ide-byebye 接到这个项目里
+```
+
+英文 README：`https://github.com/bo-516/ide-byebye`
+
+也可以自己按 [安装](#安装) / [快速开始](#快速开始) 接入。
 
 ## 工作原理
 
@@ -180,8 +201,9 @@ pnpm dev:react:rspack
 - **打包器** — Vite `>=4`、webpack `>=5`、rspack、rsbuild、esbuild 或 Farm 可完整零配置。
   Turbopack / Mako 只注入 `data-insp-path`。
 - **`code-inspector-plugin`** — 由上述适配器注册；无需手动配置。
-- **macOS** 开箱即可用页脚 Agent（`open` 处理 deeplink / launcher）。
-  Linux/Windows 需按 Agent 设置 `openCommand`（见 [页脚 Agent 共用选项](#页脚-agent-共用选项)）。
+- **页脚 Agent** — Codex App / Claude App / Cursor / Grok Build 用系统默认 opener
+  打开（macOS `open`，Windows `cmd /c start`，Linux `xdg-open`）。
+  Windows 多数情况零配置；只有默认 opener 失败时才需要覆盖（见 [Windows](#windows)）。
 - **目标 Agent 已安装** — Codex App / Claude App / Cursor /
   [Grok Build CLI](https://x.ai/cli)。这些 Agent 无需额外 npm 依赖。
 
@@ -400,8 +422,8 @@ agents: {
 }
 ```
 
-找不到 opener 时按钮变灰（非 macOS 且未设 `openCommand`）。
-Grok Build 在 PATH 上没有 `grok`（且不在 `~/.grok/bin/grok`）时也会变灰。
+找不到 Agent 二进制时按钮变灰（Grok Build：PATH 上没有 `grok`，且不在
+`~/.grok/bin/grok`）。Deeplink Agent 保持可点；本机没装对应 App 时由系统报错。
 
 #### 页脚 Agent 共用选项
 
@@ -410,9 +432,38 @@ Codex / Claude / Cursor 共用以下项；Grok Build 复用它们做 Terminal la
 | 选项 | 类型 | 默认 | 可配内容 |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true`（使用对象时） | `false` 取消注册。 |
-| `openCommand` | `string` | macOS 为 `'open'`，否则无 | deeplink / launcher 可执行文件。Linux/Windows 请设置（如 `'xdg-open'`）。 |
-| `openArgs` | `string[]` | `[]` | URL / launcher 路径**之前**的额外参数。 |
+| `openCommand` | `string` | `open` / `cmd` / `xdg-open` | deeplink / launcher 可执行文件。覆盖平台默认值时再设。 |
+| `openArgs` | `string[]` | 平台前缀 | URL / launcher 路径**之前**的额外参数。未设 `openCommand` 时接在默认前缀后面。 |
 | `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` 写 Markdown 交接文件，并发送指向它的精简 prompt。`'auto'` 下 Cursor / Grok 可能因超长溢出到文件；Claude / Codex 仅在显式 `'file'` 时切换。 |
+
+#### Windows
+
+选取用手势是 **Ctrl-click**（或 `Alt+Shift+I`）。页脚 Agent 默认已经走
+`cmd /c start "" <url>` —— 只要本机装了 Cursor / Claude / Codex / Grok 且协议能唤起，
+**不必**再写 `openCommand`。
+
+只有默认 opener 失败时才设 `openCommand` / `openArgs`（WSL、自定义协议助手、`start` 被禁用）。
+一旦写了非空 `openCommand`，就会**整段替换**平台默认值，所以要把 `cmd` 的完整参数带上。
+不要写成 `openCommand: 'start'`（`start` 是 `cmd` 内置命令），也不要抄 Linux 的 `'xdg-open'`。
+空字符串 `""` 是 `start` 的窗口标题占位，避免 URL 被当成标题吃掉：
+
+```js
+const windowsOpener = {
+  openCommand: 'cmd',
+  openArgs: ['/c', 'start', '""'],
+};
+
+ideByebye({
+  agents: {
+    cursorApp: windowsOpener,
+    claudeApp: windowsOpener,
+    codexApp: windowsOpener,
+    grokBuild: windowsOpener,
+  },
+});
+```
+
+在 **WSL** 里不要用 `cmd`，把 `openCommand` 改成 `wslview` 或 `explorer.exe`。
 
 #### `agents.claudeApp`
 

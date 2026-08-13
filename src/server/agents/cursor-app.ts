@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
+import { openTarget } from './opener.js';
 import { buildCursorAppDeepLink, buildCursorAppFilePrompt, resolveCursorAppWorkspace } from './cursor-app-deeplink.js';
 
 /** Cursor prompt text validator budget; too high can let Cursor reject oversized prompts. */
@@ -62,65 +62,6 @@ function shouldWritePromptFile(config, prompt) {
 }
 
 /**
- * Resolve the command used to open a Cursor deeplink.
- *
- * Boundary: custom `openCommand` wins; otherwise only macOS receives the native `open` command. Non-macOS callers must
- * configure an opener explicitly.
- *
- * @param {Record<string, unknown>} config Cursor App adapter config.
- * @returns {string | null} Executable name/path, or null when unavailable.
- */
-function resolveOpenCommand(config) {
-    if (config.openCommand)
-        return config.openCommand;
-    return process.platform === 'darwin' ? 'open' : null;
-}
-
-/**
- * Build process arguments for the Cursor deeplink opener.
- *
- * Boundary: `openArgs` must be iterable. The URL is appended last so wrappers can prepend app-specific flags.
- *
- * @param {Record<string, unknown>} config Cursor App adapter config.
- * @param {string} url Encoded Cursor deeplink.
- * @returns {string[]} Arguments passed to the opener process.
- */
-function buildOpenArgs(config, url) {
-    return [...(config.openArgs ?? []), url];
-}
-
-/**
- * Spawn the OS command that opens the Cursor deeplink.
- *
- * Boundary: this observes only opener startup and exit status; Cursor may still reject the deeplink after the opener
- * exits successfully.
- *
- * @param {string} command Executable used to open the URL.
- * @param {string[]} args Arguments for the opener command.
- * @returns {Promise<void>} Resolves after a zero exit status, rejects otherwise.
- */
-function openDeepLink(command, args) {
-    return new Promise<any>((resolve, reject) => {
-        let settled = false;
-        const child = spawn(command, args, { stdio: 'ignore' });
-        const finish = (err) => {
-            if (settled)
-                return;
-            settled = true;
-            err ? reject(err) : resolve(undefined);
-        };
-        child.once('error', (err) => finish(err));
-        child.once('close', (code, signal) => {
-            if (code === 0) {
-                finish(undefined);
-                return;
-            }
-            finish(new Error(`${command} failed with ${signal ?? `exit code ${code ?? 'unknown'}`}`));
-        });
-    });
-}
-
-/**
  * Create the Cursor App deeplink adapter.
  *
  * Boundary: this adapter opens Cursor's prompt deeplink and does not apply edits itself. Cursor supports workspace-name
@@ -133,12 +74,7 @@ export function createCursorAppAdapter(config: any = {}) {
     return {
         name: 'cursor-app',
         async isAvailable() {
-            if (resolveOpenCommand(config))
-                return { available: true };
-            return {
-                available: false,
-                reason: 'Cursor deeplinks require macOS "open" or a configured cursorApp.openCommand.',
-            };
+            return { available: true };
         },
         async send(request, context) {
             const events = [{ type: 'started', text: 'Opening Cursor' }];
@@ -162,11 +98,7 @@ export function createCursorAppAdapter(config: any = {}) {
                     workspace: resolveCursorAppWorkspace(config, context),
                     mode,
                 });
-                const command = resolveOpenCommand(config);
-                if (!command) {
-                    throw new Error('Cursor deeplinks require macOS "open" or a configured cursorApp.openCommand.');
-                }
-                await openDeepLink(command, buildOpenArgs(config, url));
+                await openTarget(config, url);
                 const completed = { type: 'completed', text: 'Cursor opened with a prefilled prompt' };
                 events.push(completed);
                 context.emit(completed);

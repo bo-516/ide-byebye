@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
+import { openTarget } from './opener.js';
 import { buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
 const DEFAULT_SCHEME = 'claude';
 const DEFAULT_ROUTE = 'code';
@@ -115,47 +115,11 @@ function shouldWritePromptFile(config, prompt) {
         return true;
     return false;
 }
-function resolveOpenCommand(config) {
-    if (config.openCommand)
-        return config.openCommand;
-    return process.platform === 'darwin' ? 'open' : null;
-}
-function buildOpenArgs(config, url) {
-    return [...(config.openArgs ?? []), url];
-}
-function openDeepLink(command, args) {
-    return new Promise<any>((resolve, reject) => {
-        let settled = false;
-        const child = spawn(command, args, { stdio: 'ignore' });
-        const finish = (err) => {
-            if (settled)
-                return;
-            settled = true;
-            if (err)
-                reject(err);
-            else
-                resolve(undefined);
-        };
-        child.once('error', (err) => finish(err));
-        child.once('close', (code, signal) => {
-            if (code === 0) {
-                finish(undefined);
-                return;
-            }
-            finish(new Error(`${command} failed with ${signal ?? `exit code ${code ?? 'unknown'}`}`));
-        });
-    });
-}
 export function createClaudeAppAdapter(config: any = {}) {
     return {
         name: 'claude-app',
         async isAvailable() {
-            if (resolveOpenCommand(config))
-                return { available: true };
-            return {
-                available: false,
-                reason: 'Claude App deeplinks require macOS "open" or a configured claudeApp.openCommand.',
-            };
+            return { available: true };
         },
         async send(request, context) {
             const events = [{ type: 'started', text: 'Opening Claude App' }];
@@ -186,11 +150,7 @@ export function createClaudeAppAdapter(config: any = {}) {
                     folders,
                     files,
                 });
-                const command = resolveOpenCommand(config);
-                if (!command) {
-                    throw new Error('Claude App deeplinks require macOS "open" or a configured claudeApp.openCommand.');
-                }
-                await openDeepLink(command, buildOpenArgs(config, url));
+                await openTarget(config, url);
                 const completed = {
                     type: 'completed',
                     text: 'Claude App opened with a prefilled new conversation',

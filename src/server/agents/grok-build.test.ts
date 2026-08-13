@@ -4,9 +4,13 @@ import path from 'node:path';
 import test from 'node:test';
 import {
     buildGrokBuildFilePrompt,
+    buildGrokBuildLauncherFile,
     buildGrokBuildLauncherScript,
     buildGrokBuildPrompt,
+    buildGrokBuildWindowsLauncherScript,
     formatGrokBuildHandoffPath,
+    grokBuildLauncherExtension,
+    powershellSingleQuote,
     resolveGrokBuildCommandCandidates,
     resolveGrokBuildProjectRoot,
     shellSingleQuote,
@@ -227,4 +231,48 @@ test('buildGrokBuildLauncherScript quotes paths and never embeds the prompt body
         /exec '\/Users\/me\/\.grok\/bin\/grok' --cwd '\/tmp\/it'\\''s-project' --permission-mode 'plan' --verbatim "\$\(cat '\/tmp\/it'\\''s-project\/\.intent-inspector\/launches\/a\.prompt\.txt'\)"/,
     );
     assert.equal(script.includes('please fix'), false);
+});
+
+test('powershellSingleQuote doubles embedded single quotes', () => {
+    assert.equal(powershellSingleQuote(`C:\\proj`), `'C:\\proj'`);
+    assert.equal(powershellSingleQuote(`it's`), `'it''s'`);
+});
+
+test('grokBuildLauncherExtension is .cmd on Windows and .command elsewhere', () => {
+    assert.equal(grokBuildLauncherExtension('win32'), '.cmd');
+    assert.equal(grokBuildLauncherExtension('darwin'), '.command');
+    assert.equal(grokBuildLauncherExtension('linux'), '.command');
+});
+
+test('buildGrokBuildWindowsLauncherScript encodes paths and never embeds the prompt body', () => {
+    const script = buildGrokBuildWindowsLauncherScript({
+        command: `C:\\Users\\me\\.grok\\bin\\grok`,
+        cwd: `C:\\tmp\\it's-project`,
+        promptPath: `C:\\tmp\\it's-project\\.intent-inspector\\launches\\a.prompt.txt`,
+        permissionMode: 'plan',
+    });
+    assert.match(script, /^@echo off\r\n/);
+    assert.match(script, /powershell\.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand /);
+    const encoded = script.match(/-EncodedCommand\s+(\S+)/)?.[1];
+    assert.ok(encoded);
+    const program = Buffer.from(encoded, 'base64').toString('utf16le');
+    assert.equal(
+        program,
+        [
+            `Set-Location -LiteralPath 'C:\\tmp\\it''s-project'`,
+            `$prompt = Get-Content -LiteralPath 'C:\\tmp\\it''s-project\\.intent-inspector\\launches\\a.prompt.txt' -Raw -Encoding UTF8`,
+            `& 'C:\\Users\\me\\.grok\\bin\\grok' --cwd 'C:\\tmp\\it''s-project' --permission-mode 'plan' --verbatim $prompt`,
+        ].join('; '),
+    );
+    assert.equal(script.includes('please fix'), false);
+});
+
+test('buildGrokBuildLauncherFile picks cmd vs bash by platform', () => {
+    const input = {
+        command: 'grok',
+        cwd: '/tmp/p',
+        promptPath: '/tmp/p/a.prompt.txt',
+    };
+    assert.match(buildGrokBuildLauncherFile(input, 'darwin'), /^#!\/bin\/bash\n/);
+    assert.match(buildGrokBuildLauncherFile(input, 'win32'), /^@echo off\r\n/);
 });

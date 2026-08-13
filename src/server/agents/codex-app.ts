@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
+import { openTarget } from './opener.js';
 import { buildCodexAppFilePrompt, buildCodexAppPrompt } from './codex-app-prompt.js';
 const DEFAULT_SCHEME = 'codex';
 export { buildCodexAppFilePrompt, buildCodexAppPrompt };
@@ -117,72 +117,6 @@ function shouldWritePromptFile(config, prompt) {
 }
 
 /**
- * Resolve the command used to open a Codex App deeplink.
- *
- * Boundary: custom `openCommand` wins; otherwise only macOS receives the native
- * `open` command. Passing no command on non-macOS makes availability checks fail
- * cleanly instead of spawning an unknown executable.
- *
- * @param {Record<string, unknown>} config Codex App adapter config.
- * @returns {string | null} Executable name/path, or null when unavailable.
- */
-function resolveOpenCommand(config) {
-    if (config.openCommand)
-        return config.openCommand;
-    return process.platform === 'darwin' ? 'open' : null;
-}
-
-/**
- * Build process arguments for the deeplink opener command.
- *
- * Boundary: configured `openArgs` must be an array-like value accepted by spread;
- * invalid values will throw before spawning, surfacing a config error. The URL is
- * always appended last so wrappers can prepend flags.
- *
- * @param {Record<string, unknown>} config Codex App adapter config.
- * @param {string} url Encoded Codex App deeplink.
- * @returns {string[]} Arguments passed to the opener process.
- */
-function buildOpenArgs(config, url) {
-    return [...(config.openArgs ?? []), url];
-}
-
-/**
- * Spawn the OS command that opens the Codex App deeplink.
- *
- * Boundary: this function only observes process startup and exit status; it does
- * not know whether Codex App accepted the URL after the opener succeeds. Passing
- * a missing command or bad args rejects with the process error.
- *
- * @param {string} command Executable used to open the URL.
- * @param {string[]} args Arguments for the opener command.
- * @returns {Promise<void>} Resolves after a zero exit status, rejects otherwise.
- */
-function openDeepLink(command, args) {
-    return new Promise<any>((resolve, reject) => {
-        let settled = false;
-        const child = spawn(command, args, { stdio: 'ignore' });
-        const finish = (err) => {
-            if (settled)
-                return;
-            settled = true;
-            if (err)
-                reject(err);
-            else
-                resolve(undefined);
-        };
-        child.once('error', (err) => finish(err));
-        child.once('close', (code, signal) => {
-            if (code === 0) {
-                finish(undefined);
-                return;
-            }
-            finish(new Error(`${command} failed with ${signal ?? `exit code ${code ?? 'unknown'}`}`));
-        });
-    });
-}
-
-/**
  * Create the Codex App deeplink adapter.
  *
  * Boundary: this adapter opens a local app URL and does not execute edits itself. Code references are converted to
@@ -196,12 +130,7 @@ export function createCodexAppAdapter(config: any = {}) {
     return {
         name: 'codex-app',
         async isAvailable() {
-            if (resolveOpenCommand(config))
-                return { available: true };
-            return {
-                available: false,
-                reason: 'Codex App deeplinks require macOS "open" or a configured codexApp.openCommand.',
-            };
+            return { available: true };
         },
         async send(request, context) {
             const events = [{ type: 'started', text: 'Opening Codex App' }];
@@ -221,11 +150,7 @@ export function createCodexAppAdapter(config: any = {}) {
                     prompt,
                     path: resolveCodexAppProjectRoot(config, context),
                 });
-                const command = resolveOpenCommand(config);
-                if (!command) {
-                    throw new Error('Codex App deeplinks require macOS "open" or a configured codexApp.openCommand.');
-                }
-                await openDeepLink(command, buildOpenArgs(config, url));
+                await openTarget(config, url);
                 const completed = {
                     type: 'completed',
                     text: 'Codex App opened with a prefilled new conversation',

@@ -33,6 +33,7 @@ hand off to does the actual change.
 
 ## Table of contents
 
+- [How to use](#how-to-use)
 - [How it works](#how-it-works)
 - [Install](#install)
 - [Quick start](#quick-start)
@@ -43,6 +44,7 @@ hand off to does the actual change.
   - [Minimal config](#minimal-config)
   - [Optional options (one by one)](#optional-options-one-by-one)
   - [Agents](#agents)
+  - [Windows](#windows)
   - [Recording (rrweb)](#recording-rrweb)
 - [Artifacts](#artifacts)
 - [Localization](#localization)
@@ -51,6 +53,25 @@ hand off to does the actual change.
 - [License](#license)
 
 ---
+
+## How to use
+
+Copy this README URL and paste it into Cursor / Claude / Codex / Grok with your
+project open:
+
+```
+https://github.com/bo-516/ide-byebye
+```
+
+Then send:
+
+```
+Add ide-byebye to this project. Follow https://github.com/bo-516/ide-byebye
+```
+
+Chinese README: `https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md`
+
+Or install it yourself in [Install](#install) / [Quick start](#quick-start).
 
 ## How it works
 
@@ -189,8 +210,10 @@ Hold ⌘ and click any element to open the intent dialog. Details:
 - **Bundler** — Vite `>=4`, webpack `>=5`, rspack, rsbuild, esbuild, or Farm for
   full zero-config. Turbopack / Mako only inject `data-insp-path`.
 - **`code-inspector-plugin`** — registered by the adapters above; no manual setup.
-- **macOS** for footer agents out of the box (`open` for deeplinks / launchers).
-  On Linux/Windows set `openCommand` per agent (see [Shared footer-agent options](#shared-footer-agent-options)).
+- **Footer agents** — Codex App / Claude App / Cursor / Grok Build open via the
+  OS default (`open` on macOS, `cmd /c start` on Windows, `xdg-open` on Linux).
+  Windows is zero-config for most setups; override only if the default opener
+  fails (see [Windows](#windows)).
 - **Target agent installed** — Codex App / Claude App / Cursor /
   [Grok Build CLI](https://x.ai/cli). No extra npm deps for these agents.
 
@@ -412,9 +435,9 @@ agents: {
 }
 ```
 
-Buttons grey out when no opener resolves (non-macOS without `openCommand`).
-Grok Build also greys out when `grok` is not on PATH (and not at
-`~/.grok/bin/grok`).
+Buttons grey out when the agent binary is missing (Grok Build: `grok` not on
+PATH and not at `~/.grok/bin/grok`). Deeplink agents stay enabled; the OS
+reports an error if the app is not installed.
 
 #### Shared footer-agent options
 
@@ -424,9 +447,39 @@ launcher.
 | Option | Type | Default | What you can set |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` (when using an object) | `false` unregisters the agent. |
-| `openCommand` | `string` | `'open'` on macOS, else none | Executable for deeplink / launcher. Set on Linux/Windows (e.g. `'xdg-open'`). |
-| `openArgs` | `string[]` | `[]` | Extra args **before** the URL / launcher path. |
+| `openCommand` | `string` | `open` / `cmd` / `xdg-open` | Executable for deeplink / launcher. Override the platform default when needed. |
+| `openArgs` | `string[]` | platform prefix | Extra args **before** the URL / launcher path. Appended after the default prefix when `openCommand` is omitted. |
 | `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` writes a Markdown handoff and sends a compact prompt pointing at it. In `'auto'`, Cursor / Grok may overflow to file; Claude / Codex only switch on explicit `'file'`. |
+
+#### Windows
+
+Pick with **Ctrl-click** (or `Alt+Shift+I`). Footer agents already use
+`cmd /c start "" <url>` — you do **not** need `openCommand` if Cursor / Claude /
+Codex / Grok are installed and their URL protocols work.
+
+Set `openCommand` / `openArgs` only when that default fails (WSL, a custom
+protocol helper, or `start` blocked). A non-blank `openCommand` **replaces** the
+platform default, so pass the full `cmd` argv — do not set `openCommand: 'start'`
+(`start` is a `cmd` builtin) or `'xdg-open'` (Linux-only). The empty `""` is
+`start`'s window title so the URL is not swallowed:
+
+```js
+const windowsOpener = {
+  openCommand: 'cmd',
+  openArgs: ['/c', 'start', '""'],
+};
+
+ideByebye({
+  agents: {
+    cursorApp: windowsOpener,
+    claudeApp: windowsOpener,
+    codexApp: windowsOpener,
+    grokBuild: windowsOpener,
+  },
+});
+```
+
+In **WSL**, point `openCommand` at `wslview` or `explorer.exe` instead of `cmd`.
 
 #### `agents.claudeApp`
 
