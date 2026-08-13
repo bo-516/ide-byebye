@@ -1,6 +1,6 @@
 {
   "name": "ide-byebye",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Dev plugin for Vite / webpack / rspack / rsbuild / esbuild / Farm (and Turbopack/Mako path injection): ⌘-click any rendered element, describe the change in plain words, and hand the element's source + your intent to Codex App / Claude App / Cursor / Grok Build — no hunting through the IDE.",
   "type": "module",
   "license": "MIT",
