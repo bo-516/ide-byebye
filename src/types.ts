@@ -196,5 +196,21 @@ export interface IdeByebyeOptions {
   htmlFiles?: string[];
 }
 
-/** Bundler plugin instance (shape varies by host). */
+/**
+ * Structural Vite / Rollup plugin shape (required `name` + optional hooks).
+ *
+ * Why not `object` / `any`: Vite's `plugins` is `PluginOption[]`, and
+ * `PluginOption` includes nested `PluginOption[]` but **not** `object[]`.
+ * Returning this type lets consumers write `plugins: [ideByebye()]` with no cast.
+ *
+ * Boundary: only the Vite adapter (`vite` / default export) uses this. Other
+ * bundlers keep {@link PluginInstance} because their host plugin shapes differ
+ * (webpack `apply`, rsbuild `setup`, turbopack rules object, …).
+ */
+export type VitePlugin = { name: string };
+
+/**
+ * Bundler plugin instance (shape varies by host).
+ * Prefer {@link VitePlugin} when the value goes into Vite's `plugins` array.
+ */
 export type PluginInstance = object;

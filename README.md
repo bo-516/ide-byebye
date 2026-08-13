@@ -233,7 +233,7 @@ Empty call is enough. You get:
 | Backend agents | clipboard + file — on (via Enter / `defaultAgent`) |
 | Recording | on (needs `@rrweb/record` + `@rrweb/replay`) |
 | UI locale | auto (`navigator.language` → else `zh`) |
-| Handoff files | `.intent-inspector/` |
+| Handoff files | `.intent-inspector/` (**gitignore this** — see [Artifacts](#artifacts)) |
 | Source `@` paths | relative; screenshot / still paths absolute |
 | code-inspector | registered for you (`pathType: 'absolute'`, its own hotkeys off) |
 
@@ -307,7 +307,7 @@ ideByebye({
 | --- | --- |
 | **Type** | `string` |
 | **Default** | `'.intent-inspector'` |
-| **Set to** | Project-relative dir for `file` agent / `promptMode: 'file'` / overflow handoffs. Must stay inside the project root. Add it to `.gitignore`. |
+| **Set to** | Project-relative dir for `file` agent / `promptMode: 'file'` / overflow handoffs. Must stay inside the project root. **Strongly recommended: add this directory to `.gitignore`** (see [Artifacts](#artifacts) for why). |
 
 #### `maxSourceContextLines`
 
@@ -505,7 +505,29 @@ CORS may be blank, web fonts must load, and **`canvas` / WebGL is not captured**
 
 ## Artifacts
 
-Written under `outputDir` (default `.intent-inspector/` — add to `.gitignore`):
+**Strongly recommend ignoring `.intent-inspector/` in git.**
+
+Add this to your **project** `.gitignore` (not only this package’s):
+
+```gitignore
+# ide-byebye local handoffs & media (do not commit)
+.intent-inspector/
+```
+
+If you set a custom `outputDir`, gitignore **that** path instead.
+
+### Why
+
+Everything under `outputDir` is **local, session-generated runtime data**, not source:
+
+| Concern | Detail |
+| --- | --- |
+| **Ephemeral** | Handoff markdown, launcher scripts, screenshots, and rrweb dumps are recreated on every inspect → send. They are not the source of truth and go stale immediately. |
+| **Repo noise / size** | WebP screenshots and rrweb JSON can be large; committing them bloats clones and PR diffs for no review value. |
+| **Machine-specific** | Paths and UI state reflect your machine and current page, so they create meaningless merge conflicts and fail on other checkouts. |
+| **Sensitive by nature** | Artifacts can include form values, app data visible on screen, or intent text you typed for an agent. Keep them off remote history unless you intentionally share a handoff. |
+
+Written under `outputDir` (default `.intent-inspector/`):
 
 | Path | Contents |
 | --- | --- |
@@ -546,6 +568,9 @@ ideByebye({ locale: 'en' });
   `127.0.0.1`, not your app origin.
 - **Project-rooted** — file writes stay inside the project; the deeplink only
   carries what you chose to send.
+- **Ignore artifacts** — put `.intent-inspector/` (or your `outputDir`) in
+  `.gitignore` so screenshots, recordings, and handoff text never land in git
+  (see [Artifacts](#artifacts)).
 - **Style sanitization** — captured style values are sanitized server-side
   (control characters stripped) so they can't forge extra prompt lines.
 

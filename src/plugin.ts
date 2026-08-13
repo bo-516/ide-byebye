@@ -10,7 +10,7 @@ import {
     injectHtmlSnippet,
     setupWebpackLikeCompiler,
 } from './server/plugin-runtime.js';
-import type { IdeByebyeOptions, PluginInstance } from './types.js';
+import type { IdeByebyeOptions, PluginInstance, VitePlugin } from './types.js';
 
 export { codeInspectorDefaults, PLUGIN_NAME } from './server/plugin-runtime.js';
 
@@ -231,14 +231,18 @@ const unplugin = createUnplugin(inspectorFactory as any);
  * Vite entry. Returns an array so `code-inspector-plugin` (which must run as its own Vite plugin to inject
  * `data-insp-path` before the framework transform) is registered alongside our inspector with zero config.
  *
- * @param {Record<string, unknown>} [options] Plugin options.
- * @returns {import('vite').Plugin[]} `[codeInspectorPlugin, inspectorVitePlugin]`.
+ * Return type is {@link VitePlugin}`[]` (not `object[]`) so nested placement in Vite's `plugins`
+ * typechecks as `PluginOption` without an `as PluginOption` cast:
+ * `plugins: [ideByebye({ recording: false }), vue()]`.
+ *
+ * @param options Plugin options.
+ * @returns `[codeInspectorPlugin, inspectorVitePlugin]` — nestable as one `PluginOption`.
  */
-export function vite(options: IdeByebyeOptions = {}): PluginInstance[] {
+export function vite(options: IdeByebyeOptions = {}): VitePlugin[] {
     return [
         codeInspectorPlugin({ bundler: 'vite', ...codeInspectorDefaults(options) }),
         unplugin.vite(options),
-    ];
+    ] as VitePlugin[];
 }
 
 /**

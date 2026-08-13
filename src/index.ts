@@ -24,6 +24,7 @@ export type {
     RecordingOptions,
     CodeInspectorOptions,
     IdeByebyeOptions,
+    VitePlugin,
     PluginInstance,
 } from './types.js';
 export {

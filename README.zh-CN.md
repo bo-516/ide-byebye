@@ -223,7 +223,7 @@ export default {
 | 后端 Agent | clipboard + file — 开启（经 Enter / `defaultAgent`） |
 | 录制 | 开启（需 `@rrweb/record` + `@rrweb/replay`） |
 | UI 语言 | auto（`navigator.language` → 否则 `zh`） |
-| 交接文件目录 | `.intent-inspector/` |
+| 交接文件目录 | `.intent-inspector/`（**请加入 gitignore** — 见 [产物](#产物)） |
 | 源码 `@` 路径 | 相对路径；截图 / 静帧用绝对路径 |
 | code-inspector | 自动注册（`pathType: 'absolute'`，并关掉其自带快捷键） |
 
@@ -297,7 +297,7 @@ ideByebye({
 | --- | --- |
 | **类型** | `string` |
 | **默认** | `'.intent-inspector'` |
-| **可配** | 相对项目根的目录，供 `file` Agent / `promptMode: 'file'` / 溢出交接使用。必须落在项目根内。请加入 `.gitignore`。 |
+| **可配** | 相对项目根的目录，供 `file` Agent / `promptMode: 'file'` / 溢出交接使用。必须落在项目根内。**强烈建议把该目录加入 `.gitignore`**（原因见 [产物](#产物)）。 |
 
 #### `maxSourceContextLines`
 
@@ -489,7 +489,29 @@ SVG-`<foreignObject>` → canvas。无 CORS 的跨域资源可能空白，字体
 
 ## 产物
 
-写入 `outputDir`（默认 `.intent-inspector/` — 请加入 `.gitignore`）：
+**强烈建议把 `.intent-inspector/` 加入 git 忽略。**
+
+请写在**你的业务项目**的 `.gitignore` 里（不只是本插件仓库）：
+
+```gitignore
+# ide-byebye 本地交接与媒体产物（不要提交）
+.intent-inspector/
+```
+
+若自定义了 `outputDir`，改为忽略**那个**路径。
+
+### 为什么要 ignore
+
+`outputDir` 下全是**本机、会话级运行时产物**，不是源码：
+
+| 顾虑 | 说明 |
+| --- | --- |
+| **临时 / 可再生成** | 交接 Markdown、launcher 脚本、截图、rrweb 事件流都是「选取 → 发送」时现写的，不是事实来源，立刻会过期。 |
+| **仓库噪音与体积** | WebP 截图和 rrweb JSON 可能很大；提交只会撑大 clone 与 PR diff，几乎没有 review 价值。 |
+| **机器相关** | 路径和 UI 状态绑定你当前机器与页面，容易产生无意义冲突，别人 checkout 后也对不上。 |
+| **内容可能敏感** | 可能带上表单值、页面上的业务数据，或你写给 Agent 的意图原文。除非刻意分享某次交接，否则不要进远端历史。 |
+
+写入 `outputDir`（默认 `.intent-inspector/`）：
 
 | 路径 | 内容 |
 | --- | --- |
@@ -527,6 +549,8 @@ ideByebye({ locale: 'en' });
 - **仅开发** — 适配器跳过生产（Vite `apply: 'serve'`、webpack `mode === 'production'` 等）。
 - **Token 门禁** — 每个请求带按进程 token；浏览器打 `127.0.0.1`，不是你的应用 origin。
 - **项目根约束** — 文件写入不离开项目；deeplink 只携带你选择发送的内容。
+- **忽略产物目录** — 把 `.intent-inspector/`（或你的 `outputDir`）写入 `.gitignore`，
+  避免截图、录制与交接文案进 git（详见 [产物](#产物)）。
 - **样式净化** — 捕获的样式值在服务端净化（剥控制字符），避免伪造额外 prompt 行。
 
 ## 从源码构建
