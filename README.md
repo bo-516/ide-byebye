@@ -17,6 +17,8 @@ hand off to does the actual change.
 
 ---
 
+Works with **React** and **Vue**.
+
 ![⌘-click an element, describe the change, hand off to an agent](./demo-recording.gif)
 
 **What the clip shows** (Vue demo → agent):

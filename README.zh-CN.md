@@ -14,6 +14,8 @@ Farm；Turbopack & Mako 仅做路径注入）。在运行中的应用上叠加�
 
 ---
 
+**React** / **Vue** 均可使用。
+
 ![⌘-点击元素、描述改动、交给 Agent](./demo-recording.gif)
 
 **录屏演示**（Vue demo → Agent）：
