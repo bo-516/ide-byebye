@@ -19,9 +19,12 @@ function resolveScreenshotTarget(target, inspectable) {
 }
 
 /**
- * Element-inspector mode: hover to highlight, click to select. While active,
+ * Element-inspector mode: hover to highlight, click/tap to select. While active,
  * page interaction events are swallowed so picking never triggers real
  * clicks, focus changes, or navigation.
+ *
+ * Pointer events are the source of truth so Chrome device-mode (click → touch) still selects: swallowing
+ * `pointerdown` with preventDefault suppresses the synthesized `click`, so selection runs on `pointerup`.
  */
 export class PickerController {
     config;
@@ -94,6 +97,10 @@ export class PickerController {
             return;
         this.active = true;
         document.addEventListener('mousemove', this.onMouseMove, true);
+        document.addEventListener('pointermove', this.onMouseMove, true);
+        // Register pointerup/click BEFORE swallow so capture-order still reaches the picker after preventDefault
+        // on pointerdown (device-mode touch never synthesizes click once pointerdown is cancelled).
+        document.addEventListener('pointerup', this.onPointerUp, true);
         document.addEventListener('click', this.onClick, true);
         document.addEventListener('keydown', this.onKeyDown, true);
         window.addEventListener('scroll', this.onScroll, true);
@@ -107,6 +114,8 @@ export class PickerController {
             return;
         this.active = false;
         document.removeEventListener('mousemove', this.onMouseMove, true);
+        document.removeEventListener('pointermove', this.onMouseMove, true);
+        document.removeEventListener('pointerup', this.onPointerUp, true);
         document.removeEventListener('click', this.onClick, true);
         document.removeEventListener('keydown', this.onKeyDown, true);
         window.removeEventListener('scroll', this.onScroll, true);
@@ -145,6 +154,13 @@ export class PickerController {
     onScroll = () => {
         if (this.hovered)
             this.overlay.showFor(this.hovered);
+    };
+    onPointerUp = (e) => {
+        if (e.isPrimary === false)
+            return;
+        if (typeof e.button === 'number' && e.button !== 0)
+            return;
+        this.onClick(e);
     };
     onClick = (e) => {
         if (isPluginNode(e.target))

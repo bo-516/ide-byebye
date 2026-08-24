@@ -25,7 +25,7 @@ export type AgentId =
 /** Hint embedded in the handoff: plan only vs allow the agent to edit. */
 export type ApplyMode = 'prompt-only' | 'agent-edit';
 
-/** Click-to-pick modifier; `'auto'` → ⌘ on macOS, Ctrl elsewhere. */
+/** Click-to-pick modifier; `'auto'` → ⌘ or Ctrl (so DevTools PC ↔ mobile toggling keeps working). */
 export type ClickModifier =
   | 'auto'
   | 'meta'
@@ -154,8 +154,8 @@ export interface IdeByebyeOptions {
   /** Picker toggle hotkey, `+`-joined (e.g. `'Alt+Shift+I'`). */
   hotkey?: string;
   /**
-   * Click-to-pick modifier. Default `'auto'` (⌘ macOS / Ctrl elsewhere).
-   * `null` / `false` disables click-picking (hotkey still works).
+   * Click-to-pick modifier. Default `'auto'` (⌘ or Ctrl, including DevTools mobile emulation).
+   * `null` / `false` disables modifier-picking (hotkey and 4s long-press still work).
    */
   clickModifier?: ClickModifier;
   /** Enter-key target adapter id. Default `'claude-app'`. */
