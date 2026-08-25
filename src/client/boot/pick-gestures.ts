@@ -9,10 +9,12 @@ import {
 import {
     LONG_PRESS_HINT_MS,
     PICK_CONSUME_MS,
+    isMatchingPress,
     isPrimaryPress,
     longPressDurationMs,
     pointerMovementExceeded,
     pointFromEvent,
+    resolvePickTarget,
 } from './pick-gesture-utils.js';
 
 export {
@@ -21,11 +23,13 @@ export {
     LONG_PRESS_HINT_MS,
     LONG_PRESS_MOVE_PX,
     PICK_CONSUME_MS,
+    isMatchingPress,
     isPrimaryPress,
     isTouchLikePointer,
     longPressDurationMs,
     pointerMovementExceeded,
     pointFromEvent,
+    resolvePickTarget,
 } from './pick-gesture-utils.js';
 
 /**
@@ -37,7 +41,8 @@ export {
  * Boundary: does not attach listeners (see `installPickGestures`). `picker.selectTarget` is the only way it opens the
  * dialog — if that returns false (plugin UI, picker already active, dialog open), the gesture is a no-op. Timers come
  * from `schedule`/`cancelSchedule` so tests can fire the hold path without waiting. Omitting `matchModifier` disables
- * ⌘/Ctrl picking but long-press stays on.
+ * ⌘/Ctrl picking but long-press stays on. Pointer capture, when used, is taken on the press target — never on
+ * `document.documentElement` — and `pointerup` inspects `press.target` because capture retargets `event.target`.
  *
  * @param {{ picker: { isActive: () => boolean, dialog: { isOpen: () => boolean }, previewTarget: Function, hidePreview: Function, selectTarget: Function }, matchModifier: string | null, schedule?: Function, cancelSchedule?: Function, now?: () => number, root?: HTMLElement | null }} options
  * @returns {{ onKeyDown: Function, onKeyUp: Function, onPointerDown: Function, onPointerMove: Function, onPointerUp: Function, onPointerCancel: Function, onClick: Function, onContextMenu: Function, onSelectStart: Function, onScroll: Function, onBlur: Function, dispose: Function }}
@@ -51,6 +56,8 @@ export function createPickGestureController(options) {
     const held = emptyHeldModifiers();
     const root = options.root || (typeof document !== 'undefined' ? document.documentElement : null);
     let press = null;
+    let captureEl = null;
+    let capturePointerId = null;
     let lastPickAt = Number.NEGATIVE_INFINITY;
 
     const flagsFrom = (event) => mergeModifierFlags(event, held);
@@ -82,22 +89,33 @@ export function createPickGestureController(options) {
     };
 
     const capturePointer = (event) => {
-        if (!root || typeof event.pointerId !== 'number' || typeof root.setPointerCapture !== 'function')
+        // Capture on the press target so later pointer events keep that node as `event.target`. Never capture on
+        // `document.documentElement`: that retargets pointerup/move to `<html>`, and ⌘-click then shows the yellow
+        // no-mapping overlay on the page root instead of opening the dialog.
+        const el = event.target;
+        if (!el || el === root || typeof event.pointerId !== 'number' || typeof el.setPointerCapture !== 'function')
             return;
         try {
-            root.setPointerCapture(event.pointerId);
+            el.setPointerCapture(event.pointerId);
+            captureEl = el;
+            capturePointerId = event.pointerId;
         }
         catch {
-            // Capture can throw on detached nodes; pointerup/touchend still finish the gesture.
+            captureEl = null;
+            capturePointerId = null;
         }
     };
 
-    const releasePointer = (pointerId) => {
-        if (!root || typeof pointerId !== 'number' || typeof root.releasePointerCapture !== 'function')
+    const releasePointer = () => {
+        const el = captureEl;
+        const pointerId = capturePointerId;
+        captureEl = null;
+        capturePointerId = null;
+        if (!el || typeof pointerId !== 'number' || typeof el.releasePointerCapture !== 'function')
             return;
         try {
-            if (!root.hasPointerCapture || root.hasPointerCapture(pointerId))
-                root.releasePointerCapture(pointerId);
+            if (!el.hasPointerCapture || el.hasPointerCapture(pointerId))
+                el.releasePointerCapture(pointerId);
         }
         catch {
             // Ignore: capture was never taken or already released.
@@ -105,12 +123,14 @@ export function createPickGestureController(options) {
     };
 
     const clearPress = () => {
-        if (!press)
+        if (!press && captureEl == null)
             return;
-        cancelSchedule(press.timer);
-        cancelSchedule(press.hintTimer);
-        releasePointer(press.pointerId);
-        press = null;
+        if (press) {
+            cancelSchedule(press.timer);
+            cancelSchedule(press.hintTimer);
+            press = null;
+        }
+        releasePointer();
         blockNativeCallout(false);
     };
 
@@ -175,7 +195,7 @@ export function createPickGestureController(options) {
             startPress(event);
         },
         onPointerMove(event) {
-            if (press && (press.pointerId == null || event.pointerId === press.pointerId) &&
+            if (isMatchingPress(press, event) &&
                 pointerMovementExceeded(press.x, press.y, event.clientX, event.clientY)) {
                 clearPress();
                 if (!modifierHeld(event))
@@ -184,7 +204,7 @@ export function createPickGestureController(options) {
             if (busy())
                 return;
             if (matchModifier && modifierHeld(event)) {
-                picker.previewTarget(event.target);
+                picker.previewTarget(resolvePickTarget(press, event));
                 return;
             }
             if (!press && matchModifier)
@@ -196,12 +216,14 @@ export function createPickGestureController(options) {
                 clearPress();
                 return;
             }
-            const wasPress = !!(press && (press.pointerId == null || event.pointerId === press.pointerId));
+            const wasPress = isMatchingPress(press, event);
+            const target = resolvePickTarget(press, event);
+            const point = wasPress ? { x: press.x, y: press.y } : pointFromEvent(event);
             clearPress();
-            if (!isPrimaryPress(event) || busy() || isPluginNode(event.target))
+            if (!isPrimaryPress(event) || busy() || isPluginNode(target))
                 return;
             if (matchModifier && modifierHeld(event)) {
-                trySelect(event.target, pointFromEvent(event), event);
+                trySelect(target, point, event);
                 return;
             }
             if (wasPress)

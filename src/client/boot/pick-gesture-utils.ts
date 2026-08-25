@@ -104,3 +104,42 @@ export function pointFromEvent(event) {
         return { x: touch.clientX, y: touch.clientY };
     return { x: 0, y: 0 };
 }
+
+/**
+ * Whether `event` belongs to the in-flight press snapshot.
+ *
+ * Purpose: pointerdown records a `pointerId`; later mouseup/touchend often omit it, while a second finger has a
+ * different id. Matching has to accept a missing id without treating a different pointer as the same press.
+ * Boundary: no press is never a match. If either side lacks a numeric `pointerId`, this is treated as the same
+ * (single-pointer) press — callers that already filtered `isPrimaryPress` rely on that. Two numeric ids must be equal.
+ *
+ * @param {{ pointerId?: number } | null | undefined} press Active press snapshot from pointerdown.
+ * @param {{ pointerId?: number } | null | undefined} event Later pointer/mouse/touch event.
+ * @returns {boolean} True when `event` should finish or update `press`.
+ */
+export function isMatchingPress(press, event) {
+    if (!press)
+        return false;
+    if (typeof press.pointerId !== 'number' || typeof event?.pointerId !== 'number')
+        return true;
+    return press.pointerId === event.pointerId;
+}
+
+/**
+ * Element to inspect when a modifier pick or long-press finishes.
+ *
+ * Purpose: `Element.setPointerCapture` retargets later pointer events to the capturing node. Capturing on
+ * `document.documentElement` makes `pointerup.target` the `<html>` root, so ⌘-click highlights the whole page
+ * (yellow no-mapping overlay) and never opens the dialog. The pointerdown target stored on `press` is the real hit.
+ * Boundary: a matching press with a `target` always wins. Otherwise this returns `event.target` (`click` without a
+ * prior pointerdown, or an unmatched pointer). A missing event yields `undefined`.
+ *
+ * @param {{ pointerId?: number, target?: EventTarget } | null | undefined} press Active press snapshot.
+ * @param {{ pointerId?: number, target?: EventTarget } | null | undefined} event Pointerup/click-like event.
+ * @returns {EventTarget | null | undefined} Hit target that should be passed to `selectTarget`.
+ */
+export function resolvePickTarget(press, event) {
+    if (isMatchingPress(press, event) && press.target != null)
+        return press.target;
+    return event?.target;
+}

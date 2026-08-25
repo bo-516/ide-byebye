@@ -7,10 +7,12 @@ import {
     LONG_PRESS_MOVE_PX,
     PICK_CONSUME_MS,
     createPickGestureController,
+    isMatchingPress,
     isPrimaryPress,
     longPressDurationMs,
     pointerMovementExceeded,
     pointFromEvent,
+    resolvePickTarget,
 } from './pick-gestures.js';
 
 function createClock() {
@@ -52,14 +54,15 @@ function pluginNode() {
 }
 
 function mockPicker() {
-    const calls = { select: [], preview: 0, hide: 0 };
+    const calls = { select: [], preview: 0, previewTargets: [], hide: 0 };
     const picker = {
         active: false,
         open: false,
         dialog: { isOpen: () => picker.open },
         isActive: () => picker.active,
-        previewTarget() {
+        previewTarget(target) {
             calls.preview += 1;
+            calls.previewTargets.push(target);
         },
         hidePreview() {
             calls.hide += 1;
@@ -74,6 +77,24 @@ function mockPicker() {
         calls,
     };
     return picker;
+}
+
+function capturingNode() {
+    const node = {
+        closest: () => null,
+        captured: [],
+        released: [],
+        setPointerCapture(id) {
+            node.captured.push(id);
+        },
+        releasePointerCapture(id) {
+            node.released.push(id);
+        },
+        hasPointerCapture() {
+            return true;
+        },
+    };
+    return node;
 }
 
 function makeController(matchModifier = 'auto') {
@@ -301,6 +322,70 @@ test('Chrome long-press conversion (contextmenu + pointercancel) still opens at 
     assert.equal(menu.prevented, true);
     controller.onPointerCancel(pointerEvent({ pointerId: 1 }));
     clock.advance(LONG_PRESS_DURATION_MS);
+    assert.equal(picker.calls.select.length, 1);
+    assert.equal(picker.calls.select[0].target, node);
+});
+
+test('isMatchingPress treats a missing pointerId as the same single-pointer press', () => {
+    assert.equal(isMatchingPress(null, { pointerId: 1 }), false);
+    assert.equal(isMatchingPress({ pointerId: 1 }, { pointerId: 1 }), true);
+    assert.equal(isMatchingPress({ pointerId: 1 }, { pointerId: 2 }), false);
+    assert.equal(isMatchingPress({ pointerId: 1 }, {}), true);
+    assert.equal(isMatchingPress({}, { pointerId: 1 }), true);
+});
+
+test('resolvePickTarget prefers the press snapshot over a capture-retargeted event target', () => {
+    const pressed = pageNode();
+    const html = pageNode();
+    assert.equal(resolvePickTarget({ pointerId: 1, target: pressed }, { pointerId: 1, target: html }), pressed);
+    assert.equal(resolvePickTarget(null, { pointerId: 1, target: html }), html);
+    assert.equal(resolvePickTarget({ pointerId: 1, target: pressed }, { pointerId: 2, target: html }), html);
+});
+
+test('Command-click still picks the press target when pointerup is retargeted to the document root', () => {
+    const { picker, controller } = makeController('auto');
+    const node = pageNode();
+    const html = pageNode();
+    controller.onKeyDown(keyEvent({ metaKey: true }));
+    controller.onPointerDown(pointerEvent({ target: node, pointerId: 1, metaKey: true, clientX: 40, clientY: 50 }));
+    const up = pointerEvent({ target: html, pointerId: 1, metaKey: true, clientX: 40, clientY: 50 });
+    controller.onPointerUp(up);
+    assert.equal(picker.calls.select.length, 1);
+    assert.equal(picker.calls.select[0].target, node);
+    assert.deepEqual(picker.calls.select[0].point, { x: 40, y: 50 });
+    assert.equal(up.prevented, true);
+});
+
+test('modifier preview during press stays on the press target, not a retargeted html root', () => {
+    const { picker, controller } = makeController('auto');
+    const node = pageNode();
+    const html = pageNode();
+    controller.onKeyDown(keyEvent({ metaKey: true }));
+    controller.onPointerDown(pointerEvent({ target: node, pointerId: 1, metaKey: true, clientX: 10, clientY: 20 }));
+    controller.onPointerMove(pointerEvent({ target: html, pointerId: 1, metaKey: true, clientX: 11, clientY: 20 }));
+    assert.equal(picker.calls.preview, 1);
+    assert.equal(picker.calls.previewTargets[0], node);
+});
+
+test('does not setPointerCapture on the documentElement root', () => {
+    const root = capturingNode();
+    const node = capturingNode();
+    const clock = createClock();
+    const picker = mockPicker();
+    const controller = createPickGestureController({
+        picker,
+        matchModifier: 'auto',
+        schedule: (fn, ms) => clock.schedule(fn, ms),
+        cancelSchedule: (id) => clock.cancel(id),
+        now: () => clock.now(),
+        root,
+    });
+    controller.onKeyDown(keyEvent({ metaKey: true }));
+    controller.onPointerDown(pointerEvent({ target: node, pointerId: 9, metaKey: true }));
+    assert.deepEqual(root.captured, []);
+    assert.deepEqual(node.captured, [9]);
+    controller.onPointerUp(pointerEvent({ target: root, pointerId: 9, metaKey: true }));
+    assert.deepEqual(node.released, [9]);
     assert.equal(picker.calls.select.length, 1);
     assert.equal(picker.calls.select[0].target, node);
 });
