@@ -5,7 +5,7 @@ import { DialogRecordingController } from '../recording/dialog-recordings.js';
 import { DialogStyleController } from '../style/dialog-style.js';
 import { DialogPin } from './dialog-pin.js';
 import { createDialogEditor } from './dialog-editor.js';
-import { agentLabel, anchorFromElement, clamp, configuredActions, el, loadLastAgent, saveLastAgent, sourceReferenceLabel, } from './dialog-utils.js';
+import { agentLabel, anchorFromElement, clamp, configuredActions, el, loadLastAgent, saveLastAgent, sourceReferenceLabel, visibleAgentActions, } from './dialog-utils.js';
 import { deliverPromptToClient } from './dialog-delivery.js';
 import { t } from '../lib/i18n.js';
 export class Dialog {
@@ -238,7 +238,9 @@ export class Dialog {
         clipboardButton.addEventListener('click', () => void this.send('clipboard'));
         this.actionButtons.set('clipboard', clipboardButton);
         actions.append(clipboardButton);
-        for (const action of configuredActions()) {
+        // Agents disabled in plugin config are skipped entirely; only configured-but-unavailable ones get a greyed
+        // button (see `loadAgents`), because that state can still be fixed by installing the app.
+        for (const action of visibleAgentActions(this.config)) {
             const button = el('button', 'cii-btn cii-btn-primary cii-agent-action', action.label);
             button.title = action.title;
             button.addEventListener('click', () => void this.send(action.name));
@@ -602,7 +604,7 @@ export class Dialog {
         try {
             const res = await this.api.agents();
             this.availability = res.agents;
-            for (const action of configuredActions()) {
+            for (const action of visibleAgentActions(this.config)) {
                 const button = this.actionButtons.get(action.name);
                 if (!button)
                     continue;

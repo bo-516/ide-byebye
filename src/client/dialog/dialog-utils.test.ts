@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { computeDropdownPlacement } from './dialog-utils.js';
+import {
+    computeDropdownPlacement,
+    configuredActions,
+    setCustomAgentActions,
+    visibleAgentActions,
+} from './dialog-utils.js';
 
 const GAP = 8;
 const MARGIN = 8;
@@ -125,5 +130,66 @@ test('sweeps every corner and edge and keeps the panel inside the viewport', () 
                 assertInsideViewport(input, rect);
             }
         }
+    }
+});
+
+// --- footer agent actions -------------------------------------------------
+
+test('visibleAgentActions drops agents turned off in plugin config', () => {
+    setCustomAgentActions([{ name: 'grok-desktop', label: 'Send to chat' }]);
+    try {
+        const names = visibleAgentActions({
+            enabledAgents: ['clipboard', 'file', 'grok-desktop'],
+        }).map((action) => action.name);
+        assert.deepEqual(names, ['grok-desktop']);
+    }
+    finally {
+        setCustomAgentActions([]);
+    }
+});
+
+test('visibleAgentActions keeps every configured app agent', () => {
+    const names = visibleAgentActions({
+        enabledAgents: ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build'],
+    }).map((action) => action.name);
+    assert.deepEqual(names, ['codex-app', 'claude-app', 'cursor-app', 'grok-build']);
+});
+
+test('visibleAgentActions falls back to every action when enabledAgents is missing or empty', () => {
+    const all = configuredActions().map((action) => action.name);
+    assert.deepEqual(visibleAgentActions({}).map((action) => action.name), all);
+    assert.deepEqual(visibleAgentActions({ enabledAgents: [] }).map((action) => action.name), all);
+    assert.deepEqual(visibleAgentActions(null).map((action) => action.name), all);
+});
+
+test('custom client actions are appended after the built-in app agents', () => {
+    setCustomAgentActions([{ name: 'grok-desktop', label: 'Send to chat', title: 'Custom title' }]);
+    try {
+        const actions = configuredActions();
+        const last = actions[actions.length - 1];
+        assert.equal(last.name, 'grok-desktop');
+        assert.equal(last.label, 'Send to chat');
+        assert.equal(last.title, 'Custom title');
+    }
+    finally {
+        setCustomAgentActions([]);
+    }
+});
+
+test('a custom client without a title gets localized generic copy, and cannot shadow a built-in', () => {
+    setCustomAgentActions([
+        { name: 'claude-app', label: 'Impostor' },
+        { name: 'my-client' },
+    ]);
+    try {
+        const actions = configuredActions();
+        const claude = actions.find((action) => action.name === 'claude-app');
+        const custom = actions.find((action) => action.name === 'my-client');
+        assert.equal(claude.label, 'Claude App');
+        assert.equal(custom.label, 'my-client');
+        assert.match(custom.title, /my-client/);
+    }
+    finally {
+        setCustomAgentActions([]);
     }
 });

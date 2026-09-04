@@ -164,6 +164,26 @@ export function configuredActions() {
 }
 
 /**
+ * Return the footer actions that should actually be rendered for this page.
+ *
+ * Boundary: an agent turned off in plugin config (`agents.codexApp: false`, …) never becomes usable, so its button is
+ * dropped instead of rendered permanently greyed — that is what makes a project configured with only a custom client
+ * show only that button. Agents that ARE configured but currently unavailable (missing binary) stay visible and are
+ * greyed by `loadAgents`, because that state is actionable. A missing or empty `enabledAgents` (malformed config)
+ * falls back to every configured action rather than an empty footer.
+ *
+ * @param {Record<string, unknown>} config Browser config injected by the plugin.
+ * @returns {Array<{ name: string, label: string, title: string }>} Footer actions to render, in order.
+ */
+export function visibleAgentActions(config) {
+    const actions = configuredActions();
+    const enabled = Array.isArray(config?.enabledAgents) ? config.enabledAgents : [];
+    if (!enabled.length)
+        return actions;
+    return actions.filter((action) => enabled.includes(action.name));
+}
+
+/**
  * Read and JSON-parse a stored preference, returning a fallback on any failure.
  *
  * Boundary: the single choke point for best-effort preference reads. Missing, unparsable, or storage-blocked values all
