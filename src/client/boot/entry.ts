@@ -4,6 +4,7 @@ import { createUi } from '../lib/style.js';
 import { installDialogReferenceStyle } from '../dialog/dialog-reference-style.js';
 import { Overlay } from '../inspect/overlay.js';
 import { Dialog } from '../dialog/dialog.js';
+import { setCustomAgentActions } from '../dialog/dialog-utils.js';
 import { createApi } from '../lib/api.js';
 import { PickerController } from '../inspect/picker.js';
 import { matchHotkey, parseHotkey } from './hotkey.js';
@@ -29,6 +30,9 @@ function main() {
     window.__CII_INSTALLED__ = true;
     // Resolve the UI locale before any dialog copy is built (falls back to navigator language when unset).
     setLocale(config.locale);
+    // Custom prompt-delivery clients are config-defined, so their footer buttons must exist before the first dialog is
+    // built. Absent config leaves the built-in footer untouched.
+    setCustomAgentActions(config.customAgents);
     const boot = () => {
         const { root } = createUi();
         installDialogReferenceStyle(root);

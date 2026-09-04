@@ -108,6 +108,45 @@ export interface GrokBuildAgentOptions extends AgentOpenOptions {
   promptArgLimit?: number;
 }
 
+/**
+ * A client that receives the assembled prompt in its own input box instead of
+ * having an app opened for it. Declared per project through `agents.custom`;
+ * nothing is registered when the option is absent.
+ */
+export interface CustomAgentOptions {
+  /** Adapter id and storage key, e.g. `'grok-desktop'`. Must not shadow a built-in agent. */
+  name: string;
+  /** Footer button text. Default: `name`. */
+  label?: string;
+  /** Button tooltip. Default: localized generic copy naming `label`. */
+  title?: string;
+  /** `false` skips registration, matching the built-in agents. */
+  enabled?: boolean;
+  /**
+   * How the prompt reaches the client.
+   * Default: `'http'` when `url` is set, otherwise `'postMessage'`.
+   */
+  transport?: 'http' | 'postMessage';
+  /** **http**: absolute `http(s)` endpoint the dev server POSTs the payload to. */
+  url?: string;
+  /** **http**: request method. Default `'POST'` (`PUT` / `PATCH` also accepted). */
+  method?: 'POST' | 'PUT' | 'PATCH';
+  /** **http**: extra request headers, e.g. an auth token. */
+  headers?: Record<string, string>;
+  /** **http**: request timeout in ms. Default `8000`. */
+  timeoutMs?: number;
+  /** **postMessage**: payload `type` field. Default `'ide-byebye:prompt'`. */
+  messageType?: string;
+  /** **postMessage**: window the previewed page posts to. Default `'parent'`. */
+  windowTarget?: 'parent' | 'top' | 'opener';
+  /** **postMessage**: `targetOrigin` argument. Default `'*'`. */
+  targetOrigin?: string;
+  /** Source `@` refs in this client's prompt only. Default: plugin-level value. */
+  pathStyle?: PathStyle;
+  /** Screenshot / still paths in this client's prompt only. Default: plugin-level value. */
+  artifactPathStyle?: PathStyle;
+}
+
 /** Per-agent enable flag or option object. `false` disables; `true` enables. */
 export type AgentEntry<T extends object = AgentOpenOptions> =
   | boolean
@@ -120,6 +159,11 @@ export interface AgentsOptions {
   claudeApp?: AgentEntry<ClaudeAppAgentOptions>;
   cursorApp?: AgentEntry<CursorAppAgentOptions>;
   grokBuild?: AgentEntry<GrokBuildAgentOptions>;
+  /**
+   * Extra footer agents that deliver the prompt straight into a running
+   * client's input box. Omit it and the plugin behaves exactly as before.
+   */
+  custom?: CustomAgentOptions[] | CustomAgentOptions;
 }
 
 /** rrweb element-behavior recording options. */
@@ -185,7 +229,7 @@ export interface IdeByebyeOptions {
    * Pass `false` / `{ enabled: false }` to opt out.
    */
   recording?: boolean | RecordingOptions;
-  /** Per-agent enable / overrides. Default `{}` (all six agents on). */
+  /** Per-agent enable / overrides, plus `custom` clients. Default `{}` (all six built-in agents on). */
   agents?: AgentsOptions;
   /**
    * Extra options for `code-inspector-plugin` (no `bundler`).

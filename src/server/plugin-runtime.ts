@@ -4,6 +4,7 @@ import { codeInspectorPlugin } from 'code-inspector-plugin';
 import { CLIENT_CONFIG_GLOBAL, ENDPOINTS, ROUTE_PREFIX } from '../shared/constants.js';
 import { resolveOptions } from './config.js';
 import { buildRegistry } from './agents/build.js';
+import { normalizeCustomAgents } from './agents/custom-client.js';
 import { SessionStore } from './session-store.js';
 import { createLogger } from './logger.js';
 import { createInspectorServer } from './inspector-server.js';
@@ -37,6 +38,23 @@ export function codeInspectorDefaults(options: any = {}) {
 }
 
 /**
+ * Describe the configured custom prompt-delivery clients for the browser footer.
+ *
+ * Boundary: only clients the registry actually holds are listed, so a name that lost its adapter never renders a dead
+ * button. `label` / `title` are UI copy the host project owns; an omitted `title` falls back to localized generic copy
+ * in the client. With no `agents.custom` this is an empty array and the footer is exactly the built-in one.
+ *
+ * @param {ReturnType<typeof resolveOptions>} resolved Resolved plugin options.
+ * @param {ReturnType<typeof buildRegistry>} registry Enabled agent registry.
+ * @returns {Array<{ name: string, label: string, title?: string }>} Footer descriptors for custom clients.
+ */
+function customAgentActions(resolved, registry) {
+    return normalizeCustomAgents(resolved.agents?.custom)
+        .filter((target: any) => registry.has(target.name))
+        .map((target: any) => ({ name: target.name, label: target.label, title: target.title }));
+}
+
+/**
  * Creates the browser-facing inspector configuration injected into the page.
  *
  * @param {ReturnType<typeof resolveOptions>} resolved Resolved plugin options.
@@ -61,6 +79,7 @@ function makeClientConfig(resolved, registry, token, origin) {
         apiOrigin: resolved.apiOrigin || origin,
         recording: resolved.recording,
         enabledAgents: names,
+        customAgents: customAgentActions(resolved, registry),
         maxDomSnippetLength: resolved.maxDomSnippetLength,
     };
 }

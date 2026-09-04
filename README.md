@@ -408,9 +408,10 @@ ideByebye({
 
 ### Agents
 
-Six agents, **all on by default**. Disable with `agents.<name>: false` or
-`{ enabled: false }`. `true` is explicit on; an object keeps it on and overrides
-options.
+Six built-in agents, **all on by default**. Disable with `agents.<name>: false`
+or `{ enabled: false }`. `true` is explicit on; an object keeps it on and
+overrides options. `agents.custom` adds footer agents of your own — see
+[`agents.custom`](#agentscustom).
 
 Only footer agents get buttons; `clipboard` / `file` are reachable via
 `defaultAgent` / Enter.
@@ -522,6 +523,38 @@ In **WSL**, point `openCommand` at `wslview` or `explorer.exe` instead of `cmd`.
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in the Grok prompt. |
 | `permissionMode` | `string` | none | Passed as `--permission-mode` (`plan`, `acceptEdits`, `default`, …). |
 | `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to file handoff (ARGV / ARG_MAX). |
+
+#### `agents.custom`
+
+The built-in footer agents **open an app**. A custom client does the opposite: it
+delivers the prompt into an app that is **already running**, so the text lands in
+that app's own input box — the handoff for a desktop client that previews your dev
+server in a webview / iframe. Declare none and nothing changes.
+
+```js
+agents: {
+  codexApp: false, claudeApp: false, cursorApp: false, grokBuild: false,
+  custom: [
+    // postMessage (default): the previewed page posts to the window embedding it.
+    { name: 'grok-desktop', label: 'Grok Desktop', targetOrigin: 'http://localhost:1420' },
+    // http: the dev server POSTs the payload to your client instead.
+    // { name: 'grok-desktop', label: 'Grok Desktop', url: 'http://127.0.0.1:8787/api/prompt' },
+  ],
+},
+defaultAgent: 'grok-desktop',   // Enter targets your client
+```
+
+```js
+// In your client: the payload's `prompt` is ready to insert.
+window.addEventListener('message', (event) => {
+  if (event.origin !== previewOrigin) return;
+  if (event.data?.source !== 'ide-byebye') return;
+  setComposerText(event.data.prompt);
+});
+```
+
+Full option tables and the delivered payload:
+[configuration reference](docs/configuration.md#agentscustom--deliver-the-prompt-into-your-own-client).
 
 ### Recording (rrweb)
 

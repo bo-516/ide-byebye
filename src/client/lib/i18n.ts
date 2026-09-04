@@ -76,6 +76,18 @@ const STRINGS = {
         zh: '在终端打开 Grok Build，并预填本次 UI 修改意图。',
         en: 'Open Grok Build in Terminal with this UI change intent prefilled.',
     },
+    'agent.custom.title': {
+        zh: '把本次 UI 修改意图发送给 {label}。',
+        en: 'Send this UI change intent to {label}.',
+    },
+    'deliver.noWindow': {
+        zh: '无法发送给 {label}：当前页面没有被客户端嵌入（找不到目标窗口）。',
+        en: 'Cannot reach {label}: this page is not embedded in the client (no target window).',
+    },
+    'deliver.failed': {
+        zh: '发送给 {label} 失败：{error}',
+        en: 'Failed to send to {label}: {error}',
+    },
     'agent.clipboard.label': { zh: '复制 Prompt', en: 'Copy prompt' },
     'agent.clipboard.title': {
         zh: '把整理好的 Prompt 复制到剪贴板，可粘贴到任意 AI。',

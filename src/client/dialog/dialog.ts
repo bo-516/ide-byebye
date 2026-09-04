@@ -5,7 +5,8 @@ import { DialogRecordingController } from '../recording/dialog-recordings.js';
 import { DialogStyleController } from '../style/dialog-style.js';
 import { DialogPin } from './dialog-pin.js';
 import { createDialogEditor } from './dialog-editor.js';
-import { AGENT_LABELS, anchorFromElement, clamp, configuredActions, el, loadLastAgent, saveLastAgent, sourceReferenceLabel, } from './dialog-utils.js';
+import { agentLabel, anchorFromElement, clamp, configuredActions, el, loadLastAgent, saveLastAgent, sourceReferenceLabel, } from './dialog-utils.js';
+import { deliverPromptToClient } from './dialog-delivery.js';
 import { t } from '../lib/i18n.js';
 export class Dialog {
     copyResetTimer: any;
@@ -639,12 +640,12 @@ export class Dialog {
         const unavailable = this.availability.find((a) => a.name === agent && !a.available);
         if (!configured) {
             this.setState('failed');
-            this.showError(t('agent.notEnabled', { label: AGENT_LABELS[agent] ?? agent }));
+            this.showError(t('agent.notEnabled', { label: agentLabel(agent) }));
             return;
         }
         if (unavailable) {
             this.setState('failed');
-            this.showError(`${t('agent.unavailable', { label: AGENT_LABELS[agent] ?? agent })}\n` +
+            this.showError(`${t('agent.unavailable', { label: agentLabel(agent) })}\n` +
                 (unavailable.reason ?? t('agent.checkSetup')));
             return;
         }
@@ -722,6 +723,12 @@ export class Dialog {
             void this.copyOutput(result.output, eagerWritten);
             return;
         }
+        // A custom client using the `postMessage` transport is delivered from here: only the page can address the
+        // window that embeds it, so the server hands back the instruction instead of sending it itself.
+        if (result.ok && result.deliver) {
+            this.deliverResult(result);
+            return;
+        }
         this.setState(result.ok ? 'completed' : 'failed');
         if (result.ok) {
             this.close();
@@ -729,7 +736,30 @@ export class Dialog {
         }
         this.showError(result.error ??
             unavailableReason ??
-            t('agent.failedHandle', { label: AGENT_LABELS[result.agent] ?? result.agent }));
+            t('agent.failedHandle', { label: agentLabel(result.agent) }));
+    }
+    /**
+     * Hand a custom client's prompt to the window embedding this page.
+     *
+     * Boundary: success here means the message left the page — the receiving client owns inserting it. A page that is
+     * not embedded (or a window that refuses the post) keeps the dialog open with the reason, so the typed intent is
+     * never lost to a silent no-op.
+     *
+     * @param {Record<string, unknown>} result Successful send result carrying a `deliver` instruction.
+     * @returns {void}
+     */
+    deliverResult(result) {
+        const label = result.deliver.label ?? agentLabel(result.agent);
+        const delivered = deliverPromptToClient(result.deliver);
+        if (delivered.ok) {
+            this.setState('completed');
+            this.close();
+            return;
+        }
+        this.setState('failed');
+        this.showError(delivered.reason === 'no-window'
+            ? t('deliver.noWindow', { label })
+            : t('deliver.failed', { label, error: delivered.error ?? '' }));
     }
     /**
      * Copy a clipboard agent's prompt into the OS clipboard and flash success on the Copy button.

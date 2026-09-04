@@ -397,8 +397,9 @@ ideByebye({
 
 ### Agents
 
-六个 Agent，**默认全部开启**。用 `agents.<name>: false` 或 `{ enabled: false }` 关闭。
-`true` 显式开启；对象则保持开启并覆盖选项。
+六个内置 Agent，**默认全部开启**。用 `agents.<name>: false` 或 `{ enabled: false }` 关闭。
+`true` 显式开启；对象则保持开启并覆盖选项。`agents.custom` 还可以加上你自己的页脚
+Agent —— 见 [`agents.custom`](#agentscustom)。
 
 只有页脚 Agent 有按钮；`clipboard` / `file` 可通过 `defaultAgent` / Enter 触发。
 
@@ -506,6 +507,37 @@ ideByebye({
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Grok prompt 里截图 / 静帧路径。 |
 | `permissionMode` | `string` | 无 | 传给 `--permission-mode`（`plan`、`acceptEdits`、`default` 等）。 |
 | `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件交接（ARGV / ARG_MAX）。 |
+
+#### `agents.custom`
+
+内置页脚 Agent 都是**打开一个 app**；自定义客户端相反：把整理好的 prompt 直接送进**已经在运行**
+的 app，落到它自己的输入框里 —— 正是「客户端用 webview / iframe 预览 dev server」这类场景需要的
+交接方式。不声明就什么都不变。
+
+```js
+agents: {
+  codexApp: false, claudeApp: false, cursorApp: false, grokBuild: false,
+  custom: [
+    // postMessage（默认）：被预览的页面 post 给嵌入它的窗口。
+    { name: 'grok-desktop', label: 'Grok Desktop', targetOrigin: 'http://localhost:1420' },
+    // http：改由 dev server 把 payload POST 给你的客户端。
+    // { name: 'grok-desktop', label: 'Grok Desktop', url: 'http://127.0.0.1:8787/api/prompt' },
+  ],
+},
+defaultAgent: 'grok-desktop',   // Enter 直接发给你的客户端
+```
+
+```js
+// 客户端侧：payload 里的 `prompt` 就是可直接填入输入框的文本。
+window.addEventListener('message', (event) => {
+  if (event.origin !== previewOrigin) return;
+  if (event.data?.source !== 'ide-byebye') return;
+  setComposerText(event.data.prompt);
+});
+```
+
+完整选项表与 payload 结构见
+[配置参考](docs/configuration.md#agentscustom--deliver-the-prompt-into-your-own-client)。
 
 ### 录制（rrweb）
 

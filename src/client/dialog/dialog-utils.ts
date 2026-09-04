@@ -72,6 +72,52 @@ export const AGENT_ACTIONS = [
 ];
 
 /**
+ * Footer actions for the custom prompt-delivery clients declared in `agents.custom`.
+ *
+ * Boundary: module-level because the client bundle is a page singleton and {@link configuredActions} is called from
+ * places that hold no config. It stays empty until {@link setCustomAgentActions} runs at boot, so a project without
+ * `agents.custom` renders exactly the built-in footer.
+ *
+ * @type {Array<{ name: string, label: string, title?: string }>} Ordered custom footer actions.
+ */
+let customAgentActions = [];
+
+/**
+ * Register the custom client footer actions from the injected page config.
+ *
+ * Boundary: call once during boot, before the first dialog is built. Entries without a usable `name` are dropped, and
+ * a name colliding with a built-in action is ignored so a custom client can never replace a shipped button. Passing a
+ * non-array (or nothing) clears the list.
+ *
+ * @param {unknown} actions `customAgents` list from the injected client config.
+ * @returns {void}
+ */
+export function setCustomAgentActions(actions) {
+    const entries = Array.isArray(actions) ? actions : [];
+    customAgentActions = entries
+        .filter((action) => action && typeof action.name === 'string' && action.name
+            && !AGENT_ACTIONS.some((builtIn) => builtIn.name === action.name))
+        .map((action) => ({
+            name: action.name,
+            label: typeof action.label === 'string' && action.label ? action.label : action.name,
+            title: typeof action.title === 'string' && action.title ? action.title : undefined,
+        }));
+}
+
+/**
+ * Resolve the human label for an agent id used in errors and result messages.
+ *
+ * Boundary: built-in labels win, then registered custom clients; an unknown id falls back to the raw name so a stale
+ * stored preference still produces readable copy.
+ *
+ * @param {string} name Agent id.
+ * @returns {string} Display label.
+ */
+export function agentLabel(name) {
+    return AGENT_LABELS[name] ?? customAgentActions.find((action) => action.name === name)?.label ?? name;
+}
+
+/**
  * Create a DOM node for the shadow-root dialog UI.
  *
  * Boundary: `tag` must be a valid HTML tag name; passing untrusted text is safe because it is assigned through
@@ -95,17 +141,26 @@ export function el(tag: string, className?: string, text?: string | null): any {
 /**
  * Return the app actions displayed in the dialog footer.
  *
- * Boundary: this currently exposes footer handoff agents (app deeplinks + Grok Build). Adding agents here also makes
- * Enter target them, so callers should keep the list limited to user-visible footer buttons.
+ * Boundary: this exposes footer handoff agents (app deeplinks + Grok Build) followed by the custom prompt-delivery
+ * clients registered by {@link setCustomAgentActions}. Adding agents here also makes Enter target them, so callers
+ * should keep the list limited to user-visible footer buttons. A custom client without a configured `title` gets
+ * localized generic copy so its tooltip still follows the active locale.
  *
  * @returns {Array<{ name: string, label: string, title: string }>} Ordered footer app actions.
  */
 export function configuredActions() {
-    return AGENT_ACTIONS.map((action) => ({
-        name: action.name,
-        label: action.label,
-        title: t(action.titleKey),
-    }));
+    return [
+        ...AGENT_ACTIONS.map((action) => ({
+            name: action.name,
+            label: action.label,
+            title: t(action.titleKey),
+        })),
+        ...customAgentActions.map((action) => ({
+            name: action.name,
+            label: action.label,
+            title: action.title ?? t('agent.custom.title', { label: action.label }),
+        })),
+    ];
 }
 
 /**
