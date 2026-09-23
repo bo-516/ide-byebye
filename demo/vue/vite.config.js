@@ -6,9 +6,9 @@ import codeIntentInspectorPlugin from '../../dist/index.js';
 
 export default defineConfig({
   plugins: [
-    // Zero-config. Vue SFCs get data-insp-path via code-inspector; source-context
-    // extracts template slices (best-effort — not a full Vue compiler).
-    codeIntentInspectorPlugin(),
+    // Vue SFCs get data-insp-path via code-inspector; source-context extracts
+    // template slices. Keep recording enabled for the demo.
+    codeIntentInspectorPlugin({ recording: true }),
     vue(),
   ],
   server: {

@@ -98,13 +98,13 @@ npm i -D ide-byebye code-inspector-plugin
 `code-inspector-plugin` is a dependency (also listed so you can pin it). Without
 it, elements have no source mapping and the picker shows *"no source mapping"*.
 
-Optional — element-behavior recording (on by default, lazy-loaded):
+Optional — element-behavior recording (off by default, lazy-loaded):
 
 ```sh
 npm i -D @rrweb/record @rrweb/replay
 ```
 
-Disable with `recording: false` if you don't need it.
+Enable with `recording: true` or a `recording` options object.
 
 ## Quick start
 
@@ -119,7 +119,7 @@ import ideByebye from 'ide-byebye';       // same as 'ide-byebye/vite'
 export default defineConfig({
   plugins: [
     // Zero-config: registers code-inspector, ⌘/Ctrl-click pick,
-    // all footer agents + clipboard/file, recording on, Enter → Claude App.
+    // all footer agents + clipboard/file, recording off, Enter → Claude App.
     ideByebye(),
     react(),
   ],
@@ -179,7 +179,7 @@ ideByebye({
     codexApp: false,  // hide a footer agent
     file: false,      // disable backend agent (clipboard / file)
   },
-  recording: false,
+  recording: true,
 });
 ```
 
@@ -228,7 +228,7 @@ Hold ⌘ and click any element to open the intent dialog. Details:
 | **`@code` references** | Pick another element → inline `@file #range` at caret. Deduped; order preserved. |
 | **Screenshots** | `selection` / `parent` / `viewport` (multi-select). Persisted as UI preference. |
 | **Rendered styles** | Curated computed CSS (~110 props), element or ancestor chain. Opt-in; read at send time. |
-| **Recording** | rrweb element-behavior capture + still frame. On by default; needs `@rrweb/*`. |
+| **Recording** | rrweb element-behavior capture + still frame. Off by default; needs `@rrweb/*` when enabled. |
 | **Pin** | Collapse to a floating orb across pages. Warm restore keeps attachments; full reload keeps text only. |
 
 ## Configuration reference
@@ -256,7 +256,7 @@ Empty call is enough. You get:
 | Enter handoff | **Claude App** |
 | Footer agents | Codex App / Claude App / Cursor / Grok Build — all on |
 | Backend agents | clipboard (**Copy prompt** button) + file (no UI entry point) — on; neither is an Enter target |
-| Recording | on (needs `@rrweb/record` + `@rrweb/replay`) |
+| Recording | off; enable with `recording: true` (needs `@rrweb/record` + `@rrweb/replay`) |
 | UI locale | auto (`navigator.language` → else `zh`) |
 | Handoff files | `.intent-inspector/` (**gitignore this** — see [Artifacts](#artifacts)) |
 | Source `@` paths | relative; screenshot / still paths absolute |
@@ -268,7 +268,7 @@ Override only what you need:
 ideByebye({
   defaultAgent: 'cursor-app',
   locale: 'en',
-  recording: false,
+  recording: true,
   agents: {
     codexApp: false,
     cursorApp: { workspace: 'my-app' },
@@ -379,8 +379,8 @@ ideByebye({
 | | |
 | --- | --- |
 | **Type** | `boolean \| object` |
-| **Default** | on — see [Recording (rrweb)](#recording-rrweb) |
-| **Set to** | `false` / `{ enabled: false }` to hide Record; or an object to tune buffer / mask. |
+| **Default** | off — see [Recording (rrweb)](#recording-rrweb) |
+| **Set to** | `true` or an object to enable Record; use the object to tune buffer / mask. |
 
 #### `agents`
 
@@ -566,12 +566,10 @@ pick a scope → record → interact → stop → trim in-browser. A still frame
 (cropped to the scope) goes into the prompt; the raw event stream is saved for
 replay only. Inspector UI is excluded from every recording.
 
-On by default, lazy-loaded. Requires `@rrweb/record` + `@rrweb/replay` in the
-project.
+Off by default and lazy-loaded when enabled. Requires `@rrweb/record` + `@rrweb/replay` in the project.
 
 ```js
 ideByebye({
-  recording: false, // or:
   recording: {
     maxDurationMs: 30000, // rolling buffer; clamped to 300000 (5 min)
     mask: {
@@ -584,7 +582,7 @@ ideByebye({
 
 | Option | Type | Default | What you can set |
 | --- | --- | --- | --- |
-| `recording` / `recording.enabled` | `boolean` | `true` | `false` / `{ enabled: false }` hides the Record button. |
+| `recording` / `recording.enabled` | `boolean \| object` | `false` when omitted | `true` or an options object shows the Record button; `{ enabled: false }` hides it. |
 | `recording.maxDurationMs` | `number` | `30000` | Rolling buffer length; positive numbers only; clamped to ≤ `300000` ms. |
 | `recording.mask.allInputs` | `boolean` | `false` | `true` masks input values in replay / still. |
 | `recording.mask.blockClass` | `string` | `'rr-block'` | Class marking excluded elements (non-empty string overrides). |

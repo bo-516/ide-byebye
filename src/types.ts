@@ -171,7 +171,7 @@ export interface AgentsOptions {
 
 /** rrweb element-behavior recording options. */
 export interface RecordingOptions {
-  /** `false` hides the Record button. Default on. */
+  /** `false` hides the Record button. Defaults to `true` when an options object is supplied. */
   enabled?: boolean;
   /** Rolling buffer length in ms; positive only; clamped to ≤ 300000. Default 30000. */
   maxDurationMs?: number;
@@ -233,8 +233,8 @@ export interface IdeByebyeOptions {
    */
   artifactPathStyle?: PathStyle;
   /**
-   * Element-behavior recording (rrweb). On by default.
-   * Pass `false` / `{ enabled: false }` to opt out.
+   * Element-behavior recording (rrweb). Off when omitted.
+   * Pass `true` or an options object to enable it; `{ enabled: false }` keeps it off.
    */
   recording?: boolean | RecordingOptions;
   /** Per-agent enable / overrides, plus `custom` clients. Default `{}` (all six built-in agents on). */

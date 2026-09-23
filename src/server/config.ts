@@ -36,25 +36,21 @@ function normalizeApiOrigin(apiOrigin) {
 /**
  * Normalize the optional element-behavior recording (rrweb) configuration.
  *
- * Boundary: recording is ON by default; pass `recording: false` or `{ enabled: false }` to opt out. Masking defaults to
- * OFF because this is a developer tool where seeing real form state aids reproduction; enable `mask.allInputs` / set
- * `mask.blockClass` for privacy-sensitive pages. `maxDurationMs` bounds the in-browser rolling buffer and is clamped to
- * a sane ceiling so a forgotten recording cannot grow without limit.
+ * Boundary: recording is OFF when omitted; `true` or an options object enables it unless the object sets
+ * `enabled: false`. Masking defaults to OFF because this is a developer tool where seeing real form state aids
+ * reproduction; enable `mask.allInputs` / set `mask.blockClass` for privacy-sensitive pages. `maxDurationMs` bounds
+ * the in-browser rolling buffer and is clamped so a forgotten recording cannot grow without limit.
  *
  * @param {unknown} value Raw `recording` option.
  * @returns {{ enabled: boolean, maxDurationMs: number, mask: { allInputs: boolean, blockClass: string } }} Normalized recording options.
  */
 function normalizeRecordingConfig(value) {
-    // Explicit opt-out only: `recording: false` disables it; everything else — including no config at all — keeps it on.
-    if (value === false) {
-        return { enabled: false, maxDurationMs: 30000, mask: { allInputs: false, blockClass: 'rr-block' } };
-    }
     const options = value && typeof value === 'object' ? value : {};
     const rawMax = Number(options.maxDurationMs);
     const maxDurationMs = Number.isFinite(rawMax) && rawMax > 0 ? Math.min(Math.floor(rawMax), 300000) : 30000;
     const mask = options.mask && typeof options.mask === 'object' ? options.mask : {};
     return {
-        enabled: options.enabled !== false,
+        enabled: (value === true || (value !== null && typeof value === 'object')) && options.enabled !== false,
         maxDurationMs,
         mask: {
             allInputs: mask.allInputs === true,

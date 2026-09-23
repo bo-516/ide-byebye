@@ -90,13 +90,13 @@ npm i -D ide-byebye code-inspector-plugin
 `code-inspector-plugin` 是依赖（也单独列出方便你锁定版本）。没有它，元素没有源码映射，
 选取器会显示 *"no source mapping"*。
 
-可选 — 元素行为录制（默认开启，懒加载）：
+可选 — 元素行为录制（默认关闭，懒加载）：
 
 ```sh
 npm i -D @rrweb/record @rrweb/replay
 ```
 
-不需要时设 `recording: false` 即可关闭。
+需要时设 `recording: true` 或传入 `recording` 配置对象即可开启。
 
 ## 快速开始
 
@@ -111,7 +111,7 @@ import ideByebye from 'ide-byebye';       // 等同于 'ide-byebye/vite'
 export default defineConfig({
   plugins: [
     // 零配置：注册 code-inspector、⌘/Ctrl-点击选取、
-    // 全部页脚 Agent + 剪贴板/文件、录制开启、Enter → Claude App。
+    // 全部页脚 Agent + 剪贴板/文件、录制关闭、Enter → Claude App。
     ideByebye(),
     react(),
   ],
@@ -171,7 +171,7 @@ ideByebye({
     codexApp: false,  // 隐藏某个页脚 Agent
     file: false,      // 关闭后端 Agent（剪贴板 / 文件）
   },
-  recording: false,
+  recording: true,
 });
 ```
 
@@ -218,7 +218,7 @@ pnpm dev:react:rspack
 | **`@code` 引用** | 再选一个元素 → 在光标处插入 `@file #range`。去重并保持顺序。 |
 | **截图** | `selection` / `parent` / `viewport`（可多选）。作为 UI 偏好持久化。 |
 | **渲染样式** | 精选计算 CSS（约 110 项），元素或祖先链。需显式开启；发送时读取。 |
-| **录制** | rrweb 元素行为捕获 + 静帧。默认开启；需 `@rrweb/*`。 |
+| **录制** | rrweb 元素行为捕获 + 静帧。默认关闭；开启时需 `@rrweb/*`。 |
 | **Pin** | 收成跨页悬浮球。热恢复保留附件；整页刷新只保留文本。 |
 
 ## 配置参考
@@ -245,7 +245,7 @@ export default {
 | Enter 交接 | **Claude App** |
 | 页脚 Agent | Codex App / Claude App / Cursor / Grok Build — 全部开启 |
 | 后端 Agent | clipboard（**复制 Prompt** 按钮）+ file（无 UI 入口）— 开启；都不是 Enter 目标 |
-| 录制 | 开启（需 `@rrweb/record` + `@rrweb/replay`） |
+| 录制 | 关闭；可设 `recording: true` 开启（需 `@rrweb/record` + `@rrweb/replay`） |
 | UI 语言 | auto（`navigator.language` → 否则 `zh`） |
 | 交接文件目录 | `.intent-inspector/`（**请加入 gitignore** — 见 [产物](#产物)） |
 | 源码 `@` 路径 | 相对路径；截图 / 静帧用绝对路径 |
@@ -257,7 +257,7 @@ export default {
 ideByebye({
   defaultAgent: 'cursor-app',
   locale: 'en',
-  recording: false,
+  recording: true,
   agents: {
     codexApp: false,
     cursorApp: { workspace: 'my-app' },
@@ -368,8 +368,8 @@ ideByebye({
 | | |
 | --- | --- |
 | **类型** | `boolean \| object` |
-| **默认** | 开启 — 见 [录制（rrweb）](#录制-rrweb) |
-| **可配** | `false` / `{ enabled: false }` 隐藏 Record；或传对象调缓冲 / 遮罩。 |
+| **默认** | 关闭 — 见 [录制（rrweb）](#录制-rrweb) |
+| **可配** | `true` 或传对象开启 Record；对象还可调缓冲 / 遮罩。 |
 
 #### `agents`
 
@@ -548,11 +548,10 @@ window.addEventListener('message', (event) => {
 停止 → 浏览器内裁剪。静帧（裁到范围）进 prompt；原始事件流只存盘供回放。Inspector UI
 从不进入任何录制。
 
-默认开启、懒加载。项目需有 `@rrweb/record` + `@rrweb/replay`。
+默认关闭；开启后懒加载。项目需有 `@rrweb/record` + `@rrweb/replay`。
 
 ```js
 ideByebye({
-  recording: false, // 或：
   recording: {
     maxDurationMs: 30000, // 滚动缓冲；上限 300000（5 分钟）
     mask: {
@@ -565,7 +564,7 @@ ideByebye({
 
 | 选项 | 类型 | 默认 | 可配内容 |
 | --- | --- | --- | --- |
-| `recording` / `recording.enabled` | `boolean` | `true` | `false` / `{ enabled: false }` 隐藏 Record 按钮。 |
+| `recording` / `recording.enabled` | `boolean \| object` | 未配置时为 `false` | `true` 或传对象显示 Record 按钮；`{ enabled: false }` 可隐藏。 |
 | `recording.maxDurationMs` | `number` | `30000` | 滚动缓冲长度；仅采纳正数；上限 ≤ `300000` ms。 |
 | `recording.mask.allInputs` | `boolean` | `false` | `true` 时在回放 / 静帧中遮罩输入值。 |
 | `recording.mask.blockClass` | `string` | `'rr-block'` | 标记排除元素的 class（非空字符串才覆盖）。 |

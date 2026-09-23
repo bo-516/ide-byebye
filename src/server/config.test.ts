@@ -57,7 +57,7 @@ test('resolveOptions fills safe defaults and preserves explicit overrides', () =
     assert.equal(defaults.artifactPathStyle, 'absolute');
     assert.deepEqual(defaults.agents, {});
     assert.deepEqual(defaults.recording, {
-        enabled: true,
+        enabled: false,
         maxDurationMs: 30000,
         mask: { allInputs: false, blockClass: 'rr-block' },
     });
@@ -106,6 +106,10 @@ test('resolveOptions normalizes apiOrigin and recording edges', () => {
     assert.equal(resolveOptions({ apiOrigin: 'https://example.com/' }).apiOrigin, 'https://example.com');
 
     assert.equal(resolveOptions({ recording: false }).recording.enabled, false);
+    assert.equal(resolveOptions({ recording: true }).recording.enabled, true);
+    assert.equal(resolveOptions({ recording: {} }).recording.enabled, true);
+    assert.equal(resolveOptions({ recording: { maxDurationMs: 5000 } }).recording.enabled, true);
+    assert.equal(resolveOptions({ recording: null }).recording.enabled, false);
     assert.equal(resolveOptions({ recording: { maxDurationMs: 999999 } }).recording.maxDurationMs, 300000);
     assert.equal(resolveOptions({ recording: { maxDurationMs: -1 } }).recording.maxDurationMs, 30000);
     assert.equal(resolveOptions({ recording: { enabled: false } }).recording.enabled, false);

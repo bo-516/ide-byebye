@@ -6,9 +6,9 @@ import codeIntentInspectorPlugin from '../../dist/index.js';
 
 export default defineConfig({
   plugins: [
-    // Zero-config: registers code-inspector (data-insp-path) + inspector bootstrap.
-    // ⌘/Ctrl-click on by default; recording on; all footer agents enabled.
-    codeIntentInspectorPlugin(),
+    // Registers code-inspector (data-insp-path) + inspector bootstrap.
+    // Keep recording enabled here so the demo can show rrweb capture.
+    codeIntentInspectorPlugin({ recording: true }),
     react(),
   ],
   server: {
