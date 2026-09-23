@@ -93,7 +93,7 @@ const STRINGS = {
         zh: '把整理好的 Prompt 复制到剪贴板，可粘贴到任意 AI。',
         en: 'Copy the assembled prompt to your clipboard — paste it into any AI.',
     },
-    'clipboard.copied': { zh: '✓ 已复制到剪贴板', en: '✓ Copied to clipboard' },
+    'clipboard.copied': { zh: '✓ 已复制', en: '✓ Copied' },
     'clipboard.copyFailed': {
         zh: '自动复制失败，请全选下方内容并手动复制（⌘/Ctrl+C）。',
         en: 'Copy failed — select the text below and copy it manually (⌘/Ctrl+C).',

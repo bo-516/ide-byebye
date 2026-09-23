@@ -5,7 +5,7 @@ import { DialogRecordingController } from '../recording/dialog-recordings.js';
 import { DialogStyleController } from '../style/dialog-style.js';
 import { DialogPin } from './dialog-pin.js';
 import { createDialogEditor } from './dialog-editor.js';
-import { agentLabel, anchorFromElement, clamp, configuredActions, el, loadLastAgent, saveLastAgent, sourceReferenceLabel, visibleAgentActions, } from './dialog-utils.js';
+import { agentLabel, anchorFromElement, clamp, configuredActions, el, isAgentVisible, loadLastAgent, saveLastAgent, sourceReferenceLabel, visibleAgentActions, } from './dialog-utils.js';
 import { deliverPromptToClient } from './dialog-delivery.js';
 import { t } from '../lib/i18n.js';
 export class Dialog {
@@ -171,6 +171,8 @@ export class Dialog {
      * Render the dialog shell for the current intent.
      * Boundary: this method creates fresh DOM for one open dialog. State that must survive re-rendering should live on
      * the class fields; passing a stale selection only affects async resolve and send payloads outside this renderer.
+     * Footer buttons follow `config.enabledAgents`: an agent turned off in plugin config (including `clipboard`, which
+     * backs the Copy button) gets no button at all.
      * @param {Record<string, unknown>} _selection Current primary selection, intentionally unused by static layout.
      * @returns {void}
      */
@@ -232,12 +234,18 @@ export class Dialog {
         this.actionButtons = new Map();
         // Clipboard is a first-class footer action: it copies the assembled prompt so the user can paste it into any
         // AI, with no app/deeplink dependency. It is deliberately kept out of `configuredActions()` so the Enter key
-        // still targets an app agent rather than the clipboard.
-        const clipboardButton = el('button', 'cii-btn cii-btn-primary cii-agent-action cii-agent-clipboard', t('agent.clipboard.label'));
-        clipboardButton.title = t('agent.clipboard.title');
-        clipboardButton.addEventListener('click', () => void this.send('clipboard'));
-        this.actionButtons.set('clipboard', clipboardButton);
-        actions.append(clipboardButton);
+        // still targets an app agent rather than the clipboard — which also keeps it out of `visibleAgentActions()`,
+        // so `agents.clipboard: false` has to be honored here, or the button could only ever alert "not enabled".
+        if (isAgentVisible(this.config, 'clipboard')) {
+            const clipboardButton = el('button', 'cii-btn cii-btn-primary cii-agent-action cii-agent-clipboard');
+            // Both labels exist up front, stacked in one grid cell, so the button is always as wide as the longer one and
+            // the "copied" flash (see `flashCopied`) swaps visibility without ever changing the footer's width/wrapping.
+            clipboardButton.append(el('span', 'cii-copy-label cii-copy-idle', t('agent.clipboard.label')), el('span', 'cii-copy-label cii-copy-done', t('clipboard.copied')));
+            clipboardButton.title = t('agent.clipboard.title');
+            clipboardButton.addEventListener('click', () => void this.send('clipboard'));
+            this.actionButtons.set('clipboard', clipboardButton);
+            actions.append(clipboardButton);
+        }
         // Agents disabled in plugin config are skipped entirely; only configured-but-unavailable ones get a greyed
         // button (see `loadAgents`), because that state can still be fixed by installing the app.
         for (const action of visibleAgentActions(this.config)) {
@@ -449,16 +457,19 @@ export class Dialog {
     }
 
     /**
-     * Toggle busy state for every visible footer control.
+     * Record the dialog lifecycle state and lock (disable + dim) the footer controls and editor while it is busy.
      *
-     * Boundary: this only disables UI controls; async work and picker listeners are owned by their controllers.
+     * Boundary: this only disables UI controls; async work and picker listeners are owned by their controllers. The
+     * send guards read `state`, so a busy state blocks a second send even with `lock: false` — which leaves every
+     * control enabled and undimmed, for work whose dialog stays open (Copy) where a dim-and-restore would flicker.
      *
      * @param {'idle' | 'resolving' | 'sending' | 'failed' | 'completed'} state Dialog lifecycle state.
+     * @param {{ lock?: boolean }} [options] `lock: false` skips locking for a busy state; omitted means lock.
      * @returns {void}
      */
-    setState(state) {
+    setState(state, { lock = true } = {}) {
         this.state = state;
-        const busy = state === 'resolving' || state === 'sending';
+        const busy = lock && (state === 'resolving' || state === 'sending');
         for (const button of this.actionButtons.values())
             button.disabled = busy;
         this.references.setDisabled(busy);
@@ -466,7 +477,7 @@ export class Dialog {
         this.recordings.setDisabled(busy);
         this.styles.setDisabled(busy);
         // Only lock the editor while actually sending so the user can keep typing during the initial resolve.
-        this.editor.setDisabled(state === 'sending');
+        this.editor.setDisabled(busy && state === 'sending');
     }
     /**
      * Mark the app button that Enter will use.
@@ -628,9 +639,9 @@ export class Dialog {
      *
      * Boundary: disabled and unavailable agents are rejected before screenshots or references are sent. Empty intent is
      * allowed so users can send source references alone. Successful validation stores the app so Enter repeats it next
-     * time.
+     * time. While a send is in flight a second one is refused; app sends also lock the dialog's controls, Copy does not.
      *
-     * @param {string} agent App agent name requested by click or Enter.
+     * @param {string} agent App agent name requested by click or Enter (`'clipboard'` for the Copy button).
      * @returns {Promise<void>} Resolves after the adapter response is rendered.
      */
     async send(agent) {
@@ -654,7 +665,9 @@ export class Dialog {
         // Only app agents drive the Enter-key default; clipboard is an auxiliary action that must not hijack it.
         if (configuredActions().some((a) => a.name === agent))
             this.rememberAgent(agent);
-        this.setState('sending');
+        // Copy leaves the dialog open, so locking every control for the round trip would dim the whole dialog and snap it
+        // back a moment later — a visible jolt on each copy. App sends close the dialog on success, so they keep the lock.
+        this.setState('sending', { lock: agent !== 'clipboard' });
         // Must start synchronously inside the click stack: the screenshot/send round-trip below outlives the user
         // activation that clipboard access is tied to (strictly enforced by Safari).
         const eagerCopy = agent === 'clipboard' ? this.beginEagerClipboardWrite() : null;
@@ -853,6 +866,10 @@ export class Dialog {
     /**
      * Flash the Copy button into its "copied" confirmation state and reset it after a short delay.
      *
+     * Boundary: only toggles `cii-agent-copied`, which swaps which of the button's two pre-rendered labels is visible.
+     * Rewriting the button text instead would resize it and re-wrap the footer's action row mid-flash. A repeat copy
+     * inside the window restarts the delay; with no Copy button rendered (`agents.clipboard: false`) only the state resets.
+     *
      * @returns {void}
      */
     flashCopied() {
@@ -862,14 +879,8 @@ export class Dialog {
             return;
         if (this.copyResetTimer)
             clearTimeout(this.copyResetTimer);
-        if (button.dataset.label == null)
-            button.dataset.label = button.textContent ?? '';
-        button.textContent = t('clipboard.copied');
         button.classList.add('cii-agent-copied');
-        this.copyResetTimer = setTimeout(() => {
-            button.textContent = button.dataset.label ?? '';
-            button.classList.remove('cii-agent-copied');
-        }, 1800);
+        this.copyResetTimer = setTimeout(() => button.classList.remove('cii-agent-copied'), 1800);
     }
     /**
      * Show a user-facing dialog error.

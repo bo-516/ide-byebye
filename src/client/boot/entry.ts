@@ -4,7 +4,7 @@ import { createUi } from '../lib/style.js';
 import { installDialogReferenceStyle } from '../dialog/dialog-reference-style.js';
 import { Overlay } from '../inspect/overlay.js';
 import { Dialog } from '../dialog/dialog.js';
-import { setCustomAgentActions } from '../dialog/dialog-utils.js';
+import { loadLastAgent, setCustomAgentActions } from '../dialog/dialog-utils.js';
 import { createApi } from '../lib/api.js';
 import { PickerController } from '../inspect/picker.js';
 import { matchHotkey, parseHotkey } from './hotkey.js';
@@ -58,9 +58,11 @@ function main() {
             clickModifierRaw: config.clickModifier,
             platform,
         });
+        // Log where Enter will actually go, not raw `config.defaultAgent`: the dialog ignores a `'clipboard'` /
+        // `'file'` default and prefers the footer agent last clicked in this browser (`loadLastAgent`, re-read per pick).
         console.info(`[code-intent-inspector] ready — press ${config.hotkey}` +
             `${describeClickModifier(clickModifier)} or long-press 1s (touch) / 4s (mouse) to pick an element ` +
-            `(default agent: ${config.defaultAgent})`);
+            `(Enter → ${loadLastAgent(config)})`);
     };
     if (document.body)
         boot();

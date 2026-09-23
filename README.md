@@ -255,7 +255,7 @@ Empty call is enough. You get:
 | Pick | hold ⌘ (macOS) / Ctrl → click; hotkey `Alt+Shift+I` |
 | Enter handoff | **Claude App** |
 | Footer agents | Codex App / Claude App / Cursor / Grok Build — all on |
-| Backend agents | clipboard + file — on (via Enter / `defaultAgent`) |
+| Backend agents | clipboard (**Copy prompt** button) + file (no UI entry point) — on; neither is an Enter target |
 | Recording | on (needs `@rrweb/record` + `@rrweb/replay`) |
 | UI locale | auto (`navigator.language` → else `zh`) |
 | Handoff files | `.intent-inspector/` (**gitignore this** — see [Artifacts](#artifacts)) |
@@ -316,7 +316,7 @@ ideByebye({
 | --- | --- |
 | **Type** | `string` |
 | **Default** | `'claude-app'` |
-| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` (or `'clipboard'` / `'file'`). Unknown / disabled values fall back to the first enabled agent. |
+| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → custom); if none is enabled, Enter only shows a "not enabled" error. Once you click a footer agent, Enter follows that choice instead (remembered in this browser). |
 
 #### `applyMode`
 
@@ -413,12 +413,15 @@ or `{ enabled: false }`. `true` is explicit on; an object keeps it on and
 overrides options. `agents.custom` adds footer agents of your own — see
 [`agents.custom`](#agentscustom).
 
-Only footer agents get buttons; `clipboard` / `file` are reachable via
-`defaultAgent` / Enter.
+`clipboard` is the **Copy prompt** footer button (never the Enter target);
+`clipboard: false` removes that button. `file` has no UI entry point — no
+button, and never the Enter target. To get its Markdown file from the UI, set
+[`promptMode: 'file'`](#shared-footer-agent-options) on a footer agent: it
+writes the same `requests/` file, then opens that app.
 
 | Key (`agents.*`) | Adapter id | Footer | Purpose |
 | --- | --- | --- | --- |
-| `clipboard` | `clipboard` | no | Copy prompt to clipboard (safe fallback). |
+| `clipboard` | `clipboard` | yes (Copy prompt) | Copy prompt to clipboard (safe fallback). |
 | `file` | `file` | no | Write request + prompt as Markdown under `outputDir/requests/`. |
 | `codexApp` | `codex-app` | yes | Open **Codex App** prefilled. |
 | `claudeApp` | `claude-app` | yes | Open **Claude App** prefilled; can attach files & folders. |

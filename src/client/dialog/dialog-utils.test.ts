@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
     computeDropdownPlacement,
     configuredActions,
+    isAgentVisible,
     setCustomAgentActions,
     visibleAgentActions,
 } from './dialog-utils.js';
@@ -160,6 +161,21 @@ test('visibleAgentActions falls back to every action when enabledAgents is missi
     assert.deepEqual(visibleAgentActions({}).map((action) => action.name), all);
     assert.deepEqual(visibleAgentActions({ enabledAgents: [] }).map((action) => action.name), all);
     assert.deepEqual(visibleAgentActions(null).map((action) => action.name), all);
+});
+
+test('isAgentVisible drops the Copy button when clipboard is turned off in plugin config', () => {
+    // `agents.clipboard: false` leaves the adapter out of the registry, so `enabledAgents` lacks it and a rendered
+    // Copy button could only alert "Clipboard is not enabled".
+    const config = { enabledAgents: ['file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build'] };
+    assert.equal(isAgentVisible(config, 'clipboard'), false);
+    assert.equal(isAgentVisible(config, 'codex-app'), true);
+    assert.equal(isAgentVisible({ enabledAgents: ['clipboard', 'codex-app'] }, 'clipboard'), true);
+});
+
+test('isAgentVisible keeps every button when enabledAgents is missing or empty', () => {
+    assert.equal(isAgentVisible({}, 'clipboard'), true);
+    assert.equal(isAgentVisible({ enabledAgents: [] }, 'clipboard'), true);
+    assert.equal(isAgentVisible(null, 'clipboard'), true);
 });
 
 test('custom client actions are appended after the built-in app agents', () => {

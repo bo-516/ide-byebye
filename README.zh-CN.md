@@ -244,7 +244,7 @@ export default {
 | 选取 | 按住 ⌘（macOS）/ Ctrl → 点击；快捷键 `Alt+Shift+I` |
 | Enter 交接 | **Claude App** |
 | 页脚 Agent | Codex App / Claude App / Cursor / Grok Build — 全部开启 |
-| 后端 Agent | clipboard + file — 开启（经 Enter / `defaultAgent`） |
+| 后端 Agent | clipboard（**复制 Prompt** 按钮）+ file（无 UI 入口）— 开启；都不是 Enter 目标 |
 | 录制 | 开启（需 `@rrweb/record` + `@rrweb/replay`） |
 | UI 语言 | auto（`navigator.language` → 否则 `zh`） |
 | 交接文件目录 | `.intent-inspector/`（**请加入 gitignore** — 见 [产物](#产物)） |
@@ -305,7 +305,7 @@ ideByebye({
 | --- | --- |
 | **类型** | `string` |
 | **默认** | `'claude-app'` |
-| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'`（或 `'clipboard'` / `'file'`）。未知 / 已禁用则回退到第一个已启用 Agent。 |
+| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'`，或 [`agents.custom`](#agentscustom) 里的客户端名。`'clipboard'` / `'file'` 永远不是 Enter 目标 —— 和未知 / 已禁用的值一样，回退到第一个已启用的页脚 Agent（Codex → Claude → Cursor → Grok Build → 自定义）；一个都没启用时，Enter 只会报「未启用」。点过某个页脚 Agent 后，Enter 改为沿用那次的选择（记在当前浏览器里）。 |
 
 #### `applyMode`
 
@@ -401,11 +401,14 @@ ideByebye({
 `true` 显式开启；对象则保持开启并覆盖选项。`agents.custom` 还可以加上你自己的页脚
 Agent —— 见 [`agents.custom`](#agentscustom)。
 
-只有页脚 Agent 有按钮；`clipboard` / `file` 可通过 `defaultAgent` / Enter 触发。
+`clipboard` 就是页脚的 **复制 Prompt** 按钮（不会成为 Enter 目标），
+`clipboard: false` 会去掉这个按钮。`file` 在 UI 里没有入口：没有按钮，也不会成为
+Enter 目标。想从 UI 拿到它那份 Markdown 文件，就给页脚 Agent 设
+[`promptMode: 'file'`](#页脚-agent-共用选项) —— 会写出同样的 `requests/` 文件，再打开对应 App。
 
 | 键（`agents.*`） | Adapter id | 页脚 | 用途 |
 | --- | --- | --- | --- |
-| `clipboard` | `clipboard` | 否 | 复制 prompt 到剪贴板（安全兜底）。 |
+| `clipboard` | `clipboard` | 是（复制 Prompt） | 复制 prompt 到剪贴板（安全兜底）。 |
 | `file` | `file` | 否 | 把请求 + prompt 写成 Markdown，落到 `outputDir/requests/`。 |
 | `codexApp` | `codex-app` | 是 | 打开并预填 **Codex App**。 |
 | `claudeApp` | `claude-app` | 是 | 打开并预填 **Claude App**；可附带文件与文件夹。 |

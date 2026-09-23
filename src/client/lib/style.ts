@@ -346,6 +346,14 @@ export const STYLE_TEXT = `
   background: currentColor;
   opacity: 0.85;
 }
+/* Copy button: the idle label and the "copied" confirmation share one grid cell, so the button always keeps the width of
+   the longer one and the confirmation flash can never re-wrap the action row. The hidden label uses visibility (not
+   display) so it still sizes the cell; visibility also drops it from the button's accessible name. */
+.cii-agent-clipboard { display: inline-grid; place-items: center; }
+.cii-copy-label { grid-area: 1 / 1; }
+.cii-copy-done,
+.cii-agent-copied > .cii-copy-idle { visibility: hidden; }
+.cii-agent-copied > .cii-copy-done { visibility: visible; }
 .cii-agent-unavailable { background: #64748b; }
 .cii-agent-unavailable:hover:not(:disabled) { background: #475569; }
 .cii-screenshot-picker { position: relative; }

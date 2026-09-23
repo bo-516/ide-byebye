@@ -12,7 +12,10 @@ export type PathStyle = 'relative' | 'absolute';
 /** UI locale for the inspector chrome (prompt text stays language-neutral). */
 export type Locale = 'zh' | 'en' | (string & {});
 
-/** Enter-key / default handoff target (adapter id). */
+/**
+ * Agent adapter id (`agents.custom` names too). As `defaultAgent`, only footer agents drive Enter:
+ * `'clipboard'` / `'file'` are valid adapter ids but never Enter targets.
+ */
 export type AgentId =
   | 'clipboard'
   | 'file'
@@ -202,7 +205,12 @@ export interface IdeByebyeOptions {
    * `null` / `false` disables modifier-picking (hotkey and 4s long-press still work).
    */
   clickModifier?: ClickModifier;
-  /** Enter-key target adapter id. Default `'claude-app'`. */
+  /**
+   * Enter-key target: a footer agent (`'codex-app'` / `'claude-app'` / `'cursor-app'` /
+   * `'grok-build'` or an `agents.custom` name). Default `'claude-app'`. `'clipboard'` / `'file'`
+   * and unknown / disabled ids fall back to the first enabled footer agent; once the user clicks
+   * a footer agent, Enter follows that remembered choice instead.
+   */
   defaultAgent?: AgentId;
   /** Handoff hint: plan only vs allow edits. Default `'prompt-only'`. */
   applyMode?: ApplyMode;

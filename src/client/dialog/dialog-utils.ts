@@ -164,23 +164,35 @@ export function configuredActions() {
 }
 
 /**
+ * Decide whether the footer button backed by agent `name` should be rendered for this page.
+ *
+ * Boundary: an agent turned off in plugin config (`agents.codexApp: false`, `agents.clipboard: false`, …) is absent
+ * from `enabledAgents` and never becomes usable — the dialog's `send` guard and the server `/send` route both reject
+ * it — so its button is dropped instead of left as a control that can only alert "not enabled". A missing or empty
+ * `enabledAgents` (malformed config) keeps every button rather than rendering an empty footer.
+ *
+ * @param {Record<string, unknown>} config Browser config injected by the plugin.
+ * @param {string} name Agent id behind the button (`'clipboard'` for the Copy button).
+ * @returns {boolean} True when the button should be rendered.
+ */
+export function isAgentVisible(config, name) {
+    const enabled = Array.isArray(config?.enabledAgents) ? config.enabledAgents : [];
+    return !enabled.length || enabled.includes(name);
+}
+
+/**
  * Return the footer actions that should actually be rendered for this page.
  *
- * Boundary: an agent turned off in plugin config (`agents.codexApp: false`, …) never becomes usable, so its button is
- * dropped instead of rendered permanently greyed — that is what makes a project configured with only a custom client
- * show only that button. Agents that ARE configured but currently unavailable (missing binary) stay visible and are
- * greyed by `loadAgents`, because that state is actionable. A missing or empty `enabledAgents` (malformed config)
- * falls back to every configured action rather than an empty footer.
+ * Boundary: filters {@link configuredActions} through {@link isAgentVisible} — that is what makes a project configured
+ * with only a custom client show only that button. Agents that ARE configured but currently unavailable (missing
+ * binary) stay visible and are greyed by `loadAgents`, because that state is actionable. The Copy button is not in this
+ * list (it must never become the Enter target), so the dialog gates it with {@link isAgentVisible} directly.
  *
  * @param {Record<string, unknown>} config Browser config injected by the plugin.
  * @returns {Array<{ name: string, label: string, title: string }>} Footer actions to render, in order.
  */
 export function visibleAgentActions(config) {
-    const actions = configuredActions();
-    const enabled = Array.isArray(config?.enabledAgents) ? config.enabledAgents : [];
-    if (!enabled.length)
-        return actions;
-    return actions.filter((action) => enabled.includes(action.name));
+    return configuredActions().filter((action) => isAgentVisible(config, action.name));
 }
 
 /**
