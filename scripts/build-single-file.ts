@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'rolldown';
 import { EMBEDDED_CLIENT_CODE_GLOBAL } from '../src/server/client-code.js';
+import { ANGULAR_BOOTSTRAP_SCRIPT, buildAngularBootstrapScript } from '../src/server/angular/bootstrap-script.js';
 import { createCssTemplateMinifyPlugin } from './client-css-minifier.js';
 
 const ROOT_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -174,6 +175,20 @@ async function buildPluginBundle(entry) {
 }
 
 /**
+ * Write the Angular CLI bootstrap (a classic script listed in `angular.json` `scripts`).
+ *
+ * Boundary: generated from {@link buildAngularBootstrapScript} so constants stay in sync with the client; the file holds
+ * no secret and is inert without the `angularProxy` dev-server proxy.
+ *
+ * @returns {Promise<void>} Resolves after `dist/angular/bootstrap.js` is written.
+ */
+async function writeAngularBootstrap() {
+    const file = path.join(ROOT_DIR, ANGULAR_BOOTSTRAP_SCRIPT);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, buildAngularBootstrapScript(), 'utf8');
+}
+
+/**
  * Build the copy-friendly one-file inspector plugin.
  *
  * Boundary: this command writes generated artifacts under `dist` and removes the deprecated root-level `client.js`.
@@ -191,6 +206,7 @@ async function buildSingleFile() {
         const clientCode = await buildClientBundle();
         const entry = await writeSingleFileEntry(clientCode);
         await buildPluginBundle(entry);
+        await writeAngularBootstrap();
     }
     finally {
         await removeIfExists(SINGLE_FILE_ENTRY);

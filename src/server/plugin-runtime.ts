@@ -10,6 +10,7 @@ import { createLogger } from './logger.js';
 import { createInspectorServer } from './inspector-server.js';
 import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
 import { loadClientCode } from './client-code.js';
+import { buildBootstrapStatement } from './bootstrap-script.js';
 
 export const PLUGIN_NAME = 'code-intent-inspector';
 
@@ -85,29 +86,23 @@ function makeClientConfig(resolved, registry, token, origin) {
 }
 
 /**
- * Splice the bootstrap snippet into an HTML document's `<head>` (or prepend when no head exists).
- *
- * @param {string} html Original HTML.
- * @param {string} snippet Script tags to inject.
- * @returns {string} HTML with the inspector bootstrap injected.
- */
-export function injectHtmlSnippet(html, snippet) {
-    return html.includes('</head>')
-        ? html.replace('</head>', `${snippet}</head>`)
-        : snippet + html;
-}
-
-/**
- * Create one inspector runtime (token, registry, loopback server, HTML injection helpers).
+ * Create one inspector runtime (token, registry, loopback server, bootstrap helpers).
  *
  * Purpose: every bundler adapter shares this runtime. It owns the per-process token, agent registry, and the standalone
- * inspector HTTP server (started lazily and reused across rebuilds). Bundler adapters only decide *when* to start it and
- * *how* to inject the two bootstrap tags into the page.
+ * inspector HTTP server (started lazily and reused across rebuilds). Adapters only decide *when* to start it and *how*
+ * to bootstrap the page: HTML tags ({@link injectionTags} / {@link injectionHtml}) or, for pages whose HTML the bundler
+ * never sees, a JS statement ({@link bootstrapStatement}).
  *
  * Boundary: the server binds loopback only. When `options.enabled` is false no server starts and injection is a no-op.
  * Callers must pass a real project root into `initPaths` once they know it (Vite `config.root`, webpack `compiler.context`).
  *
+ * The loopback server is `unref()`ed: the host dev server (Vite, webpack-dev-server, Next, …) owns the process
+ * lifetime, and one-shot builds or helper processes that merely load the config (esbuild `build()`, Next's telemetry
+ * flush) must still exit on their own.
+ *
  * @param {Record<string, unknown>} [options] Raw plugin options from the host bundler config.
+ * @param {{ exposeSession?: boolean }} [runtimeOptions] `exposeSession: true` enables the same-origin `/session`
+ *   route (Angular CLI bootstrap through the dev-server proxy); every other adapter leaves it off.
  * @returns {{
  *   resolved: ReturnType<typeof resolveOptions>,
  *   enabled: boolean,
@@ -115,12 +110,13 @@ export function injectHtmlSnippet(html, snippet) {
  *   ensureServer: () => Promise<{ origin: string }>,
  *   injectionTags: () => Promise<Array<Record<string, unknown>>>,
  *   injectionHtml: () => Promise<string>,
- *   applyCodeInspector: (bundler: string, applyTarget: { apply?: Function, setup?: Function }) => void,
+ *   bootstrapStatement: () => Promise<string>,
  *   registerCodeInspectorOnCompiler: (compiler: object, bundler: 'webpack' | 'rspack') => void,
  *   projectRoot: () => string,
+ *   outputDirAbs: () => string,
  * }} Shared runtime used by every bundler adapter.
  */
-export function createInspectorRuntime(options: any = {}) {
+export function createInspectorRuntime(options: any = {}, runtimeOptions: { exposeSession?: boolean } = {}) {
     const resolved = resolveOptions(options);
     const token = crypto.randomUUID();
     const ctx = {
@@ -187,6 +183,20 @@ export function createInspectorRuntime(options: any = {}) {
             clientCode: loadClient(),
             projectRoot: ctx.projectRoot,
             outputDirAbs: ctx.outputDirAbs,
+            session: runtimeOptions.exposeSession ? sessionPayload : undefined,
+        };
+    }
+
+    /**
+     * Page config for the Angular CLI bootstrap, which reaches the server through the dev server's proxy: endpoints
+     * stay relative (same origin) unless the user pinned `apiOrigin`.
+     *
+     * @returns {{ config: Record<string, unknown>, clientSrc: string }} Config (with token) and relative client URL.
+     */
+    function sessionPayload() {
+        return {
+            config: makeClientConfig(resolved, ctx.registry, token, ''),
+            clientSrc: `${ENDPOINTS.client}?token=${token}`,
         };
     }
 
@@ -201,31 +211,55 @@ export function createInspectorRuntime(options: any = {}) {
         const info = await ctx.serverPromise;
         info.updateDeps(serverDeps());
         if (firstStart) {
+            // Never be the reason a process stays alive (see the runtime doc comment).
+            info.server?.unref?.();
             ctx.logger?.info?.(`enabled. inspector server ${info.origin} routes under ${ROUTE_PREFIX} ` +
                 `hotkey=${resolved.hotkey} clickModifier=${resolved.clickModifier} agents=[${ctx.registry.names().join(', ')}]`);
         }
         return info;
     }
 
+    /**
+     * Browser config and client bundle URL for the running inspector server (starts it on first use).
+     *
+     * @returns {Promise<{ config: Record<string, unknown>, clientSrc: string }>} Page config (with token) and the
+     *   token-guarded absolute URL of `client.js` on the loopback server.
+     */
+    async function clientBootstrap() {
+        const { origin } = await ensureServer();
+        return {
+            config: makeClientConfig(resolved, ctx.registry, token, origin),
+            clientSrc: `${origin}${ENDPOINTS.client}?token=${token}`,
+        };
+    }
+
     /** Vite / rsbuild tag-descriptor form: config global + module script that loads client.js. */
     async function injectionTags() {
-        const { origin } = await ensureServer();
-        const clientConfig = makeClientConfig(resolved, ctx.registry, token, origin);
+        const { config, clientSrc } = await clientBootstrap();
         return [
             {
                 tag: 'script',
                 injectTo: 'head',
-                children: `window.${CLIENT_CONFIG_GLOBAL}=${JSON.stringify(clientConfig)};`,
+                children: `window.${CLIENT_CONFIG_GLOBAL}=${JSON.stringify(config)};`,
             },
             {
                 tag: 'script',
                 injectTo: 'head',
                 attrs: {
                     type: 'module',
-                    src: `${origin}${ENDPOINTS.client}?token=${token}`,
+                    src: clientSrc,
                 },
             },
         ];
+    }
+
+    /**
+     * JS form of the bootstrap for pages whose HTML the bundler never sees (SSR frameworks, Next.js).
+     *
+     * @returns {Promise<string>} Idempotent statement from {@link buildBootstrapStatement}.
+     */
+    async function bootstrapStatement() {
+        return buildBootstrapStatement(await clientBootstrap());
     }
 
     /** Raw HTML string form for webpack/rspack/farm/esbuild HTML rewrites. */
@@ -260,6 +294,7 @@ export function createInspectorRuntime(options: any = {}) {
         ensureServer,
         injectionTags,
         injectionHtml,
+        bootstrapStatement,
         registerCodeInspectorOnCompiler,
         projectRoot() {
             return ctx.projectRoot;
@@ -269,41 +304,4 @@ export function createInspectorRuntime(options: any = {}) {
             return ctx.outputDirAbs;
         },
     };
-}
-
-/**
- * webpack/rspack-style HTML injection via `processAssets` at REPORT stage.
- *
- * Boundary: skips production mode so the inspector never ships. Mutates every emitted `.html` asset.
- *
- * @param {object} compiler webpack/rspack compiler.
- * @param {ReturnType<typeof createInspectorRuntime>} runtime Shared inspector runtime.
- * @param {'webpack' | 'rspack'} bundler Which code-inspector adapter to register.
- */
-export function setupWebpackLikeCompiler(compiler, runtime, bundler) {
-    if (!runtime.enabled) {
-        return;
-    }
-    if (compiler?.options?.mode === 'production') {
-        return;
-    }
-    runtime.initPaths(compiler?.context || process.cwd());
-    runtime.registerCodeInspectorOnCompiler(compiler, bundler);
-
-    const wp = compiler.webpack || compiler.rspack;
-    compiler.hooks.thisCompilation.tap(PLUGIN_NAME, (compilation) => {
-        compilation.hooks.processAssets.tapPromise({
-            name: PLUGIN_NAME,
-            stage: wp.Compilation.PROCESS_ASSETS_STAGE_REPORT,
-        }, async (assets) => {
-            const snippet = await runtime.injectionHtml();
-            for (const name of Object.keys(assets)) {
-                if (!/\.html$/.test(name)) {
-                    continue;
-                }
-                const original = assets[name].source().toString();
-                compilation.updateAsset(name, new wp.sources.RawSource(injectHtmlSnippet(original, snippet)));
-            }
-        });
-    });
 }

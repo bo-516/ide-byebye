@@ -1,15 +1,20 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { createUnplugin } from 'unplugin';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
-import { CLIENT_CONFIG_GLOBAL } from './shared/constants.js';
 import {
     PLUGIN_NAME,
     codeInspectorDefaults,
     createInspectorRuntime,
-    injectHtmlSnippet,
-    setupWebpackLikeCompiler,
 } from './server/plugin-runtime.js';
+import {
+    CLIENT_BOOTSTRAP_MARKER,
+    injectHtmlSnippet,
+    resolveEsbuildHtmlTargets,
+    setupWebpackLikeCompiler,
+} from './server/html-injection.js';
+import { isViteClientModule } from './server/vite-client.js';
+import { resolvePackageRoot } from './server/workspace-root.js';
+import { nextTurbopackRules } from './server/next/with-next.js';
 import type { IdeByebyeOptions, PluginInstance, VitePlugin } from './types.js';
 
 export { codeInspectorDefaults, PLUGIN_NAME } from './server/plugin-runtime.js';
@@ -19,9 +24,10 @@ export { codeInspectorDefaults, PLUGIN_NAME } from './server/plugin-runtime.js';
  * The shared, bundler-agnostic factory passed to `createUnplugin`.
  *
  * Purpose: one inspector instance per plugin usage. Bundler-specific surface is limited to HTML injection + when to
- * start the loopback server. Vite uses `transformIndexHtml`; webpack/rspack rewrite emitted `.html` assets; rsbuild
- * uses `modifyHTMLTags`; farm uses `transformHtml`; esbuild starts the server and rewrites HTML files listed via
- * `options.htmlFiles` (or any `*.html` next to `outdir`/`outfile` after the build).
+ * start the loopback server. Vite uses `transformIndexHtml` and, for SSR frameworks whose HTML never reaches that hook
+ * (Nuxt, SvelteKit, SolidStart, Astro, …), appends an idempotent JS bootstrap to `/@vite/client`; webpack/rspack
+ * rewrite emitted `.html` assets; rsbuild uses `modifyHTMLTags`; farm uses `transformHtml`; esbuild starts the server
+ * and rewrites HTML files listed via `options.htmlFiles` (or any `*.html` next to `outdir`/`outfile` after the build).
  *
  * Boundary: `meta.framework` selects the code-inspector `bundler` for compiler-based adapters. The Vite / farm / esbuild
  * entry helpers register code-inspector themselves because those ecosystems need a separate plugin instance. When
@@ -46,7 +52,8 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
             enforce: 'pre',
             configResolved(config) {
                 if (runtime.enabled) {
-                    runtime.initPaths(config.root);
+                    // The package owning Vite's root, not the root itself (Nuxt 4 sets `root` to its `app/` dir).
+                    runtime.initPaths(resolvePackageRoot(config.root));
                 }
             },
             transformIndexHtml: {
@@ -57,6 +64,16 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
                     }
                     return { html, tags: await runtime.injectionTags() };
                 },
+            },
+            /**
+             * Append the JS bootstrap to Vite's browser client. SPAs already got the HTML tags above (the statement
+             * then no-ops on the matching token); SSR frameworks render their own HTML and rely on this path.
+             */
+            async transform(code, id) {
+                if (!runtime.enabled || !isViteClientModule(id)) {
+                    return null;
+                }
+                return `${code}\n${await runtime.bootstrapStatement()}\n`;
             },
         },
         webpack: setupCompiler,
@@ -188,42 +205,6 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
     };
 }
 
-/** Marker so esbuild rewrites stay idempotent across rebuilds. */
-const CLIENT_BOOTSTRAP_MARKER = `window.${CLIENT_CONFIG_GLOBAL}`;
-
-/**
- * Resolve which HTML files the esbuild adapter should rewrite after a build.
- *
- * @param {Record<string, unknown>} options Plugin options; may include `htmlFiles: string[]`.
- * @param {Record<string, unknown>} initialOptions esbuild `BuildOptions`.
- * @param {string} absWorkingDir Absolute working directory for relative paths.
- * @returns {string[]} Absolute HTML file paths (may be empty).
- */
-function resolveEsbuildHtmlTargets(options, initialOptions, absWorkingDir) {
-    const listed = Array.isArray(options.htmlFiles) ? options.htmlFiles : [];
-    if (listed.length > 0) {
-        return listed.map((f) => path.isAbsolute(f) ? f : path.resolve(absWorkingDir, f));
-    }
-    const outdir = initialOptions.outdir
-        ? (path.isAbsolute(initialOptions.outdir)
-            ? initialOptions.outdir
-            : path.resolve(absWorkingDir, initialOptions.outdir))
-        : null;
-    if (outdir && fs.existsSync(outdir)) {
-        return fs.readdirSync(outdir)
-            .filter((name) => name.endsWith('.html'))
-            .map((name) => path.join(outdir, name));
-    }
-    if (initialOptions.outfile) {
-        const out = path.isAbsolute(initialOptions.outfile)
-            ? initialOptions.outfile
-            : path.resolve(absWorkingDir, initialOptions.outfile);
-        const sibling = path.join(path.dirname(out), 'index.html');
-        return fs.existsSync(sibling) ? [sibling] : [];
-    }
-    return [];
-}
-
 /** The raw unplugin instance; exposes `.vite`/`.webpack`/`.rspack`/`.rsbuild`/`.farm`/`.esbuild`/… entry points. */
 const unplugin = createUnplugin(inspectorFactory as any);
 
@@ -309,18 +290,20 @@ export function esbuild(options: IdeByebyeOptions = {}): PluginInstance[] {
 }
 
 /**
- * Turbopack entry for Next.js. Returns the rules object code-inspector expects under `experimental.turbo.rules`
- * (Next &lt; 15.3) or `turbopack.rules` (Next ≥ 15.3).
+ * Turbopack rules for Next.js (`turbopack.rules` on Next ≥ 15.3, `experimental.turbo.rules` before).
  *
- * Boundary: Turbopack has no HTML-rewrite hook we can attach to, so the inspector **bootstrap must be mounted by the
- * app** (e.g. a small client component that loads the loopback client, or a custom `_document`/layout script). This
- * export only wires `data-insp-path` injection. Prefer Vite/webpack/rspack/rsbuild for the zero-config experience.
+ * Returns code-inspector's `data-insp-path` rules plus the ide-byebye entry loader, and (in `next dev`) starts the
+ * inspector server and writes the bootstrap module the loader mounts into root layouts / `_app` — so this export alone
+ * is now zero-config. Prefer {@link https://github.com/bo-516/ide-byebye#nextjs `ide-byebye/next`}, which also wires
+ * `next dev --webpack` and picks the right config key for the installed Next version.
  *
- * @param {Record<string, unknown>} [options] Plugin options (forwarded to code-inspector defaults).
- * @returns {object} Turbopack rules object from `codeInspectorPlugin({ bundler: 'turbopack' })`.
+ * Boundary: returns `{}` outside development so production builds are untouched.
+ *
+ * @param {Record<string, unknown>} [options] Plugin options.
+ * @returns {object} Turbopack rules object.
  */
 export function turbopack(options: IdeByebyeOptions = {}): PluginInstance {
-    return codeInspectorPlugin({ bundler: 'turbopack', ...codeInspectorDefaults(options) });
+    return nextTurbopackRules(options);
 }
 
 /**

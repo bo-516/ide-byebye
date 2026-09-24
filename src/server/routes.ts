@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { ENDPOINTS, ROUTE_PREFIX, TOKEN_HEADER } from '../shared/constants.js';
-import { isLocalRequest, readToken, tokenMatches } from './security.js';
+import { isLocalHostHeader, isLocalRequest, isSameOriginPageRequest, readToken, tokenMatches } from './security.js';
 import { buildIntentRequest, resolveSelection } from './pipeline.js';
 import { buildPrompt, buildPromptReferenceLines } from './prompt.js';
 import { saveScreenshotPayloads, saveRecordingPayloads } from './screenshot.js';
@@ -192,6 +192,33 @@ export function createInspectorRequestHandler(deps) {
             catch (err) {
                 sendJson(res, 404, { ok: false, error: err instanceof Error ? err.message : String(err) });
             }
+            return;
+        }
+        // --- GET /ping ----------------------------------------------------------
+        // Liveness for another process deciding whether this server still backs a generated bootstrap module.
+        // Token-guarded and data-free: it confirms only that the holder of this token reached this server.
+        if (url === ENDPOINTS.ping && req.method === 'GET') {
+            if (!guard(req, res))
+                return;
+            sendJson(res, 200, { ok: true });
+            return;
+        }
+        // --- GET /session -------------------------------------------------------
+        // Angular CLI bootstrap only (`deps.session` exists only on runtimes created by `angularProxy`): the page asks
+        // through the dev server's proxy for its config. It hands out the token, so it is limited to same-origin page
+        // fetches on a local Host (DNS-rebinding defense) and served as non-executable JSON.
+        if (url === ENDPOINTS.session && req.method === 'GET') {
+            if (typeof deps.session !== 'function') {
+                next();
+                return;
+            }
+            if (!isLocalHostHeader(req) || !isSameOriginPageRequest(req)) {
+                sendJson(res, 403, { ok: false, error: 'Session is only available to same-origin local pages' });
+                return;
+            }
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+            sendJson(res, 200, { ok: true, ...deps.session() });
             return;
         }
         // --- GET /agents --------------------------------------------------------

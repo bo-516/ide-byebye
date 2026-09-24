@@ -52,6 +52,37 @@ export function findNearestGitRoot(startDir) {
 }
 
 /**
+ * Nearest directory at or above `startDir` that contains a `package.json` — the package owning that directory.
+ *
+ * Purpose: bundler roots are not always project roots. Nuxt 4 points Vite's `root` at its `app/` source dir, and some
+ * Vite apps use `root: 'src'`; prompts, the path guard and the folder handed to agents should still be the package
+ * (where `nuxt.config`, `server/`, layers and the agent's instructions live).
+ *
+ * Boundary: stops at the filesystem root; returns the resolved `startDir` itself when no `package.json` is found
+ * (zip checkouts, scratch folders). Unreadable directories are skipped like in {@link findNearestGitRoot}.
+ *
+ * @param {string} startDir Directory to start from (e.g. Vite `config.root`).
+ * @returns {string} Absolute package root, or the resolved `startDir`.
+ */
+export function resolvePackageRoot(startDir) {
+    const start = path.resolve(startDir);
+    let current = start;
+    while (true) {
+        try {
+            if (fs.existsSync(path.join(current, 'package.json')))
+                return current;
+        }
+        catch {
+            // keep walking
+        }
+        const parent = path.dirname(current);
+        if (parent === current)
+            return start;
+        current = parent;
+    }
+}
+
+/**
  * Resolve the default workspace directory for agent routing.
  *
  * Purpose: prefer the nearest git repository above the run directory; fall back to the run directory itself

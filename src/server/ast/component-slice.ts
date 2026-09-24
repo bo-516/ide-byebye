@@ -25,6 +25,21 @@ export function sliceLines(lines, startLine, endLine) {
 }
 
 /**
+ * Build a centered line window around a hit (the plain-excerpt fallback every `SourceContext` starts from).
+ *
+ * @param {string[]} lines Full file as lines.
+ * @param {number} line 1-based hit line.
+ * @param {number} maxContextLines Max lines in the window.
+ * @returns {{ excerpt: string, startLine: number, endLine: number }} Excerpt and its inclusive 1-based range.
+ */
+export function lineContextWindow(lines, line, maxContextLines) {
+    const half = Math.floor(maxContextLines / 2);
+    const startLine = Math.max(1, line - half);
+    const endLine = Math.min(lines.length, line + half);
+    return { excerpt: sliceLines(lines, startLine, endLine), startLine, endLine };
+}
+
+/**
  * Slice source by node offsets.
  *
  * @param {string} code Full source.

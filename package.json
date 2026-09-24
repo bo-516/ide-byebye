@@ -1,7 +1,7 @@
 {
   "name": "ide-byebye",
   "version": "0.4.0",
-  "description": "Dev plugin for Vite / webpack / rspack / rsbuild / esbuild / Farm (and Turbopack/Mako path injection): ⌘-click any rendered element, describe the change in plain words, and hand the element's source + your intent to Codex App / Claude App / Cursor / Grok Build — no hunting through the IDE.",
+  "description": "Dev plugin for Vite / webpack / rspack / rsbuild / esbuild / Farm, Next.js (Turbopack + webpack) and the Angular CLI: ⌘-click any rendered element (React, Vue, Svelte, Solid, Angular; Next.js, Nuxt, SvelteKit), describe the change in plain words, and hand the element's source + your intent to Codex App / Claude App / Cursor / Grok Build — no hunting through the IDE.",
   "type": "module",
   "license": "MIT",
   "author": "dravenLee <516342558@qq.com>",
@@ -36,7 +36,16 @@
     "devtools",
     "intent",
     "deeplink",
-    "rrweb"
+    "rrweb",
+    "nextjs",
+    "next",
+    "nuxt",
+    "svelte",
+    "sveltekit",
+    "solid",
+    "solid-js",
+    "angular",
+    "preact"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -69,6 +78,10 @@
       "types": "./dist/adapters/farm.d.ts",
       "default": "./dist/adapters/farm.js"
     },
+    "./next": {
+      "types": "./dist/adapters/next.d.ts",
+      "default": "./dist/adapters/next.js"
+    },
     "./turbopack": {
       "types": "./dist/adapters/turbopack.d.ts",
       "default": "./dist/adapters/turbopack.js"
@@ -76,6 +89,10 @@
     "./mako": {
       "types": "./dist/adapters/mako.d.ts",
       "default": "./dist/adapters/mako.js"
+    },
+    "./angular": {
+      "types": "./dist/adapters/angular.d.ts",
+      "default": "./dist/adapters/angular.js"
     }
   },
   "files": [
@@ -88,7 +105,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc && node --import tsx scripts/build-single-file.ts",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc && node --import tsx scripts/build-single-file.ts",
     "test": "node --import tsx --test src/**/*.test.ts src/**/**/*.test.ts src/**/**/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "prepublishOnly": "npm run build && npm test",
@@ -96,13 +113,16 @@
     "release:dry": "node --import tsx scripts/publish.ts --dry-run"
   },
   "dependencies": {
+    "@vue/compiler-dom": "^3.5.39",
     "code-inspector-plugin": "^1.6.2",
     "oxc-parser": "^0.143.0",
     "unplugin": "^3.3.0"
   },
   "devDependencies": {
+    "@angular/compiler": "^22.1.7",
     "@types/node": "^26.2.0",
     "rolldown": "^1.0.0-rc.12",
+    "svelte": "^5.57.1",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   },

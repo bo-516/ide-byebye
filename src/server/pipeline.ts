@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import { normalizeAngularHint } from '../shared/angular-hint.js';
+import { resolveAngularComponentFile } from './angular/component-file.js';
 import { parseInspPath } from './insp-path.js';
 import { assertPathInsideRoot } from './security.js';
 import { extractSourceContext } from './source-context.js';
@@ -6,8 +8,10 @@ import { normalizeStyles } from './styles.js';
 /**
  * Resolve one browser selection into a validated source selection and context.
  *
- * Boundary: `selection` must carry a `data-insp-path` value from code-inspector-plugin. The path must stay inside the
- * current Vite project root; invalid or out-of-root values throw user-facing errors before any prompt is built.
+ * Boundary: `selection` must carry a `data-insp-path` value from code-inspector-plugin, or the synthetic Angular path
+ * plus `selection.angular` hint (normalized and size-capped here; the raw hint never travels further). The path must
+ * stay inside the current project root; invalid or out-of-root values throw user-facing errors before any prompt is
+ * built.
  *
  * @param {Record<string, unknown>} selection Browser selection payload from the client.
  * @param {string} projectRoot Absolute Vite project root.
@@ -20,19 +24,29 @@ export function resolveSourceSelection(selection, projectRoot, options, label) {
         throw new Error(`${label} is missing a data-insp-path value`);
     }
     const parsed = parseInspPath(selection.inspPath);
-    const absFile = assertPathInsideRoot(parsed.file, projectRoot);
+    const angular = normalizeAngularHint(selection.angular);
+    const absFile = angular
+        ? resolveAngularComponentFile(parsed.file, projectRoot)
+        : assertPathInsideRoot(parsed.file, projectRoot);
     const source = extractSourceContext({
         file: absFile,
         line: parsed.line,
         column: parsed.column,
         maxContextLines: options.maxSourceContextLines,
+        angular,
+        projectRoot,
     });
-    const resolvedSelection = {
+    const resolvedSelection: Record<string, unknown> = {
         ...selection,
         file: absFile,
         line: parsed.line,
         column: parsed.column,
     };
+    // Only the normalized hint travels on (prompt files, agents); the raw payload is dropped.
+    if (angular)
+        resolvedSelection.angular = angular;
+    else
+        delete resolvedSelection.angular;
     return { selection: resolvedSelection, source };
 }
 

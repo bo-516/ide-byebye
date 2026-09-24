@@ -19,6 +19,8 @@ test('shared constants expose stable route and attribute surface', () => {
     assert.equal(ENDPOINTS.resolve, '/__intent-inspector/resolve');
     assert.equal(ENDPOINTS.send, '/__intent-inspector/send');
     assert.equal(ENDPOINTS.vendor, '/__intent-inspector/vendor');
+    assert.equal(ENDPOINTS.ping, '/__intent-inspector/ping');
+    assert.equal(ENDPOINTS.session, '/__intent-inspector/session');
     assert.equal(TOKEN_HEADER, 'x-intent-inspector-token');
     assert.equal(CLIENT_CONFIG_GLOBAL, '__CODE_INTENT_INSPECTOR__');
     assert.equal(PLUGIN_NODE_ATTR, 'data-intent-inspector-ui');

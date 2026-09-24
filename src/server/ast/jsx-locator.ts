@@ -62,10 +62,13 @@ function nodeSpansLine(node, line, offsetToLine) {
  * Walk an oxc program tree depth-first, calling `visit` with (node, ancestors).
  * `ancestors` is the parent chain (root → … → parent), not including `node`.
  *
+ * Boundary: only follows object / array properties whose items carry a string `type`, so position metadata and
+ * literal values are never visited. Shared by the JSX locator and the Next.js entry injector.
+ *
  * @param {object} root
  * @param {(node: object, ancestors: object[]) => void} visit
  */
-function walkAst(root, visit) {
+export function walkAst(root, visit) {
     const stack = [];
 
     function walk(node) {

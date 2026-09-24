@@ -5,16 +5,17 @@
 > ⌘-点击任意渲染节点，用自然语言描述改动，把 **源码位置 + 意图** 交给
 > **Codex App / Claude App / Cursor / Grok Build** —— 不用在 IDE 里翻文件。
 
-仅用于开发环境的多打包器插件（Vite / webpack / rspack / rsbuild / esbuild /
-Farm；Turbopack & Mako 仅做路径注入）。在运行中的应用上叠加可感知源码的选取器，
-拼出结构化 prompt（`file:line`、周围源码、意图，以及可选截图 / 样式 / 录制），
-再通过 deeplink 或 Terminal 打开所选 Agent。
+仅用于开发环境的插件，支持 Vite / webpack / rspack / rsbuild / esbuild / Farm、
+Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。在运行中的应用上
+叠加可感知源码的选取器，拼出结构化 prompt（`file:line`、周围源码、意图，以及可选截图 /
+样式 / 录制），再通过 deeplink 或 Terminal 打开所选 Agent。
 
 它是胶水，不是模型：不改文件、不内置 AI SDK。真正动手的是你交接出去的 Agent。
 
 ---
 
-**React** / **Vue** 均可使用。
+支持 **React**、**Vue**、**Svelte**、**Solid**、**Preact** 与 **Angular**，包括
+**Next.js**、**Nuxt**、**SvelteKit** 等 SSR 框架。详见 [框架支持](#框架支持)。
 
 ![⌘-点击元素、描述改动、交给 Agent](./demo-recording.gif)
 
@@ -34,6 +35,7 @@ Farm；Turbopack & Mako 仅做路径注入）。在运行中的应用上叠加�
 - [工作原理](#工作原理)
 - [安装](#安装)
 - [快速开始](#快速开始)
+- [框架支持](#框架支持)
 - [演示](#演示)
 - [环境要求](#环境要求)
 - [意图弹窗](#意图弹窗)
@@ -74,12 +76,14 @@ https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md
 
 1. **选取** — 快捷键（默认 `Alt+Shift+I`）或按住 `clickModifier`（⌘ / Ctrl）再点击。
    源码来自 [`code-inspector-plugin`](https://github.com/zh-lx/code-inspector)
-   注入的 `data-insp-path`。
+   注入的 `data-insp-path`（Angular 则来自 Angular 开发模式的组件调试信息）。
 2. **描述** — 在元素上打开意图弹窗。可附加 `@code` 引用、截图、计算样式或交互录制。
 3. **交接** — 点击 **Codex App / Claude App / Cursor / Grok Build**。本地 loopback
    服务（`127.0.0.1`、按进程 token）拼好 prompt，再打开 Agent（deeplink 或 Terminal）。
 
-除你主动触发的 deeplink 外，数据不会离开本机。打包器适配器只向 HTML 注入 bootstrap。
+除你主动触发的 deeplink 外，数据不会离开本机。适配器只注入一段 bootstrap：注入 HTML，
+或者——当框架自己渲染 HTML 时——注入每个页面本来就会加载的模块（`/@vite/client`、
+Next.js 根 layout / `_app`、Angular 开发脚本）。
 
 ## 安装
 
@@ -118,6 +122,56 @@ export default defineConfig({
 });
 ```
 
+### Next.js
+
+```js
+// next.config.mjs（next.config.ts / .js 写法相同）
+import withIdeByebye from 'ide-byebye/next';
+
+export default withIdeByebye(
+  { reactStrictMode: true },      // 你的 Next 配置：对象、函数或 Promise 均可
+  { defaultAgent: 'codex-app' },  // ide-byebye 配置（可选）
+);
+```
+
+- 覆盖 `next dev` 的 **Turbopack**（Next 16 默认）与 `--webpack` 两种模式，App Router
+  与 Pages Router 均可，应用里不用写任何代码：包装器加上 `data-insp-path` 规则，外加一个
+  loader，把生成的 `'use client'` bootstrap（`.intent-inspector/next/bootstrap.js`，已
+  git 忽略）渲染为每个根 layout `<body>` 的最后一个子节点，或由 `_app` 引入。
+- 只作用于 `next dev` 的 dev server 进程：`next build` / `next start` 原样拿回你的配置，
+  你自己的 `turbopack.rules` / `webpack()` 都会保留。
+- 已在 Next 14.2、15.2、16.3 上验证。monorepo 下项目目录取自 `next.config.*` 所在目录
+  （可用 `root` 配置项覆盖）。
+- 已经在 `turbopack.rules` 里用 `ide-byebye/turbopack`？它现在也会自动挂载 bootstrap；
+  换成 `ide-byebye/next` 可同时覆盖 `--webpack`。
+
+### Angular (CLI)
+
+Angular CLI 没有打包器插件钩子，所以用 `angular.json` 里的两处配置完成接入——只影响
+`ng serve`，生产构建不受影响：
+
+```js
+// ide-byebye.proxy.mjs（workspace 根目录）
+import { angularProxy } from 'ide-byebye/angular';
+
+export default await angularProxy(); // 已有代理配置时，与自己的条目展开合并
+```
+
+```jsonc
+// angular.json → projects.<app>.architect
+"build": { "configurations": { "development": {
+  "scripts": ["node_modules/ide-byebye/dist/angular/bootstrap.js"]
+} } },
+"serve": { "options": { "proxyConfig": "ide-byebye.proxy.mjs" } }
+```
+
+Angular 模板无法注入 `data-insp-path`。选取器改为读取 Angular 开发模式的调试信息
+（所属组件及其源文件），服务端再用你项目里的 `@angular/compiler` 解析该组件模板并匹配
+元素——prompt 指向 `src/app/app.html #9-12`（或内联 `template:` 中的位置）。匹配依据标签、
+静态属性、文本以及同一模板声明的祖先链：常规模板是精确的，极度动态的模板为尽力匹配
+（匹配不到时指向整个模板）。已在 Angular 22 上验证。若 `development` 已有 `scripts`，把
+这一项加进原数组即可。
+
 ### 其他打包器
 
 按子路径导入匹配适配器 — **不要**自己传 `bundler` 字符串：
@@ -130,8 +184,10 @@ export default defineConfig({
 | **rsbuild** | `ide-byebye/rsbuild` | `plugins: [inspector()]`。 |
 | **esbuild** | `ide-byebye/esbuild` | 若 HTML 不在 `outdir`，传 `htmlFiles: ['./index.html']`。 |
 | **Farm** | `ide-byebye/farm` | 返回 `[codeInspector, inspector]` — 展开进 Farm plugins。 |
-| **Turbopack**（Next） | `ide-byebye/turbopack` | 仅 rules（`data-insp-path`）；需自行挂载 bootstrap。 |
-| **Mako**（Umi） | `ide-byebye/mako` | 同 Turbopack — 仅路径注入。 |
+| **Next.js** | `ide-byebye/next` | `withIdeByebye(nextConfig)` — Turbopack + webpack，见 [Next.js](#nextjs)。 |
+| **Turbopack**（仅 rules） | `ide-byebye/turbopack` | 放进 `turbopack.rules`；`next dev` 下自动挂载 bootstrap。 |
+| **Angular CLI** | `ide-byebye/angular` | `proxyConfig` + 开发环境 `scripts`，见 [Angular](#angular-cli)。 |
+| **Mako**（Umi） | `ide-byebye/mako` | 仅路径注入（`data-insp-path`）；需自行挂载 bootstrap。 |
 
 ```js
 // webpack.config.js
@@ -177,11 +233,38 @@ ideByebye({
 
 > 默认导出与具名导出 `codeIntentInspectorPlugin` 相同（Vite）。按喜好选用即可。
 
-### Vue
+## 框架支持
 
-DOM → 源码映射对 Vue 2/3 SFC 经 code-inspector 可用。`.vue` 的 prompt 上下文是尽力而为
-（模板行切片，不是完整 Vue AST）。JSX/TSX 仍走更完整的 AST 路径。见
-[`demo/vue`](./demo/vue)。
+prompt 引用的是被选元素的精确源码范围，由各框架自己的解析器定位：
+
+| 框架 | 元素 → 源码 | 源码上下文 |
+| --- | --- | --- |
+| React / Preact / Solid（JSX） | `data-insp-path`（code-inspector） | oxc AST：元素、所在组件、imports |
+| Vue 2.7 / 3 SFC | `data-insp-path` | `@vue/compiler-dom` AST——与 code-inspector 打点用的是同一个解析器，范围精确（多行标签、绑定里的 `>`、同名嵌套、slot）；pug 模板回退为行窗口 |
+| Svelte 3 / 4 / 5 | `data-insp-path` | 项目自带 `svelte/compiler` 的 AST |
+| Angular | Angular 开发模式组件信息 | 项目 `@angular/compiler` 模板 AST + 元素匹配（[详情](#angular-cli)） |
+
+SSR 框架自己渲染 HTML，bootstrap 改由每个页面本来就加载的模块携带：
+
+| 框架 | 接入方式 | 已验证 |
+| --- | --- | --- |
+| Next.js | [`ide-byebye/next`](#nextjs) | 14.2 / 15.2 / 16.3 — Turbopack 与 webpack、App 与 Pages Router |
+| Nuxt | `nuxt.config` 里 `vite: { plugins: [inspector()] }` | Nuxt 4.5 |
+| SvelteKit | `vite.config` 里 `plugins: [inspector(), sveltekit()]` | Kit 2 + Svelte 5 |
+| SolidStart / Astro / React Router / Vike / … | 照常使用 Vite 插件 | 同一机制，未逐个测试 |
+| Angular CLI | [`ide-byebye/angular`](#angular-cli) | Angular 22 |
+
+```ts
+// nuxt.config.ts
+import inspector from 'ide-byebye/vite';
+
+export default defineNuxtConfig({ vite: { plugins: [inspector()] } });
+```
+
+Vite 系框架的 JS bootstrap 追加在 `/@vite/client` 上；SPA 页面仍注入 HTML 标签（此时 JS
+路径不做任何事）。项目根取"拥有 Vite `root` 的那个包"——Nuxt 4 会把 `root` 设为 `app/`——
+所以引用形如 `app/app.vue #9-13`，相对于 Agent 打开的目录。JSX 框架（React、Solid、Preact）
+请把 `inspector()` 放在框架插件之前。
 
 ## 演示
 
@@ -200,8 +283,9 @@ pnpm dev:react:rspack
 
 ## 环境要求
 
-- **打包器** — Vite `>=4`、webpack `>=5`、rspack、rsbuild、esbuild 或 Farm 可完整零配置。
-  Turbopack / Mako 只注入 `data-insp-path`。
+- **打包器** — Vite `>=4`、webpack `>=5`、rspack、rsbuild、esbuild、Farm、Next.js
+  `>=14.2`（Turbopack 或 webpack）或 Angular CLI。Mako 只注入 `data-insp-path`。
+  Svelte / Angular 的源码上下文使用你项目里安装的编译器。
 - **`code-inspector-plugin`** — 由上述适配器注册；无需手动配置。
 - **页脚 Agent** — Codex App / Claude App / Cursor / Grok Build 用系统默认 opener
   打开（macOS `open`，Windows `cmd /c start`，Linux `xdg-open`）。
@@ -394,6 +478,14 @@ ideByebye({
 | **类型** | `string[]` |
 | **默认** | 扫描 `outdir` 下 `*.html`，或 `outfile` 旁的 `index.html` |
 | **可配** | HTML 不在 `outdir` 时，显式指定要注入 bootstrap 的 HTML 路径。 |
+
+#### `root`（仅 Next.js / Angular）
+
+| | |
+| --- | --- |
+| **类型** | `string` |
+| **默认** | Next.js：调用 `withIdeByebye` 的 `next.config.*` 所在目录；Angular：`ng serve` 的 `process.cwd()` |
+| **可配** | 默认值不是 `app/` / `pages/`（Next.js）或 `angular.json`（Angular）所在目录时，显式指定项目目录。 |
 
 ### Agents
 
@@ -606,6 +698,7 @@ SVG-`<foreignObject>` → canvas。无 CORS 的跨域资源可能空白，字体
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + 供 `grok --verbatim` 的 prompt。 |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | 事件流 + 静帧（使用录制时）。 |
 | 截图产物 | 由 prompt 引用。 |
+| `next/bootstrap.js`（+ `.gitignore`） | 为 `next dev` 生成的 `'use client'` bootstrap；每次启动重写，不会被提交。 |
 
 Prompt 顺序：`@code` 引用 → **Rendered styles**（若附加）→ 意图。
 捕获样式里的绝对源码路径不会进入 deeplink prompt 文本。
@@ -633,8 +726,11 @@ ideByebye({ locale: 'en' });
 
 ## 安全与隐私
 
-- **仅开发** — 适配器跳过生产（Vite `apply: 'serve'`、webpack `mode === 'production'` 等）。
+- **仅开发** — 适配器跳过生产（Vite `apply: 'serve'`、webpack `mode === 'production'`、
+  Next.js 只作用于 `next dev` 的 dev server 进程、Angular 只在 `ng serve` 的代理配置里启动）。
 - **Token 门禁** — 每个请求带按进程 token；浏览器打 `127.0.0.1`，不是你的应用 origin。
+  唯一会下发 token 的是 Angular 的 `/session` 路由（仅 `angularProxy` 创建）：只响应本地
+  `Host` 上的同源页面 fetch，且以不可执行的 JSON 返回。
 - **项目根约束** — 文件写入不离开项目；deeplink 只携带你选择发送的内容。
 - **忽略产物目录** — 把 `.intent-inspector/`（或你的 `outputDir`）写入 `.gitignore`，
   避免截图、录制与交接文案进 git（详见 [产物](#产物)）。
@@ -648,9 +744,9 @@ npm run build    # 重新生成 dist/
 npm test         # node:test 套件
 ```
 
-结构：`src/client/`（浏览器）、`src/server/`（loopback 服务 + agents）、
-`src/shared/`（同构工具）、`plugin.js`（unplugin 工厂）、
-`scripts/build-single-file.js`。
+结构：`src/client/`（浏览器）、`src/server/`（loopback 服务 + agents；`ast/` 为各框架
+定位器，`next/`、`angular/` 为对应集成）、`src/shared/`（同构工具）、`src/plugin.ts`
+（unplugin 工厂）、`scripts/build-single-file.ts`。
 
 ## 许可证
 

@@ -1,8 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_MAX_COMPONENT_LINES, DEFAULT_MAX_SOURCE_CONTEXT_LINES, } from '../shared/constants.js';
+import { extractAngularSourceContext } from './ast/angular-locator.js';
+import { lineContextWindow } from './ast/component-slice.js';
 import { extractJsxFromCode } from './ast/jsx-locator.js';
-import { extractVueSourceContext } from './source-context-vue.js';
+import { extractSvelteFromCode } from './ast/svelte-locator.js';
+import { extractVueFromCode } from './ast/vue-locator.js';
 
 /**
  * Map a file path extension to a coarse language tag for prompts / UI.
@@ -37,48 +40,75 @@ export function detectLanguage(file) {
     }
 }
 
+/** SourceContext fields a locator may return; copied verbatim onto the base context. */
+const LOCATOR_FIELDS = [
+    'importsCode',
+    'importsRange',
+    'selectedNodeCode',
+    'selectedNodeRange',
+    'containingComponentCode',
+    'containingComponentRange',
+    'astError',
+];
+
 /**
- * 1-based inclusive slice of a line array, clamped to bounds.
+ * Run the AST locator that matches the file language.
  *
- * @param {string[]} lines Full file as lines.
- * @param {number} startLine Inclusive 1-based start.
- * @param {number} endLine Inclusive 1-based end.
- * @returns {string} Joined excerpt (empty string if the window is empty).
+ * Boundary: `.vue` → `@vue/compiler-dom`, `.svelte` → the project's `svelte/compiler`, everything else → the oxc JSX
+ * locator (JS/TS files without JSX simply report `astError`). Locators may throw on catastrophic input; the caller
+ * converts that into `astError`.
+ *
+ * @param {string} language Result of {@link detectLanguage}.
+ * @param {{ file: string, code: string, line: number, column: number, maxContextLines: number, maxComponentLines: number }} input
+ *        Hit position and source; `column` is forwarded as parsed from `data-insp-path`.
+ * @returns {Record<string, unknown>} Locator fields (see {@link LOCATOR_FIELDS}).
  */
-function sliceLines(lines, startLine, endLine) {
-    const s = Math.max(1, startLine);
-    const e = Math.min(lines.length, endLine);
-    return lines.slice(s - 1, e).join('\n');
+function runLocator(language, input) {
+    const { file, code, line, column, maxContextLines, maxComponentLines } = input;
+    if (language === 'vue')
+        return extractVueFromCode(code, line, column, maxComponentLines, extractJsxFromCode);
+    if (language === 'svelte')
+        return extractSvelteFromCode(code, line, column, maxComponentLines, file);
+    return extractJsxFromCode(code, line, column, maxContextLines, maxComponentLines);
 }
 
 /**
- * Build a centered line window around a hit for the plain-excerpt fallback.
+ * Copy locator fields onto the base context and widen its line window to cover the located code.
  *
- * @param {string[]} lines Full file as lines.
- * @param {number} line 1-based hit line.
- * @param {number} maxContextLines Max lines in the window.
- * @returns {{ excerpt: string, startLine: number, endLine: number }}
+ * @param {Record<string, unknown>} base Context holding the plain line window (mutated and returned).
+ * @param {Record<string, unknown>} inner Locator output.
+ * @returns {Record<string, unknown>} `base` with AST fields merged.
  */
-function lineContextWindow(lines, line, maxContextLines) {
-    const half = Math.floor(maxContextLines / 2);
-    const startLine = Math.max(1, line - half);
-    const endLine = Math.min(lines.length, line + half);
-    return { excerpt: sliceLines(lines, startLine, endLine), startLine, endLine };
+function mergeLocatorFields(base, inner) {
+    for (const key of LOCATOR_FIELDS) {
+        if (inner[key] != null && inner[key] !== '')
+            base[key] = inner[key];
+    }
+    const span = base.containingComponentRange ?? base.selectedNodeRange;
+    if (span) {
+        base.startLine = Math.min(base.startLine, span.startLine);
+        base.endLine = Math.max(base.endLine, span.endLine);
+    }
+    return base;
 }
 
 /**
  * Read a file and build a `SourceContext`: a focused excerpt plus, when AST
- * parsing succeeds, the selected JSX/template node, its containing component,
+ * parsing succeeds, the selected element, its containing component / template,
  * and the import block. AST failures degrade to a plain line-context window.
  *
- * Boundary: orchestration only (fs + window + field merge). JSX AST work lives
- * in `ast/jsx-locator.js` (oxc). Vue SFCs take {@link extractVueSourceContext}.
+ * Boundary: orchestration only (fs + window + field merge). AST work lives in
+ * `ast/*-locator.js`, one per template language (JSX via oxc, Vue via
+ * `@vue/compiler-dom`, Svelte via the project's compiler). With an Angular hint
+ * the file is the component class and the Angular locator may re-point
+ * `filePath` at the component's template file; it needs `projectRoot` to read
+ * an external template (path-guarded).
  *
- * @param {{ file: string, line: number, column: number, maxContextLines?: number, maxComponentLines?: number }} opts
+ * @param {{ file: string, line: number, column: number, maxContextLines?: number, maxComponentLines?: number, angular?: import('../shared/angular-hint.js').AngularHint | null, projectRoot?: string }} opts
  * @returns {object} SourceContext fields for the prompt pipeline.
  */
 export function extractSourceContext(opts) {
-    const { file, line, column, maxContextLines = DEFAULT_MAX_SOURCE_CONTEXT_LINES, maxComponentLines = DEFAULT_MAX_COMPONENT_LINES, } = opts;
+    const { file, line, column, maxContextLines = DEFAULT_MAX_SOURCE_CONTEXT_LINES, maxComponentLines = DEFAULT_MAX_COMPONENT_LINES, angular, projectRoot, } = opts;
     const code = fs.readFileSync(file, 'utf8');
     const lines = code.split('\n');
     const language = detectLanguage(file);
@@ -90,46 +120,20 @@ export function extractSourceContext(opts) {
         startLine: window.startLine,
         endLine: window.endLine,
     };
-
-    if (language === 'vue') {
-        return extractVueSourceContext({
-            code,
-            lines,
-            line,
-            column,
-            maxContextLines,
-            maxComponentLines,
-            base,
-            extractJsx: extractJsxFromCode,
-        });
+    if (angular) {
+        try {
+            return extractAngularSourceContext({ file, code, line, hint: angular, projectRoot, maxContextLines, maxComponentLines });
+        }
+        catch (err) {
+            base.astError = err instanceof Error ? err.message : String(err);
+            return base;
+        }
     }
-
     try {
-        const inner = extractJsxFromCode(code, line, column, maxContextLines, maxComponentLines);
-        if (inner.importsCode) {
-            base.importsCode = inner.importsCode;
-        }
-        if (inner.importsRange) {
-            base.importsRange = inner.importsRange;
-        }
-        if (inner.selectedNodeCode) {
-            base.selectedNodeCode = inner.selectedNodeCode;
-            base.selectedNodeRange = inner.selectedNodeRange;
-        }
-        if (inner.containingComponentCode) {
-            base.containingComponentCode = inner.containingComponentCode;
-            base.containingComponentRange = inner.containingComponentRange;
-            if (inner.containingComponentRange) {
-                base.startLine = Math.min(base.startLine, inner.containingComponentRange.startLine);
-                base.endLine = Math.max(base.endLine, inner.containingComponentRange.endLine);
-            }
-        }
-        if (inner.astError) {
-            base.astError = inner.astError;
-        }
+        return mergeLocatorFields(base, runLocator(language, { file, code, line, column, maxContextLines, maxComponentLines }));
     }
     catch (err) {
         base.astError = err instanceof Error ? err.message : String(err);
+        return base;
     }
-    return base;
 }

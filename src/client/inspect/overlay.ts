@@ -1,5 +1,4 @@
-import { basename, parseInspPathLite } from './dom.js';
-import { INSP_PATH_ATTR } from '../../shared/constants.js';
+import { basename, inspPathOf, parseInspPathLite } from './dom.js';
 import { t } from '../lib/i18n.js';
 /** Fixed-position highlight box + floating label for the hovered element. */
 export class Overlay {
@@ -17,7 +16,7 @@ export class Overlay {
     /** Highlight an element that maps to source. */
     showFor(el) {
         const rect = el.getBoundingClientRect();
-        const inspPath = el.getAttribute(INSP_PATH_ATTR) ?? '';
+        const inspPath = inspPathOf(el);
         const parsed = parseInspPathLite(inspPath);
         const loc = parsed.line != null ? `:${parsed.line}${parsed.column != null ? `:${parsed.column}` : ''}` : '';
         const tag = el.tagName.toLowerCase();

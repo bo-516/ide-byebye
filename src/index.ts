@@ -6,8 +6,10 @@
 //   import inspector from 'ide-byebye/rsbuild'   // rsbuild
 //   import inspector from 'ide-byebye/esbuild'   // esbuild
 //   import inspector from 'ide-byebye/farm'      // Farm
-//   import inspector from 'ide-byebye/turbopack' // Next.js Turbopack rules (data-insp-path only)
+//   import withIdeByebye from 'ide-byebye/next'  // Next.js (Turbopack + webpack, auto-mounted bootstrap)
+//   import inspector from 'ide-byebye/turbopack' // Next.js Turbopack rules only
 //   import inspector from 'ide-byebye/mako'      // Umi Mako (data-insp-path only)
+//   import { angularProxy } from 'ide-byebye/angular' // Angular CLI (proxyConfig + dev scripts)
 export type {
     PathStyle,
     Locale,
@@ -24,6 +26,8 @@ export type {
     RecordingOptions,
     CodeInspectorOptions,
     IdeByebyeOptions,
+    NextIdeByebyeOptions,
+    AngularIdeByebyeOptions,
     VitePlugin,
     PluginInstance,
 } from './types.js';
@@ -38,4 +42,6 @@ export {
     mako,
     codeIntentInspectorPlugin,
 } from './plugin.js';
+export { withIdeByebye } from './server/next/with-next.js';
+export { angularProxy } from './server/angular/proxy.js';
 export { codeIntentInspectorPlugin as default } from './plugin.js';

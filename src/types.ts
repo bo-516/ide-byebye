@@ -252,6 +252,25 @@ export interface IdeByebyeOptions {
 }
 
 /**
+ * Options for `ide-byebye/next` (`withIdeByebye`) and `ide-byebye/turbopack`.
+ */
+export interface NextIdeByebyeOptions extends IdeByebyeOptions {
+  /**
+   * Next.js project directory (where `app/` / `pages/` live).
+   * Default: the folder of the `next.config.*` that calls the wrapper, else `process.cwd()`.
+   */
+  root?: string;
+}
+
+/**
+ * Options for `ide-byebye/angular` (`angularProxy`).
+ */
+export interface AngularIdeByebyeOptions extends IdeByebyeOptions {
+  /** Angular workspace directory (where `angular.json` lives). Default: `process.cwd()` of `ng serve`. */
+  root?: string;
+}
+
+/**
  * Structural Vite / Rollup plugin shape (required `name` + optional hooks).
  *
  * Why not `object` / `any`: Vite's `plugins` is `PluginOption[]`, and

@@ -23,17 +23,23 @@ function resolveEndpointUrl(config, endpoint) {
  * Creates the browser API client for inspector routes.
  *
  * Boundary: every request carries the per-process token in both query string and header so same-origin and configured
- * cross-origin calls can pass the server guard. A wrong `apiOrigin` sends route resolution, agent discovery, and agent
- * send requests to the wrong host.
+ * cross-origin calls can pass the server guard. Token and origin are read from `config` on every request (never
+ * captured), so a JS bootstrap that rotates them in place after an inspector-server restart keeps a running client
+ * working. A wrong `apiOrigin` sends route resolution, agent discovery, and agent send requests to the wrong host.
  *
- * @param {Record<string, unknown>} config Browser config injected by the Vite plugin.
+ * @param {Record<string, unknown>} config Browser config injected by the plugin (the live global object).
  * @returns {{ resolve: Function, send: Function, agents: Function }} Inspector API methods used by the picker dialog.
  */
 export function createApi(config) {
-    const headers = {
+    /**
+     * Request headers for the current token.
+     *
+     * @returns {Record<string, string>} JSON content type plus the token header.
+     */
+    const headers = () => ({
         'Content-Type': 'application/json',
         [TOKEN_HEADER]: config.token,
-    };
+    });
 
     /**
      * Sends a JSON POST to a token-authenticated inspector endpoint.
@@ -48,7 +54,7 @@ export function createApi(config) {
     async function postJson(url, body) {
         const res = await fetch(`${resolveEndpointUrl(config, url)}?token=${encodeURIComponent(config.token)}`, {
             method: 'POST',
-            headers,
+            headers: headers(),
             body: JSON.stringify(body),
             credentials: 'same-origin',
         });
@@ -60,7 +66,7 @@ export function createApi(config) {
         send: (payload) => postJson(ENDPOINTS.send, payload),
         async agents() {
             const res = await fetch(`${resolveEndpointUrl(config, ENDPOINTS.agents)}?token=${encodeURIComponent(config.token)}`, {
-                headers,
+                headers: headers(),
                 credentials: 'same-origin',
             });
             return (await res.json());

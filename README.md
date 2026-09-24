@@ -6,18 +6,20 @@
 > **source location + intent** to **Codex App / Claude App / Cursor / Grok Build**
 > — no hunting through the IDE.
 
-Dev-only multi-bundler plugin (Vite / webpack / rspack / rsbuild / esbuild /
-Farm; Turbopack & Mako for path injection). It overlays a source-aware picker on
-your running app, builds a structured prompt (`file:line`, surrounding source,
-intent, optional screenshots / styles / recording), and opens the chosen agent
-via deeplink or Terminal.
+Dev-only plugin for Vite / webpack / rspack / rsbuild / esbuild / Farm, Next.js
+(Turbopack + webpack) and the Angular CLI (Mako: path injection only). It
+overlays a source-aware picker on your running app, builds a structured prompt
+(`file:line`, surrounding source, intent, optional screenshots / styles /
+recording), and opens the chosen agent via deeplink or Terminal.
 
 It is glue, not a model: it never edits files and ships no AI SDK. The agent you
 hand off to does the actual change.
 
 ---
 
-Works with **React** and **Vue**.
+Works with **React**, **Vue**, **Svelte**, **Solid**, **Preact** and **Angular** —
+including SSR frameworks such as **Next.js**, **Nuxt** and **SvelteKit**. See
+[Framework support](#framework-support).
 
 ![⌘-click an element, describe the change, hand off to an agent](./demo-recording.gif)
 
@@ -39,6 +41,7 @@ Works with **React** and **Vue**.
 - [How it works](#how-it-works)
 - [Install](#install)
 - [Quick start](#quick-start)
+- [Framework support](#framework-support)
 - [Demo](#demo)
 - [Requirements](#requirements)
 - [The intent dialog](#the-intent-dialog)
@@ -79,15 +82,18 @@ Or install it yourself in [Install](#install) / [Quick start](#quick-start).
 
 1. **Pick** — hotkey (default `Alt+Shift+I`) or hold `clickModifier` (⌘ / Ctrl)
    and click. Source comes from `data-insp-path` injected by
-   [`code-inspector-plugin`](https://github.com/zh-lx/code-inspector).
+   [`code-inspector-plugin`](https://github.com/zh-lx/code-inspector) (Angular:
+   from Angular's dev-mode component debug info).
 2. **Describe** — intent dialog opens on the element. Optionally add `@code`
    refs, screenshots, computed styles, or an interaction recording.
 3. **Hand off** — click **Codex App / Claude App / Cursor / Grok Build**. The
    local loopback server (`127.0.0.1`, per-process token) builds the prompt and
    opens the agent (deeplink or Terminal).
 
-Nothing leaves your machine except the deeplink you trigger. Bundler adapters
-only inject the bootstrap into HTML.
+Nothing leaves your machine except the deeplink you trigger. Adapters only
+inject a bootstrap: into HTML, or — when a framework renders its own HTML — into
+a module every page already loads (`/@vite/client`, a Next.js root layout /
+`_app`, an Angular dev script).
 
 ## Install
 
@@ -126,6 +132,60 @@ export default defineConfig({
 });
 ```
 
+### Next.js
+
+```js
+// next.config.mjs  (next.config.ts / .js work the same)
+import withIdeByebye from 'ide-byebye/next';
+
+export default withIdeByebye(
+  { reactStrictMode: true },      // your Next config: object, function or promise
+  { defaultAgent: 'codex-app' },  // ide-byebye options (optional)
+);
+```
+
+- Covers `next dev` with **Turbopack** (Next 16's default) and with
+  `--webpack`, App Router and Pages Router — no code in your app. The wrapper
+  adds the `data-insp-path` rules plus a loader that renders a generated
+  `'use client'` bootstrap (`.intent-inspector/next/bootstrap.js`, git-ignored)
+  as the last child of every root layout's `<body>`, or imports it from `_app`.
+- Only the `next dev` server process is touched: `next build` / `next start`
+  get your config back unchanged, and your own `turbopack.rules` / `webpack()`
+  are kept.
+- Verified on Next 14.2, 15.2 and 16.3. In monorepos the project dir is taken
+  from the `next.config.*` location (override with [`root`](#root-nextjs--angular-only)).
+- Already using `ide-byebye/turbopack` in `turbopack.rules`? It now mounts the
+  bootstrap as well; switch to `ide-byebye/next` to also cover `--webpack`.
+
+### Angular (CLI)
+
+The Angular CLI exposes no bundler plugin hook, so two `angular.json` entries do
+the wiring — `ng serve` only, production builds are untouched:
+
+```js
+// ide-byebye.proxy.mjs  (workspace root)
+import { angularProxy } from 'ide-byebye/angular';
+
+export default await angularProxy(); // spread next to your own proxy entries, if any
+```
+
+```jsonc
+// angular.json → projects.<app>.architect
+"build": { "configurations": { "development": {
+  "scripts": ["node_modules/ide-byebye/dist/angular/bootstrap.js"]
+} } },
+"serve": { "options": { "proxyConfig": "ide-byebye.proxy.mjs" } }
+```
+
+Angular templates cannot be stamped with `data-insp-path`. Instead the picker
+reads Angular's dev-mode debug info (owning component + its source file), and
+the server matches the element against that component's template parsed with
+your own `@angular/compiler` — the prompt points at `src/app/app.html #9-12` (or
+into the inline `template:`). Matching uses tag, static attributes, text and the
+ancestors the same template declared: exact for typical templates, best effort
+for heavily dynamic ones (it then points at the whole template). Verified on
+Angular 22. If `development` already has `scripts`, add the entry to that list.
+
 ### Other bundlers
 
 Import the matching subpath — **never** pass a `bundler` string yourself:
@@ -138,8 +198,10 @@ Import the matching subpath — **never** pass a `bundler` string yourself:
 | **rsbuild** | `ide-byebye/rsbuild` | `plugins: [inspector()]`. |
 | **esbuild** | `ide-byebye/esbuild` | Pass `htmlFiles: ['./index.html']` if HTML is not in `outdir`. |
 | **Farm** | `ide-byebye/farm` | Returns `[codeInspector, inspector]` — spread into Farm plugins. |
-| **Turbopack** (Next) | `ide-byebye/turbopack` | Rules only (`data-insp-path`); mount bootstrap yourself. |
-| **Mako** (Umi) | `ide-byebye/mako` | Same as Turbopack — path injection only. |
+| **Next.js** | `ide-byebye/next` | `withIdeByebye(nextConfig)` — Turbopack + webpack, see [Next.js](#nextjs). |
+| **Turbopack** (rules only) | `ide-byebye/turbopack` | For `turbopack.rules`; bootstrap mounted automatically in `next dev`. |
+| **Angular CLI** | `ide-byebye/angular` | `proxyConfig` + dev `scripts`, see [Angular](#angular-cli). |
+| **Mako** (Umi) | `ide-byebye/mako` | Path injection only (`data-insp-path`); mount the bootstrap yourself. |
 
 ```js
 // webpack.config.js
@@ -186,11 +248,42 @@ ideByebye({
 > Default export and named export `codeIntentInspectorPlugin` are the same
 > (Vite). Use whichever you prefer.
 
-### Vue
+## Framework support
 
-DOM → source mapping works for Vue 2/3 SFCs via code-inspector. Prompt context
-for `.vue` is best-effort (template line slice, not a full Vue AST). JSX/TSX
-still get the richer AST path. See [`demo/vue`](./demo/vue).
+What the prompt references is the picked element's exact source range, located
+with each framework's own parser:
+
+| Framework | Element → source | Source context |
+| --- | --- | --- |
+| React / Preact / Solid (JSX) | `data-insp-path` (code-inspector) | oxc AST: element, enclosing component, imports |
+| Vue 2.7 / 3 SFC | `data-insp-path` | `@vue/compiler-dom` AST — the same parser code-inspector stamps with, so ranges are exact (multi-line tags, `>` in bindings, same-name nesting, slots); pug templates fall back to a line window |
+| Svelte 3 / 4 / 5 | `data-insp-path` | your project's `svelte/compiler` AST |
+| Angular | Angular dev-mode component info | your `@angular/compiler` template AST + element matching ([details](#angular-cli)) |
+
+SSR frameworks render their own HTML, so the bootstrap rides on a module every
+page already loads:
+
+| Framework | Setup | Verified |
+| --- | --- | --- |
+| Next.js | [`ide-byebye/next`](#nextjs) | 14.2 / 15.2 / 16.3 — Turbopack & webpack, App & Pages Router |
+| Nuxt | `vite: { plugins: [inspector()] }` in `nuxt.config` | Nuxt 4.5 |
+| SvelteKit | `plugins: [inspector(), sveltekit()]` in `vite.config` | Kit 2 + Svelte 5 |
+| SolidStart / Astro / React Router / Vike / … | the Vite plugin, as usual | same mechanism, not individually tested |
+| Angular CLI | [`ide-byebye/angular`](#angular-cli) | Angular 22 |
+
+```ts
+// nuxt.config.ts
+import inspector from 'ide-byebye/vite';
+
+export default defineNuxtConfig({ vite: { plugins: [inspector()] } });
+```
+
+For Vite-based frameworks the JS bootstrap is appended to `/@vite/client`; SPA
+pages still get the HTML tags (the JS path then does nothing). The project root
+is the package that owns Vite's `root` — Nuxt 4 points `root` at `app/` — so
+references read `app/app.vue #9-13`, relative to the folder agents open. For JSX
+frameworks (React, Solid, Preact) register `inspector()` before the framework
+plugin.
 
 ## Demo
 
@@ -209,8 +302,10 @@ Hold ⌘ and click any element to open the intent dialog. Details:
 
 ## Requirements
 
-- **Bundler** — Vite `>=4`, webpack `>=5`, rspack, rsbuild, esbuild, or Farm for
-  full zero-config. Turbopack / Mako only inject `data-insp-path`.
+- **Bundler** — Vite `>=4`, webpack `>=5`, rspack, rsbuild, esbuild, Farm,
+  Next.js `>=14.2` (Turbopack or webpack) or the Angular CLI. Mako only injects
+  `data-insp-path`. Svelte / Angular context uses the compiler installed in your
+  project.
 - **`code-inspector-plugin`** — registered by the adapters above; no manual setup.
 - **Footer agents** — Codex App / Claude App / Cursor / Grok Build open via the
   OS default (`open` on macOS, `cmd /c start` on Windows, `xdg-open` on Linux).
@@ -405,6 +500,14 @@ ideByebye({
 | **Type** | `string[]` |
 | **Default** | scan `outdir` for `*.html`, or `index.html` next to `outfile` |
 | **Set to** | Explicit HTML paths to inject the bootstrap into when they are not under `outdir`. |
+
+#### `root` (Next.js / Angular only)
+
+| | |
+| --- | --- |
+| **Type** | `string` |
+| **Default** | Next.js: the folder of the `next.config.*` that calls `withIdeByebye`; Angular: `process.cwd()` of `ng serve` |
+| **Set to** | The project directory, when the default is not where `app/` / `pages/` (Next.js) or `angular.json` (Angular) live. |
 
 ### Agents
 
@@ -624,6 +727,7 @@ Written under `outputDir` (default `.intent-inspector/`):
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + prompt for `grok --verbatim`. |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | Event stream + still (when recording is used). |
 | screenshot artifacts | Referenced by the prompt. |
+| `next/bootstrap.js` (+ `.gitignore`) | Generated `'use client'` bootstrap for `next dev`; rewritten on every start, never committed. |
 
 Prompt order: `@code` refs → **Rendered styles** (if attached) → intent.
 Absolute source paths in captured styles are kept out of deeplink prompt text.
@@ -652,9 +756,12 @@ ideByebye({ locale: 'en' });
 ## Security & privacy
 
 - **Dev-only** — adapters skip production (Vite `apply: 'serve'`, webpack
-  `mode === 'production'`, etc.).
+  `mode === 'production'`, Next.js: only the `next dev` server process,
+  Angular: only `ng serve`'s proxy config).
 - **Token-gated** — every request carries a per-process token; browser hits
-  `127.0.0.1`, not your app origin.
+  `127.0.0.1`, not your app origin. The only route that hands the token out is
+  Angular's `/session` (created by `angularProxy` only): it answers same-origin
+  page fetches on a local `Host` only, as non-executable JSON.
 - **Project-rooted** — file writes stay inside the project; the deeplink only
   carries what you chose to send.
 - **Ignore artifacts** — put `.intent-inspector/` (or your `outputDir`) in
@@ -671,9 +778,10 @@ npm run build    # regenerate dist/
 npm test         # node:test suite
 ```
 
-Layout: `src/client/` (browser), `src/server/` (loopback server + agents),
-`src/shared/` (isomorphic helpers), `plugin.js` (unplugin factory),
-`scripts/build-single-file.js`.
+Layout: `src/client/` (browser), `src/server/` (loopback server + agents;
+`ast/` per-framework locators, `next/` and `angular/` integrations),
+`src/shared/` (isomorphic helpers), `src/plugin.ts` (unplugin factory),
+`scripts/build-single-file.ts`.
 
 ## License
 

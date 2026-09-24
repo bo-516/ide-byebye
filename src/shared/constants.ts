@@ -9,6 +9,10 @@ export const ENDPOINTS = {
     resolve: `${ROUTE_PREFIX}/resolve`,
     send: `${ROUTE_PREFIX}/send`,
     vendor: `${ROUTE_PREFIX}/vendor`,
+    /** Token-guarded liveness probe (Next.js bootstrap files check whether the server they point at is alive). */
+    ping: `${ROUTE_PREFIX}/ping`,
+    /** Same-origin session handoff for the Angular CLI bootstrap (only on runtimes created by `angularProxy`). */
+    session: `${ROUTE_PREFIX}/session`,
 };
 /** Header carrying the per-session dev token. */
 export const TOKEN_HEADER = 'x-intent-inspector-token';

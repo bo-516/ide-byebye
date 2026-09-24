@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
+    resolvePackageRoot,
     findNearestGitRoot,
     resolveDefaultWorkspaceDir,
     resolveDefaultWorkspaceName,
@@ -101,4 +102,30 @@ test('resolveDefaultWorkspaceDir uses nearest git root basename for the workspac
 test('workspaceNameFromDir strips .code-workspace suffix', () => {
     assert.equal(workspaceNameFromDir('/tmp/workspaces/example.code-workspace'), 'example');
     assert.equal(workspaceNameFromDir('/tmp/workspaces/plain'), 'plain');
+});
+
+test('resolvePackageRoot climbs from a source dir (Nuxt 4 `app/`) to the owning package', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cii-pkg-root-'));
+    try {
+        fs.writeFileSync(path.join(root, 'package.json'), '{}');
+        const appDir = path.join(root, 'app/pages');
+        fs.mkdirSync(appDir, { recursive: true });
+        assert.equal(resolvePackageRoot(path.join(root, 'app')), root);
+        assert.equal(resolvePackageRoot(appDir), root);
+        assert.equal(resolvePackageRoot(root), root);
+    }
+    finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('resolvePackageRoot keeps the start dir when no package.json exists above it', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cii-no-pkg-'));
+    try {
+        // os.tmpdir() has no package.json above it on a normal machine.
+        assert.equal(resolvePackageRoot(dir), path.resolve(dir));
+    }
+    finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
 });

@@ -1,6 +1,7 @@
 import { INSP_PATH_ATTR, PLUGIN_NODE_ATTR } from '../../shared/constants.js';
 import { collapseWhitespace, truncateSnippet } from '../../shared/util.js';
 import { DEFAULT_MAX_TEXT_SNIPPET } from '../../shared/constants.js';
+import { angularComponentOf, angularLocationLabel, angularSelection } from './angular-source.js';
 /** True if the node belongs to the plugin's own UI. */
 export function isPluginNode(el) {
     return !!(el && el.closest && el.closest(`[${PLUGIN_NODE_ATTR}]`));
@@ -8,7 +9,9 @@ export function isPluginNode(el) {
 /**
  * Walk up from the event target to the nearest element carrying a
  * `data-insp-path`, then promote it to the outermost ancestor occupying
- * (almost) the same box. Returns null if none is found or the target is plugin UI.
+ * (almost) the same box. In Angular dev builds (no stamped attributes) the target
+ * itself is inspectable when Angular knows its owning component. Returns null if
+ * none is found or the target is plugin UI.
  */
 export function findInspectableElement(target) {
     if (!(target instanceof HTMLElement))
@@ -16,7 +19,23 @@ export function findInspectableElement(target) {
     if (isPluginNode(target))
         return null;
     const found = target.closest(`[${INSP_PATH_ATTR}]`);
-    return found instanceof HTMLElement ? promoteToOuterSameSizeElement(found) : null;
+    if (found instanceof HTMLElement)
+        return promoteToOuterSameSizeElement(found);
+    return angularComponentOf(target) ? target : null;
+}
+
+/**
+ * Source location string for labelling an inspectable element (hover overlay).
+ *
+ * Boundary: the stamped `data-insp-path` wins; Angular elements get their component's `file:line` (cheap enough for
+ * mousemove — the unique per-element path is built by {@link collectSelection} at pick time); anything else yields
+ * `''` (callers treat it as "no mapping").
+ *
+ * @param {Element} el Inspectable element.
+ * @returns {string} `data-insp-path`-shaped location, or `''`.
+ */
+export function inspPathOf(el) {
+    return el.getAttribute(INSP_PATH_ATTR) || angularLocationLabel(el) || '';
 }
 // How far the same-size promotion climbs. Sub-pixel epsilon only absorbs layout rounding (LayoutUnit / zoom),
 // it is NOT a design tolerance — any real gap (padding, margin) breaks the chain.
@@ -100,11 +119,19 @@ export function buildDomPath(el, maxDepth = 6) {
     }
     return segments.join(' > ');
 }
-/** Collect the DOM summary that travels to the server. */
+/**
+ * Collect the DOM summary that travels to the server.
+ *
+ * Boundary: Angular elements (no stamped attribute) also carry `angular`, the owner-declared ancestor hint the server
+ * matches against the component template; stamped elements never send it.
+ */
 export function collectSelection(el, maxHtml) {
     const text = (el.innerText || el.textContent || '').trim();
+    const stamped = el.getAttribute(INSP_PATH_ATTR);
+    const angular = stamped ? null : angularSelection(el);
     return {
-        inspPath: el.getAttribute(INSP_PATH_ATTR) ?? '',
+        inspPath: stamped ?? angular?.inspPath ?? '',
+        ...(angular ? { angular: angular.hint } : {}),
         tagName: el.tagName.toLowerCase(),
         id: el.id || undefined,
         className: classList(el),
