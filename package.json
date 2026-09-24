@@ -1,6 +1,6 @@
 {
   "name": "ide-byebye",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Dev plugin for Vite / webpack / rspack / rsbuild / esbuild / Farm, Next.js (Turbopack + webpack) and the Angular CLI: ⌘-click any rendered element (React, Vue, Svelte, Solid, Angular; Next.js, Nuxt, SvelteKit), describe the change in plain words, and hand the element's source + your intent to Codex App / Claude App / Cursor / Grok Build — no hunting through the IDE.",
   "type": "module",
   "license": "MIT",
