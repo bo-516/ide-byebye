@@ -184,8 +184,30 @@ export interface RecordingOptions {
 }
 
 /**
- * Extra options forwarded to `code-inspector-plugin`.
- * Do **not** pass `bundler` — each adapter sets it.
+ * Tag the stamper skips, in addition to the built-in list.
+ * A string matches case-insensitively. A RegExp is tested against the tag and its lowercased form.
+ */
+export type EscapeTag = string | RegExp;
+
+/**
+ * Which files receive `data-insp-path`.
+ * Omit the object (or pass nothing) to stamp. `false` turns stamping off.
+ */
+export interface SourceStampOptions {
+  /**
+   * Paths to stamp even under `node_modules`.
+   * A string matches as a substring; a RegExp is tested against the module id.
+   */
+  include?: string | RegExp | Array<string | RegExp>;
+  /** Extra paths to skip. `/node_modules/` is always skipped unless `include` matches. */
+  exclude?: string | RegExp | Array<string | RegExp>;
+  /** Appended to the built-in escape tags. Strings are case-insensitive. */
+  escapeTags?: EscapeTag[];
+}
+
+/**
+ * Legacy code-inspector options.
+ * @deprecated 0.6.0 — only `include`, `exclude`, `escapeTags`, and `close` are mapped onto `sourceStamp`. Removed in 0.7.0.
  */
 export type CodeInspectorOptions = Record<string, unknown>;
 
@@ -240,8 +262,13 @@ export interface IdeByebyeOptions {
   /** Per-agent enable / overrides, plus `custom` clients. Default `{}` (all six built-in agents on). */
   agents?: AgentsOptions;
   /**
-   * Extra options for `code-inspector-plugin` (no `bundler`).
-   * Defaults include `pathType: 'absolute'`, `hotKeys: false`, …
+   * Built-in `data-insp-path` stamping. Default on.
+   * `false` stamps nothing and warns nothing (bring your own code-inspector if you need the old pipeline).
+   */
+  sourceStamp?: false | SourceStampOptions;
+  /**
+   * @deprecated 0.6.0 — mapped onto {@link sourceStamp}: `include`, `exclude`, `escapeTags`, and `close: true`.
+   * Other keys are ignored. One deprecation warning per process. Removed in 0.7.0.
    */
   codeInspector?: CodeInspectorOptions;
   /**

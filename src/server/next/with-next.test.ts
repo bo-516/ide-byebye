@@ -132,12 +132,15 @@ test('mergeTurbopackRules targets experimental.turbo on older Next and warns on 
     assert.equal(warnings.length, 1);
 });
 
-test('buildTurbopackRules puts the entry loader first in every code-inspector rule', () => {
+test('buildTurbopackRules orders loaders [entry, stamp] and the stamp options are JSON', () => {
     const rules: any = withNodeEnv('development', () => buildTurbopackRules({}, FAKE_INSPECTOR));
+    assert.ok(Object.keys(rules).length >= 1);
     for (const rule of Object.values(rules) as any[]) {
         const loaders = Array.isArray(rule) ? rule : rule.loaders;
         assert.match(loaders[0].loader, /entry-loader\.js$/);
+        assert.match(loaders[1].loader, /stamp-loader\.js$/);
         assert.deepEqual(loaders[0].options, { bootstrapFile: FAKE_INSPECTOR.bootstrapFile, projectDir: '/work/app' });
+        assert.deepEqual(JSON.parse(JSON.stringify(loaders[1].options)), loaders[1].options);
     }
 });
 
@@ -149,19 +152,25 @@ test('typed rules (Next 14) emit one rule per JSX extension with a matching `as`
     assert.equal(rules['**/{app,pages}/**/*.{js,mjs}'].as, undefined);
     for (const rule of Object.values(rules) as any[]) {
         assert.match(rule.loaders[0].loader, /entry-loader\.js$/);
-        assert.ok(rule.loaders.length > 1, 'code-inspector loaders follow the entry loader');
+        assert.match(rule.loaders[1].loader, /stamp-loader\.js$/);
+        assert.equal(rule.loaders.length, 2);
     }
 });
 
-test('wrapWebpack adds code-inspector and the entry rule only for dev compilations, using context.dir', () => {
+test('wrapWebpack adds a pre stamp rule and the entry rule only for dev compilations, using context.dir', () => {
     const hook = wrapWebpack(undefined, {}, FAKE_INSPECTOR);
     const prod = hook({ plugins: [], module: { rules: [] } }, { dev: false });
     assert.equal(prod.plugins.length, 0);
-    const dev = hook({ plugins: ['next'], module: { rules: ['next-rule'] } }, { dev: true, isServer: false, dir: '/work/other' });
-    assert.equal(dev.plugins[0], 'next');
-    assert.equal(typeof dev.plugins[1].apply, 'function');
-    const entryRule = dev.module.rules[1];
+    assert.equal(prod.module.rules.length, 0);
+    const dev = hook({ plugins: ['next'], module: { rules: ['next-rule'] }, cache: { type: 'filesystem', version: 'v1' } }, { dev: true, isServer: false, dir: '/work/other' });
+    assert.deepEqual(dev.plugins, ['next']);
+    assert.equal(dev.cache.version, 'v1');
     assert.equal(dev.module.rules[0], 'next-rule');
+    const stampRule = dev.module.rules[1];
+    assert.equal(stampRule.enforce, 'pre');
+    assert.match(stampRule.use[0].loader, /stamp-loader\.js$/);
+    assert.deepEqual(JSON.parse(JSON.stringify(stampRule.use[0].options)), stampRule.use[0].options);
+    const entryRule = dev.module.rules[2];
     assert.ok(entryRule.test.test('layout.tsx') && !entryRule.test.test('styles.css'));
     assert.ok(entryRule.exclude.test('/x/node_modules/y.js'));
     assert.deepEqual(entryRule.use[0].options, {

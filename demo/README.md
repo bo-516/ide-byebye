@@ -9,7 +9,7 @@ Multi-app / multi-bundler playground for **ide-byebye** (code-intent-inspector).
 
 Trigger the inspector by **holding ⌘ (Command) and clicking any element** (or `Alt+Shift+I` then click).
 
-> Vue source mapping works via `code-inspector-plugin` (`data-insp-path` on rendered DOM). Prompt context for `.vue` SFCs comes from `@vue/compiler-dom` — the same parser code-inspector stamps with — so the `@file #range` handed to the agent is the picked element's exact span.
+> Vue source mapping comes from the built-in stamper (`data-insp-path` on rendered DOM). Prompt context for `.vue` SFCs comes from the project's `@vue/compiler-dom`, so the `@file #range` handed to the agent is the picked element's exact span.
 
 ## Run
 

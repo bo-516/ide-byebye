@@ -7,8 +7,7 @@ import { createInspectorRequestHandler } from './routes.js';
  * Purpose: this is the bundler-agnostic transport layer. Instead of mounting the inspector routes on the host
  * bundler's dev server (which only Vite exposes as connect middleware), each bundler adapter only injects a bootstrap
  * `<script>` carrying this server's absolute `origin`, and the browser talks to this server cross-origin. That keeps the
- * Vite / webpack / rspack adapters thin and identical at the transport level (the same pattern `code-inspector-plugin`
- * uses for its multi-bundler support).
+ * Vite / webpack / rspack adapters thin and identical at the transport level: loopback only, token on every route.
  *
  * Boundary: binds to `127.0.0.1` on an ephemeral port (`listen(0)`) so it never collides with the app's dev server and
  * is unreachable off-loopback; the per-request token guard in {@link createInspectorRequestHandler} still gates the API

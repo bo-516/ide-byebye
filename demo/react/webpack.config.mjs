@@ -34,7 +34,7 @@ export default {
   },
   plugins: [
     new HtmlWebpackPlugin({ template: './webpack.html' }),
-    // Zero-config: registers code-inspector + injects bootstrap into emitted HTML.
+    // Zero-config: stamps data-insp-path + injects bootstrap into emitted HTML.
     inspector(),
   ],
   devServer: {

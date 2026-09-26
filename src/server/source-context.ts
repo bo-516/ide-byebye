@@ -66,7 +66,7 @@ const LOCATOR_FIELDS = [
 function runLocator(language, input) {
     const { file, code, line, column, maxContextLines, maxComponentLines } = input;
     if (language === 'vue')
-        return extractVueFromCode(code, line, column, maxComponentLines, extractJsxFromCode);
+        return extractVueFromCode(code, line, column, maxComponentLines, extractJsxFromCode, file);
     if (language === 'svelte')
         return extractSvelteFromCode(code, line, column, maxComponentLines, file);
     return extractJsxFromCode(code, line, column, maxContextLines, maxComponentLines);

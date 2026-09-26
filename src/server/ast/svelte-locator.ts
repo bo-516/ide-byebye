@@ -1,8 +1,8 @@
 /**
  * Svelte component locate + extract for intent source context.
  *
- * Purpose: resolve a `data-insp-path` hit in a `.svelte` file to the exact markup element. code-inspector stamps each
- * element with the line/column of its `<`; the project's own `svelte/compiler` gives every element an absolute
+ * Purpose: resolve a `data-insp-path` hit in a `.svelte` file to the exact markup element. The built-in stamper writes
+ * the line/column of each element's `<`; the project's own `svelte/compiler` gives every element an absolute
  * `start` offset at that same `<`, so the match is exact for Svelte 3, 4 and 5 (legacy or modern AST).
  *
  * Boundary: no fs reads of the component itself (the caller passes `code`); the compiler is resolved from the
@@ -10,7 +10,7 @@
  * and the caller keeps its line-window fallback.
  */
 
-import { createRequire } from 'node:module';
+import { requireFromProject } from './project-module.js';
 import { buildLineStartOffsets, lineColumnFromOffset } from './line-offsets.js';
 import { extractScriptImports, scriptLangFromAttr } from './script-imports.js';
 import { importFields, pickTemplateHit, templateHitFields, templateOffset, type ElementSpan } from './template-hit.js';
@@ -27,36 +27,19 @@ const SVELTE_ELEMENT_TYPES = new Set([
     'SlotElement', 'TitleElement', 'SvelteBoundary',
 ]);
 
-/** Compilers keyed by resolved `svelte/compiler` path (`null` = not resolvable from that location). */
-const compilerCache = new Map<string, { parse: Function } | null>();
-
 /**
  * Resolve and load the project's `svelte/compiler` for a component file.
  *
- * Boundary: Svelte 5 exposes a CommonJS build under the `require` condition, Svelte 3/4 are CommonJS already, so a
- * synchronous `createRequire` works for all of them. Failures are cached per file directory lookup key.
+ * Boundary: shared with the stamper via {@link requireFromProject}. Svelte 5's `require` condition is CommonJS,
+ * and Svelte 3/4 already are, so a synchronous require works. A missing package returns null (cached per directory).
  *
  * @param {string} file Absolute path of the `.svelte` file being inspected.
  * @returns {{ parse: Function } | null} Compiler module, or `null` when Svelte is not installed for that file.
  */
 function loadSvelteCompiler(file: string) {
-    let resolved: string;
-    try {
-        resolved = createRequire(file).resolve('svelte/compiler');
-    }
-    catch {
-        return null;
-    }
-    if (!compilerCache.has(resolved)) {
-        try {
-            const mod = createRequire(file)(resolved);
-            compilerCache.set(resolved, typeof mod?.parse === 'function' ? mod : null);
-        }
-        catch {
-            compilerCache.set(resolved, null);
-        }
-    }
-    return compilerCache.get(resolved);
+    const mod = requireFromProject<any>(file, 'svelte/compiler');
+    const parse = mod?.parse ?? mod?.default?.parse;
+    return typeof parse === 'function' ? { parse } : null;
 }
 
 /**

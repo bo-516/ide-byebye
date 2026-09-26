@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { codeInspectorPlugin } from 'code-inspector-plugin';
 import { CLIENT_CONFIG_GLOBAL, ENDPOINTS, ROUTE_PREFIX } from '../shared/constants.js';
 import { resolveOptions } from './config.js';
 import { buildRegistry } from './agents/build.js';
@@ -10,33 +9,10 @@ import { createLogger } from './logger.js';
 import { createInspectorServer } from './inspector-server.js';
 import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
 import { loadClientCode } from './client-code.js';
-import { buildBootstrapStatement } from './bootstrap-script.js';
+import { buildBootstrapStatement, consoleFilterSnippet } from './bootstrap-script.js';
+import { stampUnplugin } from './stamp/stamp-unplugin.js';
 
 export const PLUGIN_NAME = 'code-intent-inspector';
-
-/**
- * Build the zero-config option set forwarded to `code-inspector-plugin`.
- *
- * Purpose: `code-inspector-plugin` injects the `data-insp-path` attribute we read back to resolve a clicked element to
- * its source. Safe defaults disable code-inspector's own jump-to-source / copy hotkeys so they never clash with our
- * ⌘/ctrl-click gesture, and emit absolute source paths.
- *
- * Boundary: `bundler` is intentionally NOT set here — each adapter fills it from the bundler it runs under. Everything
- * is overridable through `options.codeInspector`; passing `behavior` there is shallow-merged over the defaults.
- *
- * @param {Record<string, unknown>} options Raw plugin options; only `options.codeInspector` is consulted.
- * @returns {Record<string, unknown>} Options for `codeInspectorPlugin`, minus `bundler`.
- */
-export function codeInspectorDefaults(options: any = {}) {
-    const user = (options && typeof options.codeInspector === 'object' && options.codeInspector) || {};
-    const { behavior: userBehavior, ...restUser } = user;
-    return {
-        pathType: 'absolute',
-        hotKeys: false,
-        ...restUser,
-        behavior: { locate: false, copy: false, defaultAction: 'target', ...(userBehavior || {}) },
-    };
-}
 
 /**
  * Describe the configured custom prompt-delivery clients for the browser footer.
@@ -111,7 +87,7 @@ function makeClientConfig(resolved, registry, token, origin) {
  *   injectionTags: () => Promise<Array<Record<string, unknown>>>,
  *   injectionHtml: () => Promise<string>,
  *   bootstrapStatement: () => Promise<string>,
- *   registerCodeInspectorOnCompiler: (compiler: object, bundler: 'webpack' | 'rspack') => void,
+ *   registerStampOnCompiler: (compiler: object, bundler: 'webpack' | 'rspack') => void,
  *   projectRoot: () => string,
  *   outputDirAbs: () => string,
  * }} Shared runtime used by every bundler adapter.
@@ -233,14 +209,14 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
         };
     }
 
-    /** Vite / rsbuild tag-descriptor form: config global + module script that loads client.js. */
+    /** Vite / rsbuild tag-descriptor form: console filter + config global + module script that loads client.js. */
     async function injectionTags() {
         const { config, clientSrc } = await clientBootstrap();
         return [
             {
                 tag: 'script',
                 injectTo: 'head',
-                children: `window.${CLIENT_CONFIG_GLOBAL}=${JSON.stringify(config)};`,
+                children: `${consoleFilterSnippet()}\nwindow.${CLIENT_CONFIG_GLOBAL}=${JSON.stringify(config)};`,
             },
             {
                 tag: 'script',
@@ -270,15 +246,21 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
     }
 
     /**
-     * Apply code-inspector for a webpack-like compiler (`apply`) or an esbuild plugin (`setup`).
-     * Failures are logged and swallowed so a missing peer never crashes the host bundler.
+     * Register the built-in stamp transform on a webpack or rspack compiler.
+     *
+     * Boundary: does not touch `compiler.options.cache`. A failure is logged and swallowed so the host build
+     * continues; the page then shows elements without `data-insp-path`.
+     *
+     * @param {object} compiler webpack or rspack compiler.
+     * @param {'webpack' | 'rspack'} bundler Which unplugin adapter to apply.
      */
-    function registerCodeInspectorOnCompiler(compiler, bundler) {
+    function registerStampOnCompiler(compiler, bundler) {
         try {
-            codeInspectorPlugin({ bundler, ...codeInspectorDefaults(options) }).apply(compiler);
+            const plugin = bundler === 'rspack' ? stampUnplugin.rspack(options) : stampUnplugin.webpack(options);
+            plugin.apply(compiler);
         }
         catch (err) {
-            ctx.logger?.warn?.(`code-inspector (${bundler}) not applied: ${err instanceof Error ? err.message : String(err)}`);
+            ctx.logger?.warn?.(`source stamp (${bundler}) not applied: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 
@@ -295,7 +277,7 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
         injectionTags,
         injectionHtml,
         bootstrapStatement,
-        registerCodeInspectorOnCompiler,
+        registerStampOnCompiler,
         projectRoot() {
             return ctx.projectRoot;
         },

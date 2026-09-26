@@ -20,7 +20,7 @@ export const TOKEN_HEADER = 'x-intent-inspector-token';
 export const CLIENT_CONFIG_GLOBAL = '__CODE_INTENT_INSPECTOR__';
 /** Marker attribute set on every node owned by the plugin's own UI. */
 export const PLUGIN_NODE_ATTR = 'data-intent-inspector-ui';
-/** The attribute injected by code-inspector-plugin we read back. */
+/** The attribute the built-in stamper writes and the picker reads back. */
 export const INSP_PATH_ATTR = 'data-insp-path';
 export const DEFAULT_HOTKEY = 'Alt+Shift+I';
 export const DEFAULT_OUTPUT_DIR = '.intent-inspector';

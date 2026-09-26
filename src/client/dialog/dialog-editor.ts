@@ -311,7 +311,7 @@ export function createDialogEditor(options: any = {}) {
          * hasReference(inspPath): whether a supplementary reference for that source already exists in the editor.
          * Boundary: only looks at mentions inside the contenteditable; the primary selection is not counted.
          *
-         * @param {string} inspPath The `data-insp-path` injected by code-inspector.
+         * @param {string} inspPath The `data-insp-path` written by the built-in stamper.
          * @returns {boolean}
          */
         hasReference(inspPath) {

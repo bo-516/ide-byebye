@@ -49,16 +49,14 @@ const OPTIONAL_AGENT_EXTERNALS = [
 /**
  * Bundler-integration packages that must stay external to the single-file plugin.
  *
- * Boundary: `unplugin` and `code-inspector-plugin` are the multi-bundler runtime deps. `code-inspector-plugin` resolves
- * its own per-bundler sub-packages through dynamic requires, so inlining it into one file is fragile and huge. Keeping
- * them external means the single-file artifact still needs them installed (`npm i unplugin code-inspector-plugin`),
- * which npm consumers already get as declared dependencies.
+ * Boundary: `unplugin` is the multi-bundler runtime dep. Keeping it external means the single-file artifact still
+ * needs it installed, which npm consumers already get as a declared dependency. Stamping is inlined except for
+ * `oxc-parser` (listed with the native externals).
  *
  * @type {string[]} Package names kept as external imports in the single-file Node bundle.
  */
 const BUNDLER_RUNTIME_EXTERNALS = [
     'unplugin',
-    'code-inspector-plugin',
 ];
 
 /**

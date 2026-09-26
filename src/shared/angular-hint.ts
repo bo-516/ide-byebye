@@ -1,7 +1,7 @@
 /**
  * Angular element hint: what the browser tells the server about a picked element in an Angular dev build.
  *
- * Purpose: Angular templates carry no `data-insp-path` (code-inspector cannot stamp them), but Angular dev mode knows
+ * Purpose: Angular templates carry no `data-insp-path` (the stamper does not touch them), but Angular dev mode knows
  * each element's owning component and that component's source file. The browser sends that location plus a compact
  * description of the element and its ancestors declared in the same template; the server matches it against the
  * template AST. Shared so both sides agree on field names and size limits.

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import vm from 'node:vm';
 import { CLIENT_CONFIG_GLOBAL } from '../shared/constants.js';
-import { buildBootstrapStatement } from './bootstrap-script.js';
+import { buildBootstrapStatement, consoleFilterSnippet } from './bootstrap-script.js';
 import { isViteClientModule } from './vite-client.js';
 
 /**
@@ -59,6 +59,25 @@ test('is inert on the server (no window / document)', () => {
     const context = vm.createContext({});
     assert.doesNotThrow(() => vm.runInContext(statement('t1'), context));
     assert.equal(context[CLIENT_CONFIG_GLOBAL], undefined);
+});
+
+test('console filter installs once, drops data-insp-path warnings, and keeps other warnings', () => {
+    const warnings = [];
+    const errors = [];
+    const origWarn = () => warnings.push('kept');
+    const origError = () => errors.push('kept');
+    const { context } = browser();
+    context.console = { warn: origWarn, error: origError };
+    vm.runInContext(consoleFilterSnippet(), context);
+    const wrappedWarn = context.console.warn;
+    vm.runInContext(consoleFilterSnippet(), context);
+    assert.equal(context.console.warn, wrappedWarn, 'second install does not wrap again');
+    context.console.warn('Extraneous non-props attributes (data-insp-path) were passed');
+    context.console.warn('unrelated');
+    context.console.error('data-insp-path leaked', 'more');
+    context.console.error('fine', 1, { data: true });
+    assert.deepEqual(warnings, ['kept']);
+    assert.deepEqual(errors, ['kept']);
 });
 
 test('isViteClientModule matches only Vite browser client entries', () => {

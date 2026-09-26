@@ -81,9 +81,8 @@ Or install it yourself in [Install](#install) / [Quick start](#quick-start).
 ## How it works
 
 1. **Pick** — hotkey (default `Alt+Shift+I`) or hold `clickModifier` (⌘ / Ctrl)
-   and click. Source comes from `data-insp-path` injected by
-   [`code-inspector-plugin`](https://github.com/zh-lx/code-inspector) (Angular:
-   from Angular's dev-mode component debug info).
+   and click. Source comes from `data-insp-path` written by the built-in stamper
+   (Angular: from Angular's dev-mode component debug info).
 2. **Describe** — intent dialog opens on the element. Optionally add `@code`
    refs, screenshots, computed styles, or an interaction recording.
 3. **Hand off** — click **Codex App / Claude App / Cursor / Grok Build**. The
@@ -98,11 +97,12 @@ a module every page already loads (`/@vite/client`, a Next.js root layout /
 ## Install
 
 ```sh
-npm i -D ide-byebye code-inspector-plugin
+npm i -D ide-byebye
 ```
 
-`code-inspector-plugin` is a dependency (also listed so you can pin it). Without
-it, elements have no source mapping and the picker shows *"no source mapping"*.
+That is the only install. JSX is stamped with `oxc-parser`. Vue templates use the
+`@vue/compiler-dom` already in a Vue 3 app (Vue 2.7: `npm i -D @vue/compiler-dom`).
+Pug templates need `pug`. Svelte uses the project's `svelte`.
 
 Optional — element-behavior recording (off by default, lazy-loaded):
 
@@ -124,7 +124,7 @@ import ideByebye from 'ide-byebye';       // same as 'ide-byebye/vite'
 
 export default defineConfig({
   plugins: [
-    // Zero-config: registers code-inspector, ⌘/Ctrl-click pick,
+    // Zero-config: built-in source stamps, ⌘/Ctrl-click pick,
     // all footer agents + clipboard/file, recording off, Enter → Claude App.
     ideByebye(),
     react(),
@@ -197,7 +197,7 @@ Import the matching subpath — **never** pass a `bundler` string yourself:
 | **rspack** | `ide-byebye/rspack` | Same shape as webpack. |
 | **rsbuild** | `ide-byebye/rsbuild` | `plugins: [inspector()]`. |
 | **esbuild** | `ide-byebye/esbuild` | Pass `htmlFiles: ['./index.html']` if HTML is not in `outdir`. |
-| **Farm** | `ide-byebye/farm` | Returns `[codeInspector, inspector]` — spread into Farm plugins. |
+| **Farm** | `ide-byebye/farm` | Returns `[stamp, inspector]` — spread into Farm plugins. |
 | **Next.js** | `ide-byebye/next` | `withIdeByebye(nextConfig)` — Turbopack + webpack, see [Next.js](#nextjs). |
 | **Turbopack** (rules only) | `ide-byebye/turbopack` | For `turbopack.rules`; bootstrap mounted automatically in `next dev`. |
 | **Angular CLI** | `ide-byebye/angular` | `proxyConfig` + dev `scripts`, see [Angular](#angular-cli). |
@@ -255,9 +255,9 @@ with each framework's own parser:
 
 | Framework | Element → source | Source context |
 | --- | --- | --- |
-| React / Preact / Solid (JSX) | `data-insp-path` (code-inspector) | oxc AST: element, enclosing component, imports |
-| Vue 2.7 / 3 SFC | `data-insp-path` | `@vue/compiler-dom` AST — the same parser code-inspector stamps with, so ranges are exact (multi-line tags, `>` in bindings, same-name nesting, slots); pug templates fall back to a line window |
-| Svelte 3 / 4 / 5 | `data-insp-path` | your project's `svelte/compiler` AST |
+| React / Preact / Solid (JSX) | `data-insp-path` (built-in stamper) | oxc AST: element, enclosing component, imports |
+| Vue 3 SFC | `data-insp-path` | the project's `@vue/compiler-dom` — exact ranges (multi-line tags, `>` in bindings, same-name nesting, slots). Pug templates are stamped with the project's `pug`; the prompt still uses a line window for pug. Vue 2.7 needs `npm i -D @vue/compiler-dom` |
+| Svelte 3 / 4 / 5 | `data-insp-path` | your project's `svelte/compiler` AST, including Svelte 5 `{#snippet}` / `{@render}` |
 | Angular | Angular dev-mode component info | your `@angular/compiler` template AST + element matching ([details](#angular-cli)) |
 
 SSR frameworks render their own HTML, so the bootstrap rides on a module every
@@ -302,11 +302,11 @@ Hold ⌘ and click any element to open the intent dialog. Details:
 
 ## Requirements
 
+- **Node** — `^20.19.0` or `>=22.12.0`.
 - **Bundler** — Vite `>=4`, webpack `>=5`, rspack, rsbuild, esbuild, Farm,
   Next.js `>=14.2` (Turbopack or webpack) or the Angular CLI. Mako only injects
-  `data-insp-path`. Svelte / Angular context uses the compiler installed in your
-  project.
-- **`code-inspector-plugin`** — registered by the adapters above; no manual setup.
+  `data-insp-path`. Vue, pug, and Svelte stamping use the compiler installed in
+  your project. `.astro` and `.mdx` are not stamped.
 - **Footer agents** — Codex App / Claude App / Cursor / Grok Build open via the
   OS default (`open` on macOS, `cmd /c start` on Windows, `xdg-open` on Linux).
   Windows is zero-config for most setups; override only if the default opener
@@ -355,7 +355,7 @@ Empty call is enough. You get:
 | UI locale | auto (`navigator.language` → else `zh`) |
 | Handoff files | `.intent-inspector/` (**gitignore this** — see [Artifacts](#artifacts)) |
 | Source `@` paths | relative; screenshot / still paths absolute |
-| code-inspector | registered for you (`pathType: 'absolute'`, its own hotkeys off) |
+| Source stamps | on by default (absolute paths). Set `sourceStamp: false` to turn them off |
 
 Override only what you need:
 
@@ -485,13 +485,21 @@ ideByebye({
 | **Default** | `{}` (all six agents **on**) |
 | **Set to** | Per-agent enable / overrides — see [Agents](#agents). Unknown keys are ignored. |
 
-#### `codeInspector`
+#### `sourceStamp`
+
+| | |
+| --- | --- |
+| **Type** | `false \| { include?, exclude?, escapeTags? }` |
+| **Default** | on |
+| **Set to** | `false` turns stamping off (no warning). `include` stamps matching paths even under `node_modules`. `exclude` skips extra paths. `escapeTags` adds tags that are not stamped. |
+
+#### `codeInspector` (deprecated)
 
 | | |
 | --- | --- |
 | **Type** | `object` |
-| **Default** | `{}`, merged with built-in defaults |
-| **Set to** | Extra options forwarded to [`code-inspector-plugin`](https://github.com/zh-lx/code-inspector) (do **not** pass `bundler` — adapters set it). Built-in defaults: `pathType: 'absolute'`, `hotKeys: false`, `behavior: { locate: false, copy: false, defaultAction: 'target' }`. Your `behavior` is shallow-merged on top. |
+| **Default** | — |
+| **Set to** | Deprecated in 0.6.0, removed in 0.7.0. Only `include`, `exclude`, `escapeTags`, and `close: true` (same as `sourceStamp: false`) are mapped. Other keys are ignored and named in one warning. |
 
 #### `htmlFiles` (esbuild only)
 

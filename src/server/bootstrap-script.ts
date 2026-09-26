@@ -19,9 +19,39 @@ import { CLIENT_CONFIG_GLOBAL } from '../shared/constants.js';
  *   URL of the token-guarded client bundle.
  * @returns {string} A self-contained statement (IIFE) with a leading `;` so it can be appended to any module.
  */
+/**
+ * Idempotent page-side filter for Vue's "Extraneous non-props attributes" warning.
+ *
+ * Purpose: a fragment-root component receives `data-insp-path` from its parent and Vue warns.
+ * The first three arguments of `console.warn` / `console.error` are inspected; a string containing
+ * `data-insp-path` drops that call. `__IDE_BYEBYE_CONSOLE__` makes a second install a no-op.
+ *
+ * Boundary: no-ops when `window` is missing, so evaluating the bootstrap on the server does not wrap
+ * Node's console. Unrelated messages still reach the original method.
+ *
+ * @returns {string} Statements safe to prepend to an inline script or the bootstrap IIFE.
+ */
+export function consoleFilterSnippet() {
+    return [
+        'if (typeof window !== "undefined" && window.console && !window.__IDE_BYEBYE_CONSOLE__) {',
+        '  window.__IDE_BYEBYE_CONSOLE__ = 1;',
+        '  ["warn", "error"].forEach(function (method) {',
+        '    var orig = window.console[method];',
+        '    window.console[method] = function () {',
+        '      for (var i = 0; i < 3 && i < arguments.length; i++) {',
+        '        if (typeof arguments[i] === "string" && arguments[i].indexOf("data-insp-path") !== -1) return;',
+        '      }',
+        '      return orig.apply(this, arguments);',
+        '    };',
+        '  });',
+        '}',
+    ].join('\n');
+}
+
 export function buildBootstrapStatement({ config, clientSrc }) {
     return [
         ';(function () {',
+        consoleFilterSnippet(),
         "  if (typeof window === 'undefined' || typeof document === 'undefined') return;",
         `  var key = ${JSON.stringify(CLIENT_CONFIG_GLOBAL)};`,
         `  var next = ${JSON.stringify(config)};`,

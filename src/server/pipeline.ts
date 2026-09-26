@@ -8,7 +8,7 @@ import { normalizeStyles } from './styles.js';
 /**
  * Resolve one browser selection into a validated source selection and context.
  *
- * Boundary: `selection` must carry a `data-insp-path` value from code-inspector-plugin, or the synthetic Angular path
+ * Boundary: `selection` must carry a `data-insp-path` value from the built-in stamper, or the synthetic Angular path
  * plus `selection.angular` hint (normalized and size-capped here; the raw hint never travels further). The path must
  * stay inside the current project root; invalid or out-of-root values throw user-facing errors before any prompt is
  * built.

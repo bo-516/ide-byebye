@@ -5,7 +5,7 @@
  * owns the one rule for turning a `data-insp-path` position into a hit and the one mapping from hit spans to
  * `SourceContext` fields, so each framework locator stays a thin AST adapter.
  *
- * Boundary: pure string math (no parser, no fs). Positions follow code-inspector's convention for template files:
+ * Boundary: pure string math (no parser, no fs). Positions follow the stamper's convention for template files:
  * 1-based line and 1-based column pointing at the element's opening `<`.
  */
 
@@ -19,7 +19,7 @@ export interface ElementSpan {
 }
 
 /**
- * Convert a code-inspector template position (1-based line + column) into an absolute offset.
+ * Convert a stamp template position (1-based line + column) into an absolute offset.
  *
  * Boundary: columns below 1 clamp to the first character of the line, matching `parseInspPath`'s normalization.
  *
@@ -35,7 +35,7 @@ export function templateOffset(lineStartOffsets: number[], line: number, column:
 /**
  * Pick the element a `data-insp-path` position refers to.
  *
- * Purpose: code-inspector stamps each element with the exact position of its opening `<`, so an element starting at
+ * Purpose: the stamper writes each element with the exact position of its opening `<`, so an element starting at
  * `offset` is the answer. The containment and same-line fallbacks only matter when the file changed after the page
  * rendered (stale attribute) — they keep the prompt anchored near the click instead of failing.
  *

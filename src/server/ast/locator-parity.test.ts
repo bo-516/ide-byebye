@@ -1,27 +1,26 @@
 /**
- * Parity between code-inspector's stamped `data-insp-path` positions and our locators.
+ * Parity between the built-in stamper's `data-insp-path` positions and our locators.
  *
- * Purpose: the locators are only correct if every position code-inspector emits resolves to the element it was
- * stamped on. This runs code-inspector's own `transformCode` over Vue / Svelte / JSX fixtures, then feeds each stamped
- * `file:line:column:tag` back through `extractSourceContext`.
+ * Purpose: every stamped element must resolve through `extractSourceContext` to a slice that starts with that
+ * element's own tag. Fixtures are written under the package root (not `node_modules`, which the stamper skips)
+ * so Vue and Svelte compilers resolve the way they do in a real project.
  *
- * Boundary: test-only coupling to `@code-inspector/core` (resolved through `code-inspector-plugin`, the declared
- * dependency). Fixtures are written under this package's `node_modules/.cache` because `transformCode` skips files
- * that do not exist, and `svelte/compiler` must resolve from the fixture location like it would in a real project.
+ * Boundary: drives `stampModule`, the same function the bundler plugins call.
  */
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { parseInspPath } from '../insp-path.js';
 import { extractSourceContext } from '../source-context.js';
+import { elementTable } from '../stamp/element-table.js';
+import { stampModule } from '../stamp/stamp-module.js';
+import { resolveStampOptions } from '../stamp/stamp-options.js';
 
-const requireFromPlugin = createRequire(createRequire(import.meta.url).resolve('code-inspector-plugin'));
-/** Git-ignored scratch root inside the package (so bare-specifier resolution still finds the dev dependencies). */
-const FIXTURE_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../node_modules/.cache/ide-byebye-parity');
-const { transformCode } = requireFromPlugin('@code-inspector/core');
+/** Inside the package, outside `node_modules`, so project compilers resolve and the stamper does not skip the file. */
+const FIXTURE_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../.stamp-parity');
+const STAMP_OPTIONS = resolveStampOptions({}, () => {});
 
 const VUE = `<script setup>
 import Item from './Item.vue';
@@ -61,21 +60,20 @@ const JSX = `export function App() {
 `;
 
 /**
- * Stamp a fixture with code-inspector and resolve every stamped element through the locator.
+ * Stamp a fixture with the built-in stamper and resolve every stamped element through the locator.
  *
  * @param {string} name Fixture file name (extension selects the locator).
  * @param {string} source Fixture source.
- * @param {'vue' | 'svelte' | 'jsx'} fileType code-inspector file type.
- * @returns {Promise<Array<{ tag: string, selected: string | undefined }>>} One entry per stamped element.
+ * @returns {Array<{ tag: string, selected: string | undefined }>} One entry per stamped element.
  */
-async function stampAndResolve(name, source, fileType) {
+function stampAndResolve(name, source) {
     fs.mkdirSync(FIXTURE_ROOT, { recursive: true });
     const dir = fs.mkdtempSync(path.join(FIXTURE_ROOT, 'case-'));
     const file = path.join(dir, name);
     try {
         fs.writeFileSync(file, source, 'utf8');
-        const stamped = await transformCode({ content: source, filePath: file, fileType, escapeTags: [], pathType: 'absolute' });
-        const values = [...stamped.matchAll(/data-insp-path=(?:"|\{?")([^"]+)"/g)].map((m) => m[1]);
+        const stamped = stampModule({ code: source, id: file, family: 'rollup', options: STAMP_OPTIONS }) ?? source;
+        const values = [...elementTable(stamped).values()].map((entry) => entry.value);
         assert.ok(values.length > 3, `expected stamped elements in ${name}, got ${values.length}`);
         return values.map((value) => {
             const parsed = parseInspPath(value);
@@ -100,16 +98,16 @@ function assertAllMatch(results) {
     }
 }
 
-test('every code-inspector Vue stamp resolves to its element', async () => {
-    assertAllMatch(await stampAndResolve('Parity.vue', VUE, 'vue'));
+test('every Vue stamp resolves to its element', () => {
+    assertAllMatch(stampAndResolve('Parity.vue', VUE));
 });
 
-test('every code-inspector Svelte stamp resolves to its element', async () => {
-    assertAllMatch(await stampAndResolve('Parity.svelte', SVELTE, 'svelte'));
+test('every Svelte stamp resolves to its element', () => {
+    assertAllMatch(stampAndResolve('Parity.svelte', SVELTE));
 });
 
-test('every code-inspector JSX stamp resolves to its element', async () => {
-    assertAllMatch(await stampAndResolve('Parity.jsx', JSX, 'jsx'));
+test('every JSX stamp resolves to its element', () => {
+    assertAllMatch(stampAndResolve('Parity.jsx', JSX));
 });
 
 test('parity fixtures are cleaned up after each case', () => {

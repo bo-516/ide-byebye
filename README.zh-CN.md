@@ -75,8 +75,7 @@ https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md
 ## 工作原理
 
 1. **选取** — 快捷键（默认 `Alt+Shift+I`）或按住 `clickModifier`（⌘ / Ctrl）再点击。
-   源码来自 [`code-inspector-plugin`](https://github.com/zh-lx/code-inspector)
-   注入的 `data-insp-path`（Angular 则来自 Angular 开发模式的组件调试信息）。
+   源码来自内置打点器写入的 `data-insp-path`（Angular 则来自 Angular 开发模式的组件调试信息）。
 2. **描述** — 在元素上打开意图弹窗。可附加 `@code` 引用、截图、计算样式或交互录制。
 3. **交接** — 点击 **Codex App / Claude App / Cursor / Grok Build**。本地 loopback
    服务（`127.0.0.1`、按进程 token）拼好 prompt，再打开 Agent（deeplink 或 Terminal）。
@@ -88,11 +87,12 @@ Next.js 根 layout / `_app`、Angular 开发脚本）。
 ## 安装
 
 ```sh
-npm i -D ide-byebye code-inspector-plugin
+npm i -D ide-byebye
 ```
 
-`code-inspector-plugin` 是依赖（也单独列出方便你锁定版本）。没有它，元素没有源码映射，
-选取器会显示 *"no source mapping"*。
+只需要这一条。JSX 用 `oxc-parser` 打点。Vue 3 用项目里的 `@vue/compiler-dom`
+（Vue 2.7 请再执行 `npm i -D @vue/compiler-dom`）。pug 模板需要 `pug`。
+Svelte 用项目里的 `svelte`。
 
 可选 — 元素行为录制（默认关闭，懒加载）：
 
@@ -114,7 +114,7 @@ import ideByebye from 'ide-byebye';       // 等同于 'ide-byebye/vite'
 
 export default defineConfig({
   plugins: [
-    // 零配置：注册 code-inspector、⌘/Ctrl-点击选取、
+    // 零配置：内置打点、⌘/Ctrl-点击选取、
     // 全部页脚 Agent + 剪贴板/文件、录制关闭、Enter → Claude App。
     ideByebye(),
     react(),
@@ -183,7 +183,7 @@ Angular 模板无法注入 `data-insp-path`。选取器改为读取 Angular 开�
 | **rspack** | `ide-byebye/rspack` | 与 webpack 同形。 |
 | **rsbuild** | `ide-byebye/rsbuild` | `plugins: [inspector()]`。 |
 | **esbuild** | `ide-byebye/esbuild` | 若 HTML 不在 `outdir`，传 `htmlFiles: ['./index.html']`。 |
-| **Farm** | `ide-byebye/farm` | 返回 `[codeInspector, inspector]` — 展开进 Farm plugins。 |
+| **Farm** | `ide-byebye/farm` | 返回 `[stamp, inspector]` — 展开进 Farm plugins。 |
 | **Next.js** | `ide-byebye/next` | `withIdeByebye(nextConfig)` — Turbopack + webpack，见 [Next.js](#nextjs)。 |
 | **Turbopack**（仅 rules） | `ide-byebye/turbopack` | 放进 `turbopack.rules`；`next dev` 下自动挂载 bootstrap。 |
 | **Angular CLI** | `ide-byebye/angular` | `proxyConfig` + 开发环境 `scripts`，见 [Angular](#angular-cli)。 |
@@ -239,9 +239,9 @@ prompt 引用的是被选元素的精确源码范围，由各框架自己的解�
 
 | 框架 | 元素 → 源码 | 源码上下文 |
 | --- | --- | --- |
-| React / Preact / Solid（JSX） | `data-insp-path`（code-inspector） | oxc AST：元素、所在组件、imports |
-| Vue 2.7 / 3 SFC | `data-insp-path` | `@vue/compiler-dom` AST——与 code-inspector 打点用的是同一个解析器，范围精确（多行标签、绑定里的 `>`、同名嵌套、slot）；pug 模板回退为行窗口 |
-| Svelte 3 / 4 / 5 | `data-insp-path` | 项目自带 `svelte/compiler` 的 AST |
+| React / Preact / Solid（JSX） | `data-insp-path`（内置打点器） | oxc AST：元素、所在组件、imports |
+| Vue 3 SFC | `data-insp-path` | 项目里的 `@vue/compiler-dom`，范围精确（多行标签、绑定里的 `>`、同名嵌套、slot）。pug 用项目里的 `pug` 打点；prompt 里 pug 仍是行窗口。Vue 2.7 需要 `npm i -D @vue/compiler-dom` |
+| Svelte 3 / 4 / 5 | `data-insp-path` | 项目自带 `svelte/compiler`，包括 Svelte 5 的 `{#snippet}` / `{@render}` |
 | Angular | Angular 开发模式组件信息 | 项目 `@angular/compiler` 模板 AST + 元素匹配（[详情](#angular-cli)） |
 
 SSR 框架自己渲染 HTML，bootstrap 改由每个页面本来就加载的模块携带：
@@ -283,10 +283,10 @@ pnpm dev:react:rspack
 
 ## 环境要求
 
+- **Node** — `^20.19.0` 或 `>=22.12.0`。
 - **打包器** — Vite `>=4`、webpack `>=5`、rspack、rsbuild、esbuild、Farm、Next.js
   `>=14.2`（Turbopack 或 webpack）或 Angular CLI。Mako 只注入 `data-insp-path`。
-  Svelte / Angular 的源码上下文使用你项目里安装的编译器。
-- **`code-inspector-plugin`** — 由上述适配器注册；无需手动配置。
+  Vue、pug、Svelte 的打点使用你项目里安装的编译器。`.astro` 和 `.mdx` 不打点。
 - **页脚 Agent** — Codex App / Claude App / Cursor / Grok Build 用系统默认 opener
   打开（macOS `open`，Windows `cmd /c start`，Linux `xdg-open`）。
   Windows 多数情况零配置；只有默认 opener 失败时才需要覆盖（见 [Windows](#windows)）。
@@ -333,7 +333,7 @@ export default {
 | UI 语言 | auto（`navigator.language` → 否则 `zh`） |
 | 交接文件目录 | `.intent-inspector/`（**请加入 gitignore** — 见 [产物](#产物)） |
 | 源码 `@` 路径 | 相对路径；截图 / 静帧用绝对路径 |
-| code-inspector | 自动注册（`pathType: 'absolute'`，并关掉其自带快捷键） |
+| 打点 | 默认开启（绝对路径）。`sourceStamp: false` 可关闭 |
 
 只覆盖你需要的项：
 
@@ -463,13 +463,21 @@ ideByebye({
 | **默认** | `{}`（六个 Agent **全部开启**） |
 | **可配** | 按 Agent 启用 / 覆盖 — 见 [Agents](#agents)。未知 key 忽略。 |
 
-#### `codeInspector`
+#### `sourceStamp`
+
+| | |
+| --- | --- |
+| **类型** | `false \| { include?, exclude?, escapeTags? }` |
+| **默认** | 开启 |
+| **可配** | `false` 关闭打点且不警告。`include` 即使在 `node_modules` 下也打点。`exclude` 额外跳过。`escapeTags` 追加不打点的标签。 |
+
+#### `codeInspector`（已弃用）
 
 | | |
 | --- | --- |
 | **类型** | `object` |
-| **默认** | `{}`，再与内置默认浅合并 |
-| **可配** | 透传给 [`code-inspector-plugin`](https://github.com/zh-lx/code-inspector) 的额外选项（**不要**传 `bundler` — 由适配器填写）。内置默认：`pathType: 'absolute'`、`hotKeys: false`、`behavior: { locate: false, copy: false, defaultAction: 'target' }`。你的 `behavior` 会浅合并上去。 |
+| **默认** | — |
+| **可配** | 0.6.0 弃用，0.7.0 删除。只映射 `include`、`exclude`、`escapeTags` 和 `close: true`（等同 `sourceStamp: false`）。其余键忽略，并警告一次。 |
 
 #### `htmlFiles`（仅 esbuild）
 

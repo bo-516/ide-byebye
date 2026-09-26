@@ -1,11 +1,10 @@
 import fs from 'node:fs';
 import { createUnplugin } from 'unplugin';
-import { codeInspectorPlugin } from 'code-inspector-plugin';
 import {
     PLUGIN_NAME,
-    codeInspectorDefaults,
     createInspectorRuntime,
 } from './server/plugin-runtime.js';
+import { createMakoStampPlugin, stampUnplugin } from './server/stamp/stamp-unplugin.js';
 import {
     CLIENT_BOOTSTRAP_MARKER,
     injectHtmlSnippet,
@@ -17,7 +16,7 @@ import { resolvePackageRoot } from './server/workspace-root.js';
 import { nextTurbopackRules } from './server/next/with-next.js';
 import type { IdeByebyeOptions, PluginInstance, VitePlugin } from './types.js';
 
-export { codeInspectorDefaults, PLUGIN_NAME } from './server/plugin-runtime.js';
+export { PLUGIN_NAME } from './server/plugin-runtime.js';
 
 
 /**
@@ -29,9 +28,9 @@ export { codeInspectorDefaults, PLUGIN_NAME } from './server/plugin-runtime.js';
  * rewrite emitted `.html` assets; rsbuild uses `modifyHTMLTags`; farm uses `transformHtml`; esbuild starts the server
  * and rewrites HTML files listed via `options.htmlFiles` (or any `*.html` next to `outdir`/`outfile` after the build).
  *
- * Boundary: `meta.framework` selects the code-inspector `bundler` for compiler-based adapters. The Vite / farm / esbuild
- * entry helpers register code-inspector themselves because those ecosystems need a separate plugin instance. When
- * `options.enabled` is false nothing is started or injected.
+ * Boundary: Vite / farm / esbuild entry helpers register the stamp plugin themselves because those ecosystems need a
+ * separate plugin instance ahead of the framework transform. webpack / rspack register it from the compiler hook.
+ * When `options.enabled` is false nothing is started or injected.
  *
  * @param {Record<string, unknown>} options Raw plugin options from the host bundler config.
  * @param {{ framework?: string }} meta unplugin meta (`vite` / `webpack` / `rspack` / `rsbuild` / `farm` / `esbuild` / …).
@@ -79,8 +78,8 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
         webpack: setupCompiler,
         rspack: setupCompiler,
         /**
-         * rsbuild (rspack-based). Registers code-inspector on the rspack chain and injects bootstrap tags into the
-         * generated HTML. Dev-only: rsbuild's production builds skip the inject when `NODE_ENV=production`.
+         * rsbuild (rspack-based). Registers the stamp transform on the rspack chain and injects bootstrap tags into the
+         * generated HTML. Dev-only: production (`NODE_ENV=production`) skips both the stamp and the inject.
          */
         rsbuild: {
             name: PLUGIN_NAME,
@@ -89,17 +88,10 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
                     return;
                 }
                 api.modifyRspackConfig((config) => {
+                    if (process.env.NODE_ENV === 'production')
+                        return config;
                     const plugins = config.plugins || (config.plugins = []);
-                    try {
-                        plugins.push(codeInspectorPlugin({
-                            bundler: 'rspack',
-                            ...codeInspectorDefaults(options),
-                        }));
-                    }
-                    catch (err) {
-                        // peer missing — surface later via missing data-insp-path
-                        void err;
-                    }
+                    plugins.push(stampUnplugin.rspack(options));
                     return config;
                 });
                 api.onBeforeStartDevServer(async () => {
@@ -123,8 +115,8 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
             },
         },
         /**
-         * Farm. code-inspector reuses its Vite adapter for Farm (no dedicated `bundler: 'farm'`); we only handle HTML
-         * injection + server lifecycle here. The {@link farm} export registers code-inspector alongside this plugin.
+         * Farm. HTML injection and server lifecycle live here. The {@link farm} export registers the stamp plugin
+         * alongside this one.
          */
         farm: {
             name: PLUGIN_NAME,
@@ -209,25 +201,25 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
 const unplugin = createUnplugin(inspectorFactory as any);
 
 /**
- * Vite entry. Returns an array so `code-inspector-plugin` (which must run as its own Vite plugin to inject
- * `data-insp-path` before the framework transform) is registered alongside our inspector with zero config.
+ * Vite entry. Returns an array so the stamp plugin (which must run before the framework transform to inject
+ * `data-insp-path`) is registered alongside our inspector with zero config.
  *
  * Return type is {@link VitePlugin}`[]` (not `object[]`) so nested placement in Vite's `plugins`
  * typechecks as `PluginOption` without an `as PluginOption` cast:
  * `plugins: [ideByebye({ recording: false }), vue()]`.
  *
  * @param options Plugin options.
- * @returns `[codeInspectorPlugin, inspectorVitePlugin]` — nestable as one `PluginOption`.
+ * @returns `[stampPlugin, inspectorVitePlugin]` — nestable as one `PluginOption`.
  */
 export function vite(options: IdeByebyeOptions = {}): VitePlugin[] {
     return [
-        codeInspectorPlugin({ bundler: 'vite', ...codeInspectorDefaults(options) }),
-        unplugin.vite(options),
-    ] as VitePlugin[];
+        stampUnplugin.vite(options) as VitePlugin,
+        unplugin.vite(options) as VitePlugin,
+    ];
 }
 
 /**
- * webpack entry. Registers code-inspector (`bundler: 'webpack'`) and injects the bootstrap into emitted HTML.
+ * webpack entry. Registers the stamp transform when `mode !== 'production'` and injects the bootstrap into emitted HTML.
  *
  * @param {Record<string, unknown>} [options] Plugin options.
  * @returns {object} webpack plugin instance.
@@ -237,7 +229,7 @@ export function webpack(options: IdeByebyeOptions = {}): PluginInstance {
 }
 
 /**
- * rspack entry. Same contract as {@link webpack}; rspack reuses code-inspector's webpack adapter.
+ * rspack entry. Same contract as {@link webpack}.
  *
  * @param {Record<string, unknown>} [options] Plugin options.
  * @returns {object} rspack plugin instance.
@@ -247,7 +239,7 @@ export function rspack(options: IdeByebyeOptions = {}): PluginInstance {
 }
 
 /**
- * rsbuild entry. Registers code-inspector on the underlying rspack chain and injects bootstrap tags via
+ * rsbuild entry. Registers the stamp transform on the underlying rspack chain and injects bootstrap tags via
  * `modifyHTMLTags`. Zero-config: `plugins: [inspector()]`.
  *
  * @param {Record<string, unknown>} [options] Plugin options.
@@ -258,33 +250,31 @@ export function rsbuild(options: IdeByebyeOptions = {}): PluginInstance {
 }
 
 /**
- * Farm entry. Registers code-inspector through its Vite-compatible adapter (Farm has no dedicated code-inspector
- * bundler id) and injects the bootstrap through Farm's `transformHtml` hook.
+ * Farm entry. Registers the stamp transform and injects the bootstrap through Farm's `transformHtml` hook.
  *
  * @param {Record<string, unknown>} [options] Plugin options.
- * @returns {object[]} `[codeInspectorPlugin, inspectorFarmPlugin]`.
+ * @returns {object[]} `[stampPlugin, inspectorFarmPlugin]`.
  */
 export function farm(options: IdeByebyeOptions = {}): PluginInstance[] {
     return [
-        // Farm consumes the Vite code-inspector transform pipeline.
-        codeInspectorPlugin({ bundler: 'vite', ...codeInspectorDefaults(options) }),
+        stampUnplugin.farm(options),
         unplugin.farm(options),
     ];
 }
 
 /**
- * esbuild entry. Registers code-inspector's esbuild transform + our loopback server / HTML rewrite.
+ * esbuild entry. Stamps JSX by default in dev (`NODE_ENV` other than `production`) and rewrites HTML with the bootstrap.
  *
  * Pass `htmlFiles: ['./index.html']` when the HTML is not emitted into `outdir` (typical for a custom static server
  * that reads a source HTML and serves the esbuild bundle). After `context.rebuild()` / `build()`, those files are
  * rewritten in place with the bootstrap snippet (idempotent).
  *
  * @param {Record<string, unknown>} [options] Plugin options; may include `htmlFiles: string[]`.
- * @returns {object[]} `[codeInspectorEsbuildPlugin, inspectorEsbuildPlugin]`.
+ * @returns {object[]} `[stampEsbuildPlugin, inspectorEsbuildPlugin]`.
  */
 export function esbuild(options: IdeByebyeOptions = {}): PluginInstance[] {
     return [
-        codeInspectorPlugin({ bundler: 'esbuild', ...codeInspectorDefaults(options) }),
+        stampUnplugin.esbuild(options),
         unplugin.esbuild(options),
     ];
 }
@@ -292,7 +282,7 @@ export function esbuild(options: IdeByebyeOptions = {}): PluginInstance[] {
 /**
  * Turbopack rules for Next.js (`turbopack.rules` on Next ≥ 15.3, `experimental.turbo.rules` before).
  *
- * Returns code-inspector's `data-insp-path` rules plus the ide-byebye entry loader, and (in `next dev`) starts the
+ * Returns the built-in stamp loader plus the ide-byebye entry loader, and (in `next dev`) starts the
  * inspector server and writes the bootstrap module the loader mounts into root layouts / `_app` — so this export alone
  * is now zero-config. Prefer {@link https://github.com/bo-516/ide-byebye#nextjs `ide-byebye/next`}, which also wires
  * `next dev --webpack` and picks the right config key for the installed Next version.
@@ -307,18 +297,18 @@ export function turbopack(options: IdeByebyeOptions = {}): PluginInstance {
 }
 
 /**
- * Mako entry (Umi). Returns the Mako plugin from code-inspector. Same bootstrap caveat as {@link turbopack}: Mako
+ * Mako entry (Umi). Returns the stamp plugin. Same bootstrap caveat as {@link turbopack}: Mako
  * injects `data-insp-path`, but the inspector client still needs an HTML entry that loads our loopback bootstrap.
  *
  * @param {Record<string, unknown>} [options] Plugin options.
- * @returns {object} Mako plugin instance.
+ * @returns {object} Mako plugin `{ name, enforce: 'pre', transform }`.
  */
 export function mako(options: IdeByebyeOptions = {}): PluginInstance {
-    return codeInspectorPlugin({ bundler: 'mako', ...codeInspectorDefaults(options) });
+    return createMakoStampPlugin(options);
 }
 
 /**
  * Back-compatible default: the Vite entry. Existing configs that do `plugins: [codeIntentInspectorPlugin(options)]`
- * keep working and get code-inspector wired for free.
+ * keep working and get source stamping wired for free.
  */
 export const codeIntentInspectorPlugin: typeof vite = vite;

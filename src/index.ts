@@ -25,6 +25,8 @@ export type {
     AgentsOptions,
     RecordingOptions,
     CodeInspectorOptions,
+    EscapeTag,
+    SourceStampOptions,
     IdeByebyeOptions,
     NextIdeByebyeOptions,
     AngularIdeByebyeOptions,

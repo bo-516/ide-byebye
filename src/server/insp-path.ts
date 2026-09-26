@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 /**
- * Parse the value of a `data-insp-path` attribute produced by
- * `code-inspector-plugin`. The exact format varies between versions, so we
+ * Parse the value of a `data-insp-path` attribute produced by the built-in stamper.
+ * The exact format varies between versions, so we
  * accept several shapes:
  *
  *   /absolute/path/to/src/App.tsx:12:8

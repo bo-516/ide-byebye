@@ -26,7 +26,8 @@ export function injectHtmlSnippet(html, snippet) {
  *
  * @param {object} compiler webpack/rspack compiler.
  * @param {ReturnType<typeof import('./plugin-runtime.js').createInspectorRuntime>} runtime Shared inspector runtime.
- * @param {'webpack' | 'rspack'} bundler Which code-inspector adapter to register.
+ * @param {'webpack' | 'rspack'} bundler Which stamp adapter to register. Production mode is left untouched,
+ *   including `cache.version`.
  */
 export function setupWebpackLikeCompiler(compiler, runtime, bundler) {
     if (!runtime.enabled) {
@@ -36,7 +37,7 @@ export function setupWebpackLikeCompiler(compiler, runtime, bundler) {
         return;
     }
     runtime.initPaths(compiler?.context || process.cwd());
-    runtime.registerCodeInspectorOnCompiler(compiler, bundler);
+    runtime.registerStampOnCompiler(compiler, bundler);
 
     const wp = compiler.webpack || compiler.rspack;
     compiler.hooks.thisCompilation.tap(PLUGIN_NAME, (compilation) => {

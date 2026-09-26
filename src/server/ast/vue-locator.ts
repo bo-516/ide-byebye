@@ -2,7 +2,7 @@
  * Vue SFC locate + extract for intent source context.
  *
  * Purpose: resolve a `data-insp-path` hit in a `.vue` file to the exact template element. The file is parsed with
- * `@vue/compiler-dom` exactly the way code-inspector parses it when it stamps the attribute (whole SFC, comments on),
+ * `@vue/compiler-dom` exactly the way the built-in stamper parses it (whole SFC, comments on),
  * so element start positions match 1:1 — no line slicing, no tag counting. Handles multi-line attributes, `>` inside
  * bindings, same-name nesting on one line, comments, components, slots and `<template #x>` wrappers.
  *
@@ -11,51 +11,28 @@
  * functions inside `<script lang="tsx|jsx">` are delegated to the injected JSX extractor with line offsets.
  */
 
-import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { requireFromProject } from './project-module.js';
+import { innerContent, staticAttr, VUE_ELEMENT } from './vue-sfc.js';
 import { buildLineStartOffsets, lineColumnFromOffset } from './line-offsets.js';
 import { extractScriptImports, scriptLangFromAttr } from './script-imports.js';
 import { importFields, pickTemplateHit, templateHitFields, templateOffset, type ElementSpan } from './template-hit.js';
 
-/** `NodeTypes.ELEMENT` / `NodeTypes.ATTRIBUTE` from `@vue/compiler-core` (stable numeric enum). */
-const VUE_ELEMENT = 1;
-const VUE_ATTRIBUTE = 6;
-
-/** Lazily loaded compiler: `undefined` = not tried yet, `null` = unavailable. */
-let cachedCompiler: { parse: Function } | null | undefined;
-
 /**
- * Load `@vue/compiler-dom` on first use.
+ * Load `@vue/compiler-dom` from the SFC's project, or from this package when `file` is omitted.
  *
- * Boundary: the require is relative to this module (it is a declared dependency and the same package code-inspector
- * parses with). A broken install yields `null` once and is cached for the process lifetime.
+ * Boundary: a passed `file` does not fall back to ide-byebye's own install — Vue 2.7 projects must
+ * add the compiler themselves. Omitting `file` (unit tests that only have a source string) resolves
+ * next to this module, which works while `@vue/compiler-dom` is a devDependency.
  *
- * @returns {{ parse: Function } | null} Compiler module, or `null` when it cannot be loaded.
+ * @param {string} [file] Absolute SFC path. Omit only when the caller has no project file.
+ * @returns {{ parse: Function } | null} Compiler, or null when it cannot be loaded.
  */
-function loadVueCompiler() {
-    if (cachedCompiler !== undefined)
-        return cachedCompiler;
-    try {
-        const mod = createRequire(import.meta.url)('@vue/compiler-dom');
-        cachedCompiler = typeof mod?.parse === 'function' ? mod : null;
-    }
-    catch {
-        cachedCompiler = null;
-    }
-    return cachedCompiler;
-}
-
-/**
- * Read a static attribute value from a compiler-dom element node.
- *
- * @param {object} node Element node.
- * @param {string} name Attribute name (static attributes only; `:lang` bindings are ignored).
- * @returns {string | null} Attribute value, `''` for a bare attribute, or `null` when absent.
- */
-function staticAttr(node, name) {
-    const prop = (node?.props ?? []).find((p) => p.type === VUE_ATTRIBUTE && p.name === name);
-    if (!prop)
-        return null;
-    return prop.value?.content ?? '';
+function loadVueCompiler(file?: string) {
+    const from = file || fileURLToPath(import.meta.url);
+    const mod = requireFromProject<any>(from, '@vue/compiler-dom', file ? 'vue' : undefined);
+    const parse = mod?.parse ?? mod?.default?.parse;
+    return typeof parse === 'function' ? { parse } : null;
 }
 
 /**
@@ -79,21 +56,6 @@ function collectElementSpans(root) {
 }
 
 /**
- * Span of an element's inner content (between its open and close tags).
- *
- * @param {string} code Full file source.
- * @param {object} node Top-level `<script>` element node.
- * @returns {{ content: string, offset: number }} Inner text and its absolute start offset.
- */
-function innerContent(code, node) {
-    const full = node.loc.source;
-    const open = full.indexOf('>') + 1;
-    const close = full.lastIndexOf('</');
-    const content = close >= open ? full.slice(open, close) : '';
-    return { content, offset: node.loc.start.offset + open };
-}
-
-/**
  * Pick the import block shown for the SFC: `<script setup>` first, then the plain `<script>`.
  *
  * @param {string} code Full file source.
@@ -103,7 +65,7 @@ function innerContent(code, node) {
 function sfcImports(code, scripts) {
     const ordered = [...scripts].sort((a, b) => Number(staticAttr(b, 'setup') !== null) - Number(staticAttr(a, 'setup') !== null));
     for (const script of ordered) {
-        const { content, offset } = innerContent(code, script);
+        const { content, offset } = innerContent(script);
         const block = extractScriptImports(content, offset, scriptLangFromAttr(staticAttr(script, 'lang')));
         if (block)
             return block;
@@ -124,7 +86,7 @@ function sfcImports(code, scripts) {
  * @returns {Record<string, unknown>} JSX fields in file coordinates, or `astError` when nothing was found.
  */
 function extractScriptJsx(code, script, line, column, maxComponentLines, extractJsx, offsetToLine) {
-    const { content, offset } = innerContent(code, script);
+    const { content, offset } = innerContent(script);
     const lineShift = offsetToLine(offset).line - 1;
     const inner = extractJsx(content, line - lineShift, column, 0, maxComponentLines);
     const shift = (range) => range && ({ startLine: range.startLine + lineShift, endLine: range.endLine + lineShift });
@@ -141,7 +103,7 @@ function extractScriptJsx(code, script, line, column, maxComponentLines, extract
 }
 
 /**
- * Extract Vue SFC source context for a code-inspector position.
+ * Extract Vue SFC source context for a built-in stamp position.
  *
  * @param {string} code Full `.vue` file source.
  * @param {number} line 1-based line from `data-insp-path`.
@@ -149,11 +111,13 @@ function extractScriptJsx(code, script, line, column, maxComponentLines, extract
  * @param {number} maxComponentLines Cap for the selected-node / template slices.
  * @param {Function} [extractJsx] JSX extractor used for hits inside `<script lang="tsx|jsx">`; omit to report an
  *   `astError` for script hits instead.
+ * @param {string} [file] Absolute SFC path. Required to load the project's compiler; omit only in tests that
+ *   resolve `@vue/compiler-dom` from this package.
  * @returns {Record<string, unknown>} `selectedNode*`, `containingComponent*` (the whole `<template>` element),
  *   `imports*`, or `astError` when the position cannot be mapped (the caller keeps its line window).
  */
-export function extractVueFromCode(code, line, column, maxComponentLines, extractJsx?) {
-    const compiler = loadVueCompiler();
+export function extractVueFromCode(code, line, column, maxComponentLines, extractJsx?, file?: string) {
+    const compiler = loadVueCompiler(file);
     if (!compiler)
         return { astError: '@vue/compiler-dom is not available; install it to get Vue template context' };
     const lineStartOffsets = buildLineStartOffsets(code);

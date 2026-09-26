@@ -136,7 +136,7 @@ function inspPathParts(raw) {
 /**
  * Build the compact source reference appended to a captured node's label, e.g. `@src/Toolbar.tsx:14`.
  *
- * Boundary: the browser sends the raw `data-insp-path` (from code-inspector-plugin), an ABSOLUTE `file:line:column`
+ * Boundary: the browser sends the raw `data-insp-path` (from the built-in stamper), an ABSOLUTE `file:line:column`
  * string. Only the file (made project-relative, so no absolute disk path leaks) and the line are kept — the line is what
  * points the agent at the exact source location. A path outside `projectRoot`, an absolute leftover, or a missing root
  * yields an empty string so nothing unsafe reaches the label — this is opportunistic context, not a required reference.

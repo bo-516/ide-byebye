@@ -12,7 +12,10 @@ test('detectLanguage recognizes vue/svelte alongside jsx', () => {
 });
 
 test('extractSourceContext on a Vue SFC returns template node, not JSX error', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cii-vue-'));
+    // The compiler resolves from the file, so the fixture has to live inside this package.
+    const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../node_modules/.cache');
+    fs.mkdirSync(root, { recursive: true });
+    const dir = fs.mkdtempSync(path.join(root, 'cii-vue-'));
     const file = path.join(dir, 'Button.vue');
     const source = `<template>
   <div class="wrap">

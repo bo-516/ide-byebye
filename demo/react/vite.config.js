@@ -6,7 +6,7 @@ import codeIntentInspectorPlugin from '../../dist/index.js';
 
 export default defineConfig({
   plugins: [
-    // Registers code-inspector (data-insp-path) + inspector bootstrap.
+    // Registers the built-in stamper (data-insp-path) + inspector bootstrap.
     // Keep recording enabled here so the demo can show rrweb capture.
     codeIntentInspectorPlugin({ recording: true }),
     react(),
