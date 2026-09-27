@@ -19,13 +19,17 @@ Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。�
 
 ![⌘-点击元素、描述改动、交给 Agent](./demo-recording.gif)
 
-**录屏演示**（Vue demo → Agent）：
+**录屏演示**（React demo → Codex App）：
 
 1. **选取** — 按住 ⌘ 点击渲染节点；浮层把 `data-insp-path` 解析到源码
-   （录屏中为 `src/App.vue #99-129`）。
+   （录屏中为 `react/src/components/AddTask.jsx #27-38`）。
 2. **描述** — 在弹窗里用自然语言写意图（可选 `@code`、截图、样式或录制）。
 3. **交接** — 选择 **Codex App / Claude App / Cursor / Grok Build**；
    loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。
+
+![⌘-点击标签列表、描述改动、交给 Claude App](./demo-recording-claude.gif)
+
+**Claude App** — 同样的交接，源码是 `react/src/components/Sidebar.jsx #53-64`，意图 `remove them` 已填进输入框。
 
 **为什么要给行号**：给 Agent 一张截图，或者一句「首页那个黑色按钮」，它得先猜代码在哪，
 再 grep、一个个读文件。这些都在烧 token、占上下文；线索越模糊，越容易改到长得像的组件上。

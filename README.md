@@ -23,15 +23,19 @@ including SSR frameworks such as **Next.js**, **Nuxt** and **SvelteKit**. See
 
 ![⌘-click an element, describe the change, hand off to an agent](./demo-recording.gif)
 
-**What the clip shows** (Vue demo → agent):
+**What the clip shows** (React demo → Codex App):
 
 1. **Pick** — hold ⌘ and click a rendered node; the overlay resolves
-   `data-insp-path` to source (`src/App.vue #99-129` in the recording).
+   `data-insp-path` to source (`react/src/components/AddTask.jsx #27-38` in the recording).
 2. **Describe** — type plain-language intent in the dialog (optional `@code`,
    screenshots, styles, or recording).
 3. **Hand off** — choose **Codex App / Claude App / Cursor / Grok Build**;
    the loopback server builds a structured prompt and opens the agent with
    `file:line` + intent already filled in.
+
+![⌘-click the tag list, describe the change, hand off to Claude App](./demo-recording-claude.gif)
+
+**Claude App** — the same handoff for `react/src/components/Sidebar.jsx #53-64`, with the intent `remove them` already in the composer.
 
 **Why hand over a line range**: give an agent a screenshot, or "the black button on
 the home page", and it has to guess where the code lives, then grep and read file
