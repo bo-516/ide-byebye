@@ -76,6 +76,14 @@ const STRINGS = {
         zh: '在终端打开 Grok Build，并预填本次 UI 修改意图。',
         en: 'Open Grok Build in Terminal with this UI change intent prefilled.',
     },
+    'agent.antigravityIde.title': {
+        zh: '在 Antigravity IDE 中打开聊天，并预填本次 UI 修改意图。',
+        en: 'Open Antigravity IDE chat with this UI change intent prefilled.',
+    },
+    'agent.antigravity.title': {
+        zh: '在终端打开 Antigravity CLI，并预填本次 UI 修改意图。',
+        en: 'Open the Antigravity CLI in Terminal with this UI change intent prefilled.',
+    },
     'agent.custom.title': {
         zh: '把本次 UI 修改意图发送给 {label}。',
         en: 'Send this UI change intent to {label}.',

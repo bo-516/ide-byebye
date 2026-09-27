@@ -38,7 +38,12 @@ export default {
   },
   plugins: [
     new rspack.HtmlRspackPlugin({ template: './webpack.html', title: 'ai-inspector · demo (rspack)' }),
-    inspector(),
+    inspector({
+      agents: {
+        antigravityIde: true,
+        antigravity: true,
+      },
+    }),
   ],
   devServer: {
     port: Number(process.env.PORT) || 5500,

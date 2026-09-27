@@ -32,6 +32,8 @@
     "cursor",
     "grok",
     "grok-build",
+    "antigravity",
+    "antigravity-ide",
     "ai",
     "devtools",
     "intent",

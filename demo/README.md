@@ -36,7 +36,7 @@ node dev.mjs --app react --bundler rspack
 2. **⌘ + click** any element (heading, button, card, input, list item…).
 3. The intent dialog opens with that element's **source location and context**.
 4. Type your change request (e.g. "make this button rounded").
-5. Click a footer agent: `Codex App` / `Claude App` / `Cursor` / `Grok Build`.
+5. Click a footer agent: `Codex App` / `Claude App` / `Cursor` / `Grok Build`. The React demo also shows `Antigravity IDE` and `Antigravity` (the CLI).
 
 > After editing a bundler config the dev server restarts — **refresh the browser**.
 

@@ -45,4 +45,6 @@ export const ALL_AGENT_NAMES = [
     'claude-app',
     'cursor-app',
     'grok-build',
+    'antigravity-ide',
+    'antigravity',
 ];

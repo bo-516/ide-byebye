@@ -349,7 +349,7 @@ Empty call is enough. You get:
 | Plugin on | `enabled: true` (dev only) |
 | Pick | hold ⌘ (macOS) / Ctrl → click; hotkey `Alt+Shift+I` |
 | Enter handoff | **Claude App** |
-| Footer agents | Codex App / Claude App / Cursor / Grok Build — all on |
+| Footer agents | Codex App / Claude App / Cursor / Grok Build — all on. Antigravity IDE and Antigravity CLI stay off until configured |
 | Backend agents | clipboard (**Copy prompt** button) + file (no UI entry point) — on; neither is an Enter target |
 | Recording | off; enable with `recording: true` (needs `@rrweb/record` + `@rrweb/replay`) |
 | UI locale | auto (`navigator.language` → else `zh`) |
@@ -411,7 +411,7 @@ ideByebye({
 | --- | --- |
 | **Type** | `string` |
 | **Default** | `'claude-app'` |
-| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → custom); if none is enabled, Enter only shows a "not enabled" error. Once you click a footer agent, Enter follows that choice instead (remembered in this browser). |
+| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'antigravity-ide'` / `'antigravity'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → Antigravity IDE → Antigravity → custom); if none is enabled, Enter only shows a "not enabled" error. Once you click a footer agent, Enter follows that choice instead (remembered in this browser). `'antigravity-ide'` and `'antigravity'` work only after those agents are turned on. |
 
 #### `applyMode`
 
@@ -521,7 +521,9 @@ ideByebye({
 
 Six built-in agents, **all on by default**. Disable with `agents.<name>: false`
 or `{ enabled: false }`. `true` is explicit on; an object keeps it on and
-overrides options. `agents.custom` adds footer agents of your own — see
+overrides options. **Antigravity IDE** and the **Antigravity CLI** are built in
+but **off until you set them** — omit `antigravityIde` / `antigravity` and the
+footer does not change. `agents.custom` adds footer agents of your own — see
 [`agents.custom`](#agentscustom).
 
 `clipboard` is the **Copy prompt** footer button (never the Enter target);
@@ -538,6 +540,8 @@ writes the same `requests/` file, then opens that app.
 | `claudeApp` | `claude-app` | yes | Open **Claude App** prefilled; can attach files & folders. |
 | `cursorApp` | `cursor-app` | yes | Open **Cursor** prefilled (routes by workspace name). |
 | `grokBuild` | `grok-build` | yes | Open **Grok Build** in Terminal with prompt prefilled. |
+| `antigravityIde` | `antigravity-ide` | yes, **off by default** | Open **Antigravity IDE** chat (`antigravity-ide chat`) with the prompt prefilled. |
+| `antigravity` | `antigravity` | yes, **off by default** | Open the **Antigravity** desktop app and put the prompt in its composer. |
 
 ```js
 agents: {
@@ -549,24 +553,29 @@ agents: {
     projectRoot: path.resolve(__dirname, '../..'),
   },
   clipboard: false,
+  // Opt-in. Omit either key and that button is not registered.
+  antigravityIde: true,
+  antigravity: { mode: 'plan' },
 }
 ```
 
 Buttons grey out when the agent binary is missing (Grok Build: `grok` not on
-PATH and not at `~/.grok/bin/grok`). Deeplink agents stay enabled; the OS
-reports an error if the app is not installed.
+PATH and not at `~/.grok/bin/grok`; Antigravity IDE: `antigravity-ide`;
+Antigravity CLI: `agy`, then `~/.local/bin/agy`). Deeplink agents stay enabled;
+the OS reports an error if the app is not installed.
 
 #### Shared footer-agent options
 
-Codex / Claude / Cursor share these; Grok Build reuses them for its Terminal
-launcher.
+Codex / Claude / Cursor share these; Grok Build and the Antigravity CLI reuse
+them for their Terminal launchers. Antigravity IDE ignores `openCommand` /
+`openArgs` — its own CLI starts the app.
 
 | Option | Type | Default | What you can set |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` (when using an object) | `false` unregisters the agent. |
 | `openCommand` | `string` | `open` / `cmd` / `xdg-open` | Executable for deeplink / launcher. Override the platform default when needed. |
 | `openArgs` | `string[]` | platform prefix | Extra args **before** the URL / launcher path. Appended after the default prefix when `openCommand` is omitted. |
-| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` writes a Markdown handoff and sends a compact prompt pointing at it. In `'auto'`, Cursor / Grok may overflow to file; Claude / Codex only switch on explicit `'file'`. |
+| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` writes a Markdown handoff and sends a compact prompt pointing at it. In `'auto'`, Cursor / Grok / Antigravity IDE / Antigravity may overflow to file; Claude / Codex only switch on explicit `'file'`. A prompt that starts with `-` always uses the file pointer for Antigravity IDE, so the CLI does not treat it as a flag. |
 
 #### Windows
 
@@ -637,6 +646,35 @@ In **WSL**, point `openCommand` at `wslview` or `explorer.exe` instead of `cmd`.
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in the Grok prompt. |
 | `permissionMode` | `string` | none | Passed as `--permission-mode` (`plan`, `acceptEdits`, `default`, …). |
 | `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to file handoff (ARGV / ARG_MAX). |
+
+#### `agents.antigravityIde`
+
+Off unless set. Runs `antigravity-ide <projectRoot> chat` so the IDE opens a chat in that folder. The prompt is passed as the chat positional (read from a launcher file, not inlined into the script). Referenced source files, screenshots, and recording stills are attached with `--add-file` when they stay inside the project root.
+
+| Option | Type | Default | What you can set |
+| --- | --- | --- | --- |
+| `command` | `string` | `'antigravity-ide'`, then the macOS app bundle CLI | Absolute path when Node’s PATH cannot see the shell command. |
+| `projectRoot` | `string` | Vite / bundler project root | Folder argument before `chat`, and the launcher `cd`. |
+| `mode` | `string` | omitted (IDE default `agent`) | `--mode`: `ask`, `edit`, `agent`, or a custom mode id. |
+| `reuseWindow` | `boolean` | `false` | `--reuse-window`. Ignored when `newWindow` is true. |
+| `newWindow` | `boolean` | `false` | `--new-window`. Wins over `reuseWindow`. |
+| `maximize` | `boolean` | `false` | `--maximize`. |
+| `profile` | `string` | none | `--profile`. |
+| `addFiles` | `boolean` | `true` | `false` skips `--add-file`. Paths outside the project root are always dropped. |
+| `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to a file pointer. |
+
+#### `agents.antigravity`
+
+Off unless set. Opens the **Antigravity** desktop app and writes the prompt into its composer. The button stays available when the app is installed, even if it is not running. The `agy` CLI is used only when the desktop app is not installed.
+
+| Option | Type | Default | What you can set |
+| --- | --- | --- | --- |
+| `command` | `string` | `'agy'`, then `~/.local/bin/agy` (Windows: `%LOCALAPPDATA%\\agy\\bin\\agy.exe`) | Absolute path if Node’s PATH differs from your login shell. |
+| `projectRoot` | `string` | Vite / bundler project root | Launcher `cd`. Relative `@` refs are stripped against this root. |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | Source `@` refs in the Antigravity prompt only. |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in the Antigravity prompt. |
+| `mode` | `string` | none | Passed as `agy --mode` (`plan`, `accept-edits`). |
+| `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to file handoff. |
 
 #### `agents.custom`
 
@@ -733,6 +771,8 @@ Written under `outputDir` (default `.intent-inspector/`):
 | --- | --- |
 | `requests/<timestamp>-<id>.md` | Full request + prompt (`file` agent, or any footer agent in `promptMode: 'file'` / auto overflow). |
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + prompt for `grok --verbatim`. |
+| `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE chat launcher (only after `agents.antigravityIde` is set). |
+| `launches/<timestamp>-<id>.agy.command` + `.agy.prompt.txt` | Antigravity CLI Terminal launcher (only after `agents.antigravity` is set). |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | Event stream + still (when recording is used). |
 | screenshot artifacts | Referenced by the prompt. |
 | `next/bootstrap.js` (+ `.gitignore`) | Generated `'use client'` bootstrap for `next dev`; rewritten on every start, never committed. |

@@ -111,7 +111,7 @@ test('buildRegistry registers custom clients and refuses built-in names', () => 
     ]);
 });
 
-test('buildRegistry without agents.custom keeps the built-in agent set', () => {
+test('buildRegistry without agents.custom keeps the built-in agent set and leaves Antigravity off', () => {
     assert.deepEqual(buildRegistry({}).names(), [
         'clipboard',
         'file',
@@ -120,6 +120,7 @@ test('buildRegistry without agents.custom keeps the built-in agent set', () => {
         'cursor-app',
         'grok-build',
     ]);
+    assert.equal(buildRegistry({ custom: [{ name: 'antigravity' }] }).has('antigravity'), false);
 });
 
 test('buildDeliveryPayload carries the prompt plus absolute source and artifact paths', () => {

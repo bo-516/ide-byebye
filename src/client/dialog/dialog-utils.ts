@@ -36,15 +36,18 @@ export const AGENT_LABELS = {
     'claude-app': 'Claude App',
     'cursor-app': 'Cursor',
     'grok-build': 'Grok Build',
+    'antigravity-ide': 'Antigravity IDE',
+    antigravity: 'Antigravity',
     clipboard: 'Clipboard',
 };
 /**
  * App-agent actions displayed in the dialog footer.
  *
- * Boundary: this list is UI-only; availability still comes from the server registry. Adding an action without a
- * matching registered adapter shows an unavailable button instead of sending to a missing route. `titleKey` is resolved
- * to a localized title at call time by `configuredActions()`, so the tooltip follows the active locale. Grok Build is a
- * CLI handoff (Terminal launcher) rather than an app deeplink, but it still gets a footer button like the app agents.
+ * Boundary: this list is UI-only; a button is rendered only when `enabledAgents` includes its name. Antigravity IDE
+ * and Antigravity stay off unless the plugin config registers them, so a zero-config page does not show those buttons.
+ * Adding an action without a matching registered adapter shows an unavailable button instead of sending to a missing
+ * route. `titleKey` is resolved to a localized title at call time by `configuredActions()`. Grok Build and Antigravity
+ * are CLI handoffs (Terminal launchers); Antigravity IDE launches `antigravity-ide chat`.
  *
  * @type {Array<{ name: string, label: string, titleKey: string }>} Ordered footer app actions.
  */
@@ -68,6 +71,16 @@ export const AGENT_ACTIONS = [
         name: 'grok-build',
         label: 'Grok Build',
         titleKey: 'agent.grokBuild.title',
+    },
+    {
+        name: 'antigravity-ide',
+        label: 'Antigravity IDE',
+        titleKey: 'agent.antigravityIde.title',
+    },
+    {
+        name: 'antigravity',
+        label: 'Antigravity',
+        titleKey: 'agent.antigravity.title',
     },
 ];
 

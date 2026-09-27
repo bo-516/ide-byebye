@@ -23,6 +23,8 @@ export type AgentId =
   | 'claude-app'
   | 'cursor-app'
   | 'grok-build'
+  | 'antigravity-ide'
+  | 'antigravity'
   | (string & {});
 
 /** Hint embedded in the handoff: plan only vs allow the agent to edit. */
@@ -96,6 +98,53 @@ export interface CursorAppAgentOptions extends AgentOpenOptions {
   route?: string;
 }
 
+/**
+ * Antigravity IDE (`antigravity-ide chat`). Off unless `agents.antigravityIde` is set.
+ * The CLI opens the IDE, so `openCommand` / `openArgs` on this object are ignored.
+ */
+export interface AntigravityIdeAgentOptions extends AgentOpenOptions {
+  /** CLI binary. Default: `antigravity-ide`, then the macOS app-bundle path. */
+  command?: string;
+  /** Folder opened as the chat workspace. Default: bundler project root. */
+  projectRoot?: string;
+  /** Chat mode (`ask`, `edit`, `agent`, or a custom mode id). Omitted → IDE default `agent`. */
+  mode?: string;
+  /** Force the last active IDE window. Ignored when `newWindow` is true. */
+  reuseWindow?: boolean;
+  /** Open an empty new window for the chat. Wins over `reuseWindow`. */
+  newWindow?: boolean;
+  /** Maximize the chat session view. */
+  maximize?: boolean;
+  /** IDE profile name passed as `--profile`. */
+  profile?: string;
+  /**
+   * Attach referenced source files, screenshots, and recording stills with `--add-file`.
+   * Default `true`. Paths outside the project root are dropped.
+   */
+  addFiles?: boolean;
+  /** In `auto` mode, longer prompts switch to a file pointer. Default `12000`. */
+  promptArgLimit?: number;
+}
+
+/**
+ * Antigravity CLI (`agy`). Off unless `agents.antigravity` is set.
+ * Opens a Terminal session; `openCommand` / `openArgs` choose how that launcher is started.
+ */
+export interface AntigravityAgentOptions extends AgentOpenOptions {
+  /** CLI binary (`agy`, then `~/.local/bin/agy`). Absolute path if PATH differs. */
+  command?: string;
+  /** Launcher `cd`. Relative `@` refs strip against this root. */
+  projectRoot?: string;
+  /** Source `@` refs in the Antigravity prompt only. Default `'relative'`. */
+  pathStyle?: PathStyle;
+  /** Screenshot / still paths in the Antigravity prompt. Default `'absolute'`. */
+  artifactPathStyle?: PathStyle;
+  /** Passed as `agy --mode` (`plan`, `accept-edits`). Omitted → CLI default. */
+  mode?: string;
+  /** In `auto` mode, longer prompts switch to file handoff. Default `12000`. */
+  promptArgLimit?: number;
+}
+
 export interface GrokBuildAgentOptions extends AgentOpenOptions {
   /** CLI binary (`'grok'`, then `~/.grok/bin/grok`). Absolute path if PATH differs. */
   command?: string;
@@ -163,6 +212,16 @@ export interface AgentsOptions {
   cursorApp?: AgentEntry<CursorAppAgentOptions>;
   grokBuild?: AgentEntry<GrokBuildAgentOptions>;
   /**
+   * Antigravity IDE chat handoff. Omit it (the default) and the button is not registered.
+   * `true` or an options object turns it on.
+   */
+  antigravityIde?: AgentEntry<AntigravityIdeAgentOptions>;
+  /**
+   * Antigravity CLI (`agy`) handoff. Omit it (the default) and the button is not registered.
+   * `true` or an options object turns it on.
+   */
+  antigravity?: AgentEntry<AntigravityAgentOptions>;
+  /**
    * Extra footer agents that deliver the prompt straight into a running
    * client's input box. Omit it and the plugin behaves exactly as before.
    */
@@ -229,9 +288,10 @@ export interface IdeByebyeOptions {
   clickModifier?: ClickModifier;
   /**
    * Enter-key target: a footer agent (`'codex-app'` / `'claude-app'` / `'cursor-app'` /
-   * `'grok-build'` or an `agents.custom` name). Default `'claude-app'`. `'clipboard'` / `'file'`
-   * and unknown / disabled ids fall back to the first enabled footer agent; once the user clicks
-   * a footer agent, Enter follows that remembered choice instead.
+   * `'grok-build'` / `'antigravity-ide'` / `'antigravity'` or an `agents.custom` name).
+   * Default `'claude-app'`. `'clipboard'` / `'file'` and unknown / disabled ids fall back to the
+   * first enabled footer agent; once the user clicks a footer agent, Enter follows that remembered choice instead.
+   * `'antigravity-ide'` and `'antigravity'` are only enabled after `agents.antigravityIde` / `agents.antigravity`.
    */
   defaultAgent?: AgentId;
   /** Handoff hint: plan only vs allow edits. Default `'prompt-only'`. */
@@ -259,7 +319,11 @@ export interface IdeByebyeOptions {
    * Pass `true` or an options object to enable it; `{ enabled: false }` keeps it off.
    */
   recording?: boolean | RecordingOptions;
-  /** Per-agent enable / overrides, plus `custom` clients. Default `{}` (all six built-in agents on). */
+  /**
+   * Per-agent enable / overrides, plus `custom` clients.
+   * Default `{}` (clipboard, file, Codex, Claude, Cursor, Grok Build on).
+   * `antigravityIde` and `antigravity` stay off until set.
+   */
   agents?: AgentsOptions;
   /**
    * Built-in `data-insp-path` stamping. Default on.

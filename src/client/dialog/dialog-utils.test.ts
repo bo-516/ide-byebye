@@ -156,6 +156,18 @@ test('visibleAgentActions keeps every configured app agent', () => {
     assert.deepEqual(names, ['codex-app', 'claude-app', 'cursor-app', 'grok-build']);
 });
 
+test('visibleAgentActions hides Antigravity until those agents are enabled', () => {
+    const zeroConfig = visibleAgentActions({
+        enabledAgents: ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build'],
+    }).map((action) => action.name);
+    assert.equal(zeroConfig.includes('antigravity-ide'), false);
+    assert.equal(zeroConfig.includes('antigravity'), false);
+    const optedIn = visibleAgentActions({
+        enabledAgents: ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'antigravity-ide', 'antigravity'],
+    }).map((action) => action.name);
+    assert.deepEqual(optedIn.slice(-2), ['antigravity-ide', 'antigravity']);
+});
+
 test('visibleAgentActions falls back to every action when enabledAgents is missing or empty', () => {
     const all = configuredActions().map((action) => action.name);
     assert.deepEqual(visibleAgentActions({}).map((action) => action.name), all);

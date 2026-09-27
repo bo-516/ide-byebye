@@ -327,7 +327,7 @@ export default {
 | 插件开启 | `enabled: true`（仅开发环境） |
 | 选取 | 按住 ⌘（macOS）/ Ctrl → 点击；快捷键 `Alt+Shift+I` |
 | Enter 交接 | **Claude App** |
-| 页脚 Agent | Codex App / Claude App / Cursor / Grok Build — 全部开启 |
+| 页脚 Agent | Codex App / Claude App / Cursor / Grok Build — 全部开启。Antigravity IDE 与 Antigravity CLI 需配置后才出现 |
 | 后端 Agent | clipboard（**复制 Prompt** 按钮）+ file（无 UI 入口）— 开启；都不是 Enter 目标 |
 | 录制 | 关闭；可设 `recording: true` 开启（需 `@rrweb/record` + `@rrweb/replay`） |
 | UI 语言 | auto（`navigator.language` → 否则 `zh`） |
@@ -389,7 +389,7 @@ ideByebye({
 | --- | --- |
 | **类型** | `string` |
 | **默认** | `'claude-app'` |
-| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'`，或 [`agents.custom`](#agentscustom) 里的客户端名。`'clipboard'` / `'file'` 永远不是 Enter 目标 —— 和未知 / 已禁用的值一样，回退到第一个已启用的页脚 Agent（Codex → Claude → Cursor → Grok Build → 自定义）；一个都没启用时，Enter 只会报「未启用」。点过某个页脚 Agent 后，Enter 改为沿用那次的选择（记在当前浏览器里）。 |
+| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'antigravity-ide'` / `'antigravity'`，或 [`agents.custom`](#agentscustom) 里的客户端名。`'clipboard'` / `'file'` 永远不是 Enter 目标 —— 和未知 / 已禁用的值一样，回退到第一个已启用的页脚 Agent（Codex → Claude → Cursor → Grok Build → Antigravity IDE → Antigravity → 自定义）；一个都没启用时，Enter 只会报「未启用」。点过某个页脚 Agent 后，Enter 改为沿用那次的选择（记在当前浏览器里）。`'antigravity-ide'` / `'antigravity'` 只有在对应 Agent 打开之后才有效。 |
 
 #### `applyMode`
 
@@ -498,8 +498,9 @@ ideByebye({
 ### Agents
 
 六个内置 Agent，**默认全部开启**。用 `agents.<name>: false` 或 `{ enabled: false }` 关闭。
-`true` 显式开启；对象则保持开启并覆盖选项。`agents.custom` 还可以加上你自己的页脚
-Agent —— 见 [`agents.custom`](#agentscustom)。
+`true` 显式开启；对象则保持开启并覆盖选项。**Antigravity IDE** 和 **Antigravity CLI**
+虽然内置，但**不配置就不会出现** —— 不写 `antigravityIde` / `antigravity` 时页脚与以前相同。
+`agents.custom` 还可以加上你自己的页脚 Agent —— 见 [`agents.custom`](#agentscustom)。
 
 `clipboard` 就是页脚的 **复制 Prompt** 按钮（不会成为 Enter 目标），
 `clipboard: false` 会去掉这个按钮。`file` 在 UI 里没有入口：没有按钮，也不会成为
@@ -514,6 +515,8 @@ Enter 目标。想从 UI 拿到它那份 Markdown 文件，就给页脚 Agent �
 | `claudeApp` | `claude-app` | 是 | 打开并预填 **Claude App**；可附带文件与文件夹。 |
 | `cursorApp` | `cursor-app` | 是 | 打开并预填 **Cursor**（按 workspace 名路由）。 |
 | `grokBuild` | `grok-build` | 是 | 在 Terminal 打开 **Grok Build** 并预填 prompt。 |
+| `antigravityIde` | `antigravity-ide` | 是，**默认关闭** | 打开 **Antigravity IDE** 聊天（`antigravity-ide chat`）并预填 prompt。 |
+| `antigravity` | `antigravity` | 是，**默认关闭** | 打开 **Antigravity** 桌面应用，并把 prompt 放进输入框。 |
 
 ```js
 agents: {
@@ -525,22 +528,27 @@ agents: {
     projectRoot: path.resolve(__dirname, '../..'),
   },
   clipboard: false,
+  // 可选。不写就不会注册对应按钮。
+  antigravityIde: true,
+  antigravity: { mode: 'plan' },
 }
 ```
 
 找不到 Agent 二进制时按钮变灰（Grok Build：PATH 上没有 `grok`，且不在
-`~/.grok/bin/grok`）。Deeplink Agent 保持可点；本机没装对应 App 时由系统报错。
+`~/.grok/bin/grok`；Antigravity IDE：`antigravity-ide`；Antigravity CLI：`agy`，
+其次 `~/.local/bin/agy`）。Deeplink Agent 保持可点；本机没装对应 App 时由系统报错。
 
 #### 页脚 Agent 共用选项
 
-Codex / Claude / Cursor 共用以下项；Grok Build 复用它们做 Terminal launcher。
+Codex / Claude / Cursor 共用以下项；Grok Build 与 Antigravity CLI 复用它们做 Terminal launcher。
+Antigravity IDE 忽略 `openCommand` / `openArgs` —— 由它自己的 CLI 启动应用。
 
 | 选项 | 类型 | 默认 | 可配内容 |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true`（使用对象时） | `false` 取消注册。 |
 | `openCommand` | `string` | `open` / `cmd` / `xdg-open` | deeplink / launcher 可执行文件。覆盖平台默认值时再设。 |
 | `openArgs` | `string[]` | 平台前缀 | URL / launcher 路径**之前**的额外参数。未设 `openCommand` 时接在默认前缀后面。 |
-| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` 写 Markdown 交接文件，并发送指向它的精简 prompt。`'auto'` 下 Cursor / Grok 可能因超长溢出到文件；Claude / Codex 仅在显式 `'file'` 时切换。 |
+| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` 写 Markdown 交接文件，并发送指向它的精简 prompt。`'auto'` 下 Cursor / Grok / Antigravity IDE / Antigravity 可能因超长溢出到文件；Claude / Codex 仅在显式 `'file'` 时切换。以 `-` 开头的 prompt 对 Antigravity IDE 总会改走文件指针，避免 CLI 把它当成 flag。 |
 
 #### Windows
 
@@ -610,6 +618,35 @@ ideByebye({
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Grok prompt 里截图 / 静帧路径。 |
 | `permissionMode` | `string` | 无 | 传给 `--permission-mode`（`plan`、`acceptEdits`、`default` 等）。 |
 | `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件交接（ARGV / ARG_MAX）。 |
+
+#### `agents.antigravityIde`
+
+不配置则关闭。执行 `antigravity-ide <projectRoot> chat`，在该目录打开 IDE 聊天。prompt 作为 chat 的位置参数传入（从 launcher 文件读取，不会写进脚本正文）。引用的源文件、截图和录制静帧在仍位于项目根内时，会用 `--add-file` 附上。
+
+| 选项 | 类型 | 默认 | 可配内容 |
+| --- | --- | --- | --- |
+| `command` | `string` | `'antigravity-ide'`，其次 macOS app 内的 CLI | Node 的 PATH 找不到 shell 命令时给绝对路径。 |
+| `projectRoot` | `string` | Vite / 打包器项目根 | `chat` 之前的文件夹参数，以及 launcher 的 `cd`。 |
+| `mode` | `string` | 省略（IDE 默认 `agent`） | `--mode`：`ask`、`edit`、`agent`，或自定义 mode id。 |
+| `reuseWindow` | `boolean` | `false` | `--reuse-window`。`newWindow` 为 true 时忽略。 |
+| `newWindow` | `boolean` | `false` | `--new-window`。优先于 `reuseWindow`。 |
+| `maximize` | `boolean` | `false` | `--maximize`。 |
+| `profile` | `string` | 无 | `--profile`。 |
+| `addFiles` | `boolean` | `true` | `false` 不再传 `--add-file`。项目根以外的路径一律丢弃。 |
+| `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件指针。 |
+
+#### `agents.antigravity`
+
+不配置则关闭。打开 **Antigravity** 桌面应用，并把 prompt 写进它的输入框。应用已安装但没在运行时，按钮仍然可用。只有没装桌面应用时，才会改用 `agy` CLI。
+
+| 选项 | 类型 | 默认 | 可配内容 |
+| --- | --- | --- | --- |
+| `command` | `string` | `'agy'`，其次 `~/.local/bin/agy`（Windows：`%LOCALAPPDATA%\\agy\\bin\\agy.exe`） | Node 的 PATH 与登录 shell 不同时给绝对路径。 |
+| `projectRoot` | `string` | Vite / 打包器项目根 | launcher 的 `cd`。相对 `@` 引用相对此根剥离。 |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | 仅影响 Antigravity prompt 里的源码 `@` 引用。 |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Antigravity prompt 里截图 / 静帧路径。 |
+| `mode` | `string` | 无 | 传给 `agy --mode`（`plan`、`accept-edits`）。 |
+| `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件交接。 |
 
 #### `agents.custom`
 
@@ -704,6 +741,8 @@ SVG-`<foreignObject>` → canvas。无 CORS 的跨域资源可能空白，字体
 | --- | --- |
 | `requests/<timestamp>-<id>.md` | 完整请求 + prompt（`file` Agent，或任意页脚 Agent 在 `promptMode: 'file'` / auto 溢出时）。 |
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + 供 `grok --verbatim` 的 prompt。 |
+| `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE 聊天 launcher（仅在设置 `agents.antigravityIde` 之后）。 |
+| `launches/<timestamp>-<id>.agy.command` + `.agy.prompt.txt` | Antigravity CLI Terminal launcher（仅在设置 `agents.antigravity` 之后）。 |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | 事件流 + 静帧（使用录制时）。 |
 | 截图产物 | 由 prompt 引用。 |
 | `next/bootstrap.js`（+ `.gitignore`） | 为 `next dev` 生成的 `'use client'` bootstrap；每次启动重写，不会被提交。 |

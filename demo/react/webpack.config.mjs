@@ -34,8 +34,13 @@ export default {
   },
   plugins: [
     new HtmlWebpackPlugin({ template: './webpack.html' }),
-    // Zero-config: stamps data-insp-path + injects bootstrap into emitted HTML.
-    inspector(),
+    // Stamps data-insp-path + injects bootstrap. Antigravity agents are on so this React demo shows them.
+    inspector({
+      agents: {
+        antigravityIde: true,
+        antigravity: true,
+      },
+    }),
   ],
   devServer: {
     port: Number(process.env.PORT) || 5400,
