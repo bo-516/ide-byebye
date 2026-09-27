@@ -4,6 +4,9 @@ import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
 import { openTarget } from './opener.js';
 import { buildCodexAppFilePrompt, buildCodexAppPrompt } from './codex-app-prompt.js';
+import { readSessionPicker } from '../sessions/options.js';
+import { listCodexSessions } from '../sessions/codex-sessions.js';
+import { SESSION_ID_PATTERNS } from '../sessions/types.js';
 const DEFAULT_SCHEME = 'codex';
 export { buildCodexAppFilePrompt, buildCodexAppPrompt };
 
@@ -55,6 +58,24 @@ export function buildCodexAppDeepLink(input) {
         url.searchParams.set('path', input.path);
     if (input.originUrl)
         url.searchParams.set('originUrl', input.originUrl);
+    return url.toString();
+}
+
+/**
+ * Build a Codex App deeplink that opens an existing thread and prefills the composer.
+ *
+ * Boundary: `threadId` must match the Codex UUID pattern. A bad id throws before a URL is built, so it cannot be
+ * interpolated into the scheme. The prompt is query-encoded. This link only prefills; Codex does not auto-submit.
+ * `path` is omitted — the thread already has a cwd, and relative links inside `prompt` were rendered against it.
+ *
+ * @param {{ scheme?: string, threadId: string, prompt: string }} input Deeplink fields.
+ * @returns {string} `codex://threads/<id>?prompt=…` (or the configured scheme).
+ */
+export function buildCodexAppThreadDeepLink(input) {
+    if (!SESSION_ID_PATTERNS['codex-app'].test(String(input.threadId ?? '')))
+        throw new Error('Invalid Codex thread id');
+    const url = new URL(`${normalizeScheme(input.scheme)}://threads/${input.threadId}`);
+    url.searchParams.set('prompt', input.prompt);
     return url.toString();
 }
 
@@ -127,33 +148,56 @@ function shouldWritePromptFile(config, prompt) {
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
  */
 export function createCodexAppAdapter(config: any = {}) {
+    const sessionsEnabled = readSessionPicker(config).enabled;
     return {
         name: 'codex-app',
+        sessionsEnabled,
         async isAvailable() {
             return { available: true };
         },
+        /**
+         * List project threads. Ignored by the route when `sessionsEnabled` is false.
+         *
+         * @param {{ projectRoot: string }} ctx Inspector project root.
+         * @returns {Promise<{ sessions: Array<Record<string, unknown>>, delivery: string, notice?: string }>}
+         */
+        async listSessions(ctx) {
+            return listCodexSessions({ projectRoot: ctx.projectRoot, config });
+        },
         async send(request, context) {
-            const events = [{ type: 'started', text: 'Opening Codex App' }];
+            const target = context.targetSession;
+            const events = [{ type: 'started', text: target ? 'Opening Codex App thread' : 'Opening Codex App' }];
             context.emit(events[0]);
             try {
-                let prompt = buildCodexAppPrompt(request);
+                // Thread cwd is the link root so `@` paths match the conversation the user is already in.
+                const promptRequest = target ? { ...request, projectRoot: target.cwd } : request;
+                let prompt = buildCodexAppPrompt(promptRequest);
                 let writtenPromptPath;
                 if (shouldWritePromptFile(config, context.prompt)) {
-                    writtenPromptPath = writePromptFile(request, context);
-                    prompt = buildCodexAppFilePrompt(request, writtenPromptPath);
-                    const event = { type: 'file-change', text: `Wrote ${writtenPromptPath}` };
+                    // The route's prompt is relative to the inspector root. A thread handoff must embed the prompt
+                    // rebuilt against the thread cwd, or repo-root threads keep package-relative links.
+                    writtenPromptPath = writePromptFile(request, target ? { ...context, prompt } : context);
+                    prompt = buildCodexAppFilePrompt(promptRequest, writtenPromptPath);
+                    const event = {
+                        type: 'file-change',
+                        text: target ? 'Wrote prompt handoff' : `Wrote ${writtenPromptPath}`,
+                    };
                     events.push(event);
                     context.emit(event);
                 }
-                const url = buildCodexAppDeepLink({
-                    scheme: config.scheme,
-                    prompt,
-                    path: resolveCodexAppProjectRoot(config, context),
-                });
+                const url = target
+                    ? buildCodexAppThreadDeepLink({ scheme: config.scheme, threadId: target.id, prompt })
+                    : buildCodexAppDeepLink({
+                        scheme: config.scheme,
+                        prompt,
+                        path: resolveCodexAppProjectRoot(config, context),
+                    });
                 await openTarget(config, url);
                 const completed = {
                     type: 'completed',
-                    text: 'Codex App opened with a prefilled new conversation',
+                    text: target
+                        ? 'Codex App opened with the thread prompt prefilled'
+                        : 'Codex App opened with a prefilled new conversation',
                 };
                 events.push(completed);
                 context.emit(completed);
@@ -162,10 +206,16 @@ export function createCodexAppAdapter(config: any = {}) {
                     agent: 'codex-app',
                     requestId: request.id,
                     events,
-                    output: writtenPromptPath
-                        ? `Opened Codex App. Full request context was written to ${writtenPromptPath}.`
-                        : 'Opened Codex App with the generated prompt prefilled.',
-                    writtenPromptPath,
+                    output: target
+                        ? 'Opened Codex App thread with the prompt prefilled.'
+                        : writtenPromptPath
+                            ? `Opened Codex App. Full request context was written to ${writtenPromptPath}.`
+                            : 'Opened Codex App with the generated prompt prefilled.',
+                    ...(target
+                        ? { targetSessionId: target.id }
+                        : writtenPromptPath
+                            ? { writtenPromptPath }
+                            : {}),
                 };
             }
             catch (err) {

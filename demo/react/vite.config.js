@@ -12,7 +12,7 @@ export default defineConfig({
       recording: true,
       // Opt-in agents: off in real projects until configured. On here so the React demo shows them.
       agents: {
-        antigravityIde: true,
+        antigravityIde: { experimentalSessions: true },
         antigravity: true,
       },
     }),

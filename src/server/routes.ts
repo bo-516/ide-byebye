@@ -6,6 +6,7 @@ import { buildPrompt, buildPromptReferenceLines } from './prompt.js';
 import { saveScreenshotPayloads, saveRecordingPayloads } from './screenshot.js';
 import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
 import { resolveVendorEsmPath } from './vendor.js';
+import { gateSendTarget, handleSessionsGet } from './routes-sessions.js';
 function sendJson(res, status, body) {
     const text = JSON.stringify(body);
     res.statusCode = status;
@@ -221,6 +222,14 @@ export function createInspectorRequestHandler(deps) {
             sendJson(res, 200, { ok: true, ...deps.session() });
             return;
         }
+        // --- GET /sessions ------------------------------------------------------
+        // Project session catalog. Must stay plural: GET /session is the Angular bootstrap handoff above.
+        if (url === ENDPOINTS.sessions && req.method === 'GET') {
+            if (!guard(req, res))
+                return;
+            handleSessionsGet(req, res, deps).catch(() => sendJson(res, 500, { ok: false, error: 'Session list failed' }));
+            return;
+        }
         // --- GET /agents --------------------------------------------------------
         if (url === ENDPOINTS.agents && req.method === 'GET') {
             if (!guard(req, res))
@@ -278,6 +287,12 @@ export function createInspectorRequestHandler(deps) {
             readJsonBody(req)
                 .then(async (payload) => {
                 try {
+                    // A target is revalidated before screenshots, launchers, or app opens. No target keeps today's path.
+                    const targetGate = await gateSendTarget(payload, deps);
+                    if (targetGate.blocked) {
+                        sendJson(res, 200, targetGate.body);
+                        return;
+                    }
                     if (!registry.has(payload.agent)) {
                         throw new Error(`Agent "${payload.agent}" is not enabled`);
                     }
@@ -299,6 +314,7 @@ export function createInspectorRequestHandler(deps) {
                         sessionStore,
                         logger,
                         emit: (event) => events.push(event),
+                        ...(targetGate.session ? { targetSession: targetGate.session } : {}),
                     };
                     logger.audit({
                         kind: 'send',

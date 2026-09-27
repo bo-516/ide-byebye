@@ -28,7 +28,7 @@ function resolveEndpointUrl(config, endpoint) {
  * working. A wrong `apiOrigin` sends route resolution, agent discovery, and agent send requests to the wrong host.
  *
  * @param {Record<string, unknown>} config Browser config injected by the plugin (the live global object).
- * @returns {{ resolve: Function, send: Function, agents: Function }} Inspector API methods used by the picker dialog.
+ * @returns {{ resolve: Function, send: Function, agents: Function, sessions: Function }} Inspector API methods used by the picker dialog.
  */
 export function createApi(config) {
     /**
@@ -66,6 +66,23 @@ export function createApi(config) {
         send: (payload) => postJson(ENDPOINTS.send, payload),
         async agents() {
             const res = await fetch(`${resolveEndpointUrl(config, ENDPOINTS.agents)}?token=${encodeURIComponent(config.token)}`, {
+                headers: headers(),
+                credentials: 'same-origin',
+            });
+            return (await res.json());
+        },
+        /**
+         * List project sessions for one agent.
+         *
+         * Boundary: `agent` is a registered name, not a filesystem path. The token is sent the same way as `agents()`.
+         * A non-JSON body rejects so the menu can show its error state.
+         *
+         * @param {string} agent Agent id (`codex-app`, `grok-build`, `antigravity-ide`).
+         * @returns {Promise<Record<string, unknown>>} Catalog JSON (`ok`, `sessions`, `delivery`, optional `notice` / `code`).
+         */
+        async sessions(agent) {
+            const url = `${resolveEndpointUrl(config, ENDPOINTS.sessions)}?agent=${encodeURIComponent(agent)}&token=${encodeURIComponent(config.token)}`;
+            const res = await fetch(url, {
                 headers: headers(),
                 credentials: 'same-origin',
             });

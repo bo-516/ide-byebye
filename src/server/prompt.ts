@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { resolvePromptPathStyleOptions } from './config.js';
 import { buildStyleContextLines } from './styles.js';
@@ -13,9 +14,28 @@ import { buildStyleContextLines } from './styles.js';
  * @returns {string} Project-relative POSIX path, or the original path when it is outside the root.
  */
 function repoRelativePath(filePath, projectRoot) {
-    const rel = path.relative(projectRoot, filePath);
+    // Realpath both sides so a session cwd that went through /private/var still strips a /var/folders source path.
+    const root = canonical(projectRoot);
+    const file = canonical(filePath);
+    const rel = path.relative(root, file);
     const value = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : filePath;
     return value.split(path.sep).join('/');
+}
+
+/**
+ * Best-effort canonical path. Missing fixture paths stay resolved so unit tests that use fake directories keep working.
+ *
+ * @param {string} input File or directory path.
+ * @returns {string} Realpath when the path exists, otherwise `path.resolve`.
+ */
+function canonical(input) {
+    const resolved = path.resolve(input);
+    try {
+        return fs.realpathSync.native(resolved);
+    }
+    catch {
+        return resolved;
+    }
 }
 
 /**

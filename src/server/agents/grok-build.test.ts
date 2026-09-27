@@ -267,6 +267,38 @@ test('buildGrokBuildWindowsLauncherScript encodes paths and never embeds the pro
     assert.equal(script.includes('please fix'), false);
 });
 
+test('resume launchers add --resume before permission mode in bash and PowerShell', () => {
+    const id = '01a0d2e5-6e44-7b51-b736-be5fef078a2e';
+    const bash = buildGrokBuildLauncherScript({
+        command: 'grok',
+        cwd: '/tmp/session-cwd',
+        promptPath: '/tmp/p.txt',
+        permissionMode: 'plan',
+        resumeSessionId: id,
+    });
+    assert.match(bash, /cd '\/tmp\/session-cwd' \|\| exit 1/);
+    assert.match(bash, /exec 'grok' --cwd '\/tmp\/session-cwd' --resume '01a0d2e5-6e44-7b51-b736-be5fef078a2e' --permission-mode 'plan' --verbatim "\$\(cat '\/tmp\/p\.txt'\)"/);
+    const script = buildGrokBuildWindowsLauncherScript({
+        command: 'grok',
+        cwd: 'C:\\session',
+        promptPath: 'C:\\p.txt',
+        permissionMode: 'plan',
+        resumeSessionId: id,
+    });
+    const encoded = script.match(/-EncodedCommand\s+(\S+)/)?.[1];
+    const program = Buffer.from(encoded, 'base64').toString('utf16le');
+    assert.match(program, /--cwd 'C:\\session' --resume '01a0d2e5-6e44-7b51-b736-be5fef078a2e' --permission-mode 'plan' --verbatim \$prompt/);
+});
+
+test('buildGrokBuildLauncherScript rejects a resume id that is not a UUID', () => {
+    assert.throws(() => buildGrokBuildLauncherScript({
+        command: 'grok',
+        cwd: '/tmp',
+        promptPath: '/tmp/p.txt',
+        resumeSessionId: '$(rm -rf /)',
+    }), /Invalid resume session id/);
+});
+
 test('buildGrokBuildLauncherFile picks cmd vs bash by platform', () => {
     const input = {
         command: 'grok',

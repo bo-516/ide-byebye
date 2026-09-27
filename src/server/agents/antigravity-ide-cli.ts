@@ -145,47 +145,11 @@ export function buildAntigravityIdeFilePrompt(request, promptPath) {
 }
 
 /**
- * Read a trimmed optional string option.
+ * Window flag for opening the project folder.
  *
- * @param {unknown} value Raw config value.
- * @returns {string} Trimmed string, or empty when missing / not a string.
- */
-function optionalText(value) {
-    return typeof value === 'string' ? value.trim() : '';
-}
-
-/**
- * Shared `antigravity-ide chat` flags, quoted for bash.
- *
- * Boundary: `newWindow` wins over `reuseWindow`. The prompt itself is not included; the caller appends the
- * `$(cat …)` argument so the prompt body never enters the script source.
- *
- * @param {Record<string, unknown>} input Launcher fields.
- * @returns {string[]} Quoted argv tokens after the binary, including the `chat` subcommand.
- */
-function bashChatArgs(input) {
-    const args = ['chat', '--reuse-window'];
-    const mode = optionalText(input.mode);
-    if (mode)
-        args.push('--mode', shellSingleQuote(mode));
-    if (input.maximize)
-        args.push('--maximize');
-    const profile = optionalText(input.profile);
-    if (profile)
-        args.push('--profile', shellSingleQuote(profile));
-    for (const file of input.files ?? []) {
-        if (file)
-            args.push('--add-file', shellSingleQuote(file));
-    }
-    return args;
-}
-
-/**
- * Window flag for the first launch, before the prompt is sent.
- *
- * Boundary: a brand-new window drops a chat message that arrives before `vscode:handleChatRequest` is registered.
- * The folder is opened first; the prompt goes out in a later call with `--reuse-window`. `newWindow` still forces a
- * new window for that first open. When neither flag is set, the IDE's own window policy is left alone.
+ * Boundary: `newWindow` forces a new IDE window. `reuseWindow` forces the last active window. When neither is set,
+ * the IDE's own window policy decides. This script does not pass the prompt — `antigravity-ide chat` calls
+ * `workbench.action.chat.newChat`, which this IDE does not register, so the agent input stays empty.
  *
  * @param {Record<string, unknown>} input Launcher fields.
  * @returns {string} Empty, `--new-window`, or `--reuse-window`.
@@ -199,65 +163,42 @@ function bashOpenFlag(input) {
 }
 
 /**
- * Build the bash launcher that opens Antigravity IDE and then prefills chat.
+ * Build the bash launcher that opens the project in Antigravity IDE.
  *
- * Boundary: the prompt body is never interpolated — `"$(cat promptPath)"` is one argument of the second command.
- * Paths and the binary are single-quoted. The four-second pause is required: sending `chat` in the same invocation
- * that creates the window delivers the prompt before the workbench is listening, and the input stays empty.
+ * Boundary: the prompt is not in this script. The agent input is filled afterwards by the bridge extension.
+ * Paths and the binary are single-quoted.
  *
- * @param {{ command: string, cwd: string, promptPath: string, mode?: string, newWindow?: boolean, reuseWindow?: boolean, maximize?: boolean, profile?: string, files?: string[] }} input Launcher fields.
+ * @param {{ command: string, cwd: string, newWindow?: boolean, reuseWindow?: boolean }} input Launcher fields.
  * @returns {string} Bash script including the shebang.
  */
 export function buildAntigravityIdeLauncherScript(input) {
     const command = shellSingleQuote(input.command);
     const cwd = shellSingleQuote(input.cwd);
-    const promptPath = shellSingleQuote(input.promptPath);
-    const chat = [command, ...bashChatArgs(input), `"$(cat ${promptPath})"`].join(' ');
     return [
         '#!/bin/bash',
         'set -euo pipefail',
         `cd ${cwd} || exit 1`,
         `${command} ${cwd}${bashOpenFlag(input)}`,
-        'sleep 4',
-        chat,
         '',
     ].join('\n');
 }
 
 /**
- * Build a `.cmd` wrapper that runs the IDE chat CLI via PowerShell.
+ * Build a `.cmd` wrapper that opens the project in Antigravity IDE.
  *
- * Boundary: the prompt is read from disk inside the encoded PowerShell program, so cmd's metacharacters in the prompt
- * never reach `cmd.exe`. The folder is opened first and the chat command waits four seconds, matching the bash
- * launcher: a prompt sent while the window is still starting is dropped.
+ * Boundary: the prompt is not in this script. The folder is the only argument, so cmd metacharacters in the
+ * prompt never reach `cmd.exe`.
  *
- * @param {{ command: string, cwd: string, promptPath: string, mode?: string, newWindow?: boolean, reuseWindow?: boolean, maximize?: boolean, profile?: string, files?: string[] }} input Launcher fields.
+ * @param {{ command: string, cwd: string, newWindow?: boolean, reuseWindow?: boolean }} input Launcher fields.
  * @returns {string} `.cmd` contents (CRLF).
  */
 export function buildAntigravityIdeWindowsLauncherScript(input) {
     const command = powershellSingleQuote(input.command);
     const cwd = powershellSingleQuote(input.cwd);
     const openFlag = input.newWindow ? ' --new-window' : input.reuseWindow ? ' --reuse-window' : '';
-    const chat = ['&', command, 'chat', '--reuse-window'];
-    const mode = optionalText(input.mode);
-    if (mode)
-        chat.push('--mode', powershellSingleQuote(mode));
-    if (input.maximize)
-        chat.push('--maximize');
-    const profile = optionalText(input.profile);
-    if (profile)
-        chat.push('--profile', powershellSingleQuote(profile));
-    for (const file of input.files ?? []) {
-        if (file)
-            chat.push('--add-file', powershellSingleQuote(file));
-    }
-    chat.push('$prompt');
     const program = [
         `Set-Location -LiteralPath ${cwd}`,
-        `$prompt = Get-Content -LiteralPath ${powershellSingleQuote(input.promptPath)} -Raw -Encoding UTF8`,
         `& ${command} ${cwd}${openFlag}`,
-        'Start-Sleep -Seconds 4',
-        chat.join(' '),
     ].join('; ');
     const encoded = Buffer.from(program, 'utf16le').toString('base64');
     return `@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}\r\n`;

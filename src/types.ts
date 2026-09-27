@@ -71,11 +71,30 @@ export interface ClaudeAppAgentOptions extends AgentOpenOptions {
   attachScreenshots?: boolean;
 }
 
+/**
+ * Options for the existing-session menu.
+ *
+ * Boundary: `false` on the agent (`sessions: false`) disables the menu entirely — that is not a field of this object.
+ * `limit` outside 1–50 is clamped. `home` is a server path; the page cannot set it.
+ */
+export interface SessionPickerOptions {
+  /** Menu length. Default 20, clamped to 1–50. */
+  limit?: number;
+  /** Codex only: ignore rollouts whose mtime is older than this many days. Default 30. */
+  lookbackDays?: number;
+  /** Data root. Codex defaults to `$CODEX_HOME` or `~/.codex`; Grok defaults to `~/.grok`. */
+  home?: string;
+}
+
 export interface CodexAppAgentOptions extends AgentOpenOptions {
   /** Deeplink scheme (`codex://new`). Default `'codex'`. */
   scheme?: string;
   /** Folder opened by the deeplink; relative paths resolve from process cwd. */
   projectRoot?: string;
+  /**
+   * Existing-thread menu. Default on. `false` removes the ▾. An object overrides limit, lookback, or home.
+   */
+  sessions?: boolean | SessionPickerOptions;
 }
 
 export interface CursorAppAgentOptions extends AgentOpenOptions {
@@ -99,8 +118,9 @@ export interface CursorAppAgentOptions extends AgentOpenOptions {
 }
 
 /**
- * Antigravity IDE (`antigravity-ide chat`). Off unless `agents.antigravityIde` is set.
- * The CLI opens the IDE, so `openCommand` / `openArgs` on this object are ignored.
+ * Antigravity IDE. Off unless `agents.antigravityIde` is set.
+ * The CLI opens the project folder; the prompt is placed in the agent input and is not submitted.
+ * `openCommand` / `openArgs` on this object are ignored.
  */
 export interface AntigravityIdeAgentOptions extends AgentOpenOptions {
   /** CLI binary. Default: `antigravity-ide`, then the macOS app-bundle path. */
@@ -124,6 +144,11 @@ export interface AntigravityIdeAgentOptions extends AgentOpenOptions {
   addFiles?: boolean;
   /** In `auto` mode, longer prompts switch to a file pointer. Default `12000`. */
   promptArgLimit?: number;
+  /**
+   * When `true`, the ▾ lists IDE conversations and send delivers into the selected one.
+   * Default `false`. Reads the language-server CSRF token from the IDE process command line.
+   */
+  experimentalSessions?: boolean;
 }
 
 /**
@@ -158,6 +183,10 @@ export interface GrokBuildAgentOptions extends AgentOpenOptions {
   permissionMode?: string;
   /** In `auto` mode, longer prompts switch to file handoff. Default `12000`. */
   promptArgLimit?: number;
+  /**
+   * Existing-session menu. Default on. `false` removes the ▾. Only closed sessions can be targeted.
+   */
+  sessions?: boolean | SessionPickerOptions;
 }
 
 /**

@@ -7,6 +7,7 @@ import { DialogPin } from './dialog-pin.js';
 import { createDialogEditor } from './dialog-editor.js';
 import { agentLabel, anchorFromElement, clamp, configuredActions, el, isAgentVisible, loadLastAgent, saveLastAgent, sourceReferenceLabel, visibleAgentActions, } from './dialog-utils.js';
 import { deliverPromptToClient } from './dialog-delivery.js';
+import { DialogSessionController } from './dialog-session-picker.js';
 import { t } from '../lib/i18n.js';
 export class Dialog {
     copyResetTimer: any;
@@ -24,6 +25,7 @@ export class Dialog {
     editor;
     editorEl = null;
     actionButtons = new Map();
+    sessions;
     lastAgent;
     selection = null;
     selectedElement = null;
@@ -59,6 +61,12 @@ export class Dialog {
         this.config = config;
         this.api = api;
         this.lastAgent = loadLastAgent(config);
+        this.sessions = new DialogSessionController({
+            api,
+            getLastAgent: () => this.lastAgent,
+            rememberAgent: (name) => this.rememberAgent(name),
+            showError: (text) => this.showError(text),
+        });
         this.editor = createDialogEditor({
             placeholder: t('intent.placeholder'),
             onChange: () => this.repositionForContent(),
@@ -152,6 +160,7 @@ export class Dialog {
             return;
         this.references.clear();
         this.styles.clear();
+        this.sessions?.dispose();
         this.disableFocusGuard();
         this.setHostInteractive(false);
         this.parent.removeChild(this.backdrop);
@@ -220,6 +229,7 @@ export class Dialog {
         const stylePreviewEl = el('div', 'cii-screenshot-preview cii-style-preview');
         this.styles.attachPreview(stylePreviewEl);
         body.append(stylePreviewEl);
+        body.append(this.sessions.renderTargetLine());
         dialog.append(body);
         // --- footer: capture tools grouped on the left, app actions on the right ---
         const footer = el('div', 'cii-footer');
@@ -248,12 +258,10 @@ export class Dialog {
         }
         // Agents disabled in plugin config are skipped entirely; only configured-but-unavailable ones get a greyed
         // button (see `loadAgents`), because that state can still be fixed by installing the app.
+        this.sessions.attach(dialog);
         for (const action of visibleAgentActions(this.config)) {
-            const button = el('button', 'cii-btn cii-btn-primary cii-agent-action', action.label);
-            button.title = action.title;
-            button.addEventListener('click', () => void this.send(action.name));
+            const button = this.sessions.renderAction(action, actions, (name) => void this.send(name));
             this.actionButtons.set(action.name, button);
-            actions.append(button);
         }
         this.updateAgentMarkers();
         footer.append(tools, actions);
@@ -263,6 +271,7 @@ export class Dialog {
             this.screenshots.closeMenuFromOutside(target);
             this.recordings.closeMenuFromOutside(target);
             this.styles.closeMenuFromOutside(target);
+            this.sessions.closeMenuFromOutside(target);
         }, true);
         backdrop.append(dialog);
         this.parent.append(backdrop);
@@ -449,6 +458,12 @@ export class Dialog {
             return false;
         if (this.references?.isPicking())
             return false;
+        if (this.sessions?.consumeEscape()) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            return true;
+        }
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
@@ -476,6 +491,7 @@ export class Dialog {
         this.screenshots.setDisabled(busy);
         this.recordings.setDisabled(busy);
         this.styles.setDisabled(busy);
+        this.sessions?.setDisabled(busy);
         // Only lock the editor while actually sending so the user can keep typing during the initial resolve.
         this.editor.setDisabled(busy && state === 'sending');
     }
@@ -491,6 +507,7 @@ export class Dialog {
         for (const [agent, button] of this.actionButtons) {
             button.classList.toggle('cii-agent-last', agent === this.lastAgent);
         }
+        this.sessions?.syncTargetMarkers();
     }
     /**
      * Persist and display the app agent most recently requested by the user.
@@ -505,6 +522,7 @@ export class Dialog {
         this.lastAgent = agent;
         saveLastAgent(agent);
         this.updateAgentMarkers();
+        this.sessions?.refreshTargetLine();
     }
     /**
      * Build the server payload for route resolution and agent dispatch.
@@ -536,6 +554,9 @@ export class Dialog {
         const styles = this.styles.buildPayloadStyles({ strict: true });
         if (styles)
             payload.styles = styles;
+        const targetSessionId = this.sessions?.targetIdFor(agent);
+        if (targetSessionId)
+            payload.targetSessionId = targetSessionId;
         return payload;
     }
     /**
@@ -615,6 +636,7 @@ export class Dialog {
         try {
             const res = await this.api.agents();
             this.availability = res.agents;
+            this.sessions?.applyAgentList(res.agents);
             for (const action of visibleAgentActions(this.config)) {
                 const button = this.actionButtons.get(action.name);
                 if (!button)
@@ -749,6 +771,8 @@ export class Dialog {
             this.close();
             return;
         }
+        if (this.sessions?.handleSendError(result))
+            return;
         this.showError(result.error ??
             unavailableReason ??
             t('agent.failedHandle', { label: agentLabel(result.agent) }));

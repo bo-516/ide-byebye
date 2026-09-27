@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
-import { resolveCodexAppProjectRoot } from './codex-app.js';
+import { buildCodexAppThreadDeepLink, resolveCodexAppProjectRoot } from './codex-app.js';
 import { buildCodexAppPrompt } from './codex-app-prompt.js';
 
 test('buildCodexAppPrompt uses markdown file links for code references', () => {
@@ -74,6 +74,21 @@ test('resolveCodexAppProjectRoot prefers configured projectRoot', () => {
     );
 
     assert.equal(resolved, path.resolve('fixtures/app'));
+});
+
+test('buildCodexAppThreadDeepLink opens the thread and prefills the prompt', () => {
+    const url = new URL(buildCodexAppThreadDeepLink({
+        threadId: '01a0d2e5-6e44-7b51-b736-be5fef078a2e',
+        prompt: 'hello world',
+    }));
+    assert.equal(url.protocol, 'codex:');
+    assert.equal(url.host, 'threads');
+    assert.equal(url.pathname, '/01a0d2e5-6e44-7b51-b736-be5fef078a2e');
+    assert.equal(url.searchParams.get('prompt'), 'hello world');
+});
+
+test('buildCodexAppThreadDeepLink rejects an id that is not a UUID', () => {
+    assert.throws(() => buildCodexAppThreadDeepLink({ threadId: '../etc/passwd', prompt: 'x' }), /Invalid Codex thread id/);
 });
 
 test('resolveCodexAppProjectRoot falls back to context projectRoot for blank config', () => {

@@ -13,6 +13,9 @@ import {
     shouldWriteGrokBuildPromptFile,
 } from './grok-build-launcher.js';
 import { openTarget } from './opener.js';
+import { readSessionPicker } from '../sessions/options.js';
+import { isGrokSessionLive, listGrokSessions, resolveGrokHome } from '../sessions/grok-sessions.js';
+import { sessionErrorText } from '../sessions/types.js';
 
 export {
     buildGrokBuildFilePrompt,
@@ -128,7 +131,8 @@ function writePromptFile(request, context) {
  * passed to `grok --verbatim`; the launcher never embeds that text, only its path. Windows writes a `.cmd` wrapper;
  * other platforms write a bash `.command` file.
  *
- * @param {{ request: Record<string, unknown>, context: { outputDir: string, projectRoot: string }, command: string, cwd: string, prompt: string, permissionMode?: string }} input Write inputs.
+ * @param {{ request: Record<string, unknown>, context: { outputDir: string, projectRoot: string }, command: string, cwd: string, prompt: string, permissionMode?: string, resumeSessionId?: string }} input Write inputs.
+ *        `resumeSessionId` is set only after the live recheck. A bad id throws inside the script builder before the launcher file is written.
  * @returns {{ launchPath: string, promptPath: string }} Absolute paths of the launcher and prompt files.
  */
 function writeLauncherFiles(input) {
@@ -138,17 +142,15 @@ function writeLauncherFiles(input) {
     const stamp = `${fileStamp(new Date(input.request.createdAt))}-${input.request.id}`;
     const promptPath = path.join(launchesDir, `${stamp}.prompt.txt`);
     const launchPath = path.join(launchesDir, `${stamp}${grokBuildLauncherExtension()}`);
+    const script = buildGrokBuildLauncherFile({
+        command: input.command,
+        cwd: input.cwd,
+        promptPath,
+        permissionMode: input.permissionMode,
+        resumeSessionId: input.resumeSessionId,
+    });
     fs.writeFileSync(promptPath, input.prompt.endsWith('\n') ? input.prompt : `${input.prompt}\n`, 'utf8');
-    fs.writeFileSync(
-        launchPath,
-        buildGrokBuildLauncherFile({
-            command: input.command,
-            cwd: input.cwd,
-            promptPath,
-            permissionMode: input.permissionMode,
-        }),
-        { encoding: 'utf8', mode: 0o755 },
-    );
+    fs.writeFileSync(launchPath, script, { encoding: 'utf8', mode: 0o755 });
     return { launchPath, promptPath };
 }
 
@@ -163,8 +165,10 @@ function writeLauncherFiles(input) {
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
  */
 export function createGrokBuildAdapter(config: any = {}) {
+    const sessionsEnabled = readSessionPicker(config).enabled;
     return {
         name: 'grok-build',
+        sessionsEnabled,
         async isAvailable() {
             const command = await resolveGrokBuildCommand(config);
             if (!command) {
@@ -175,8 +179,18 @@ export function createGrokBuildAdapter(config: any = {}) {
             }
             return { available: true };
         },
+        /**
+         * List project sessions. The route does not call this when `sessionsEnabled` is false.
+         *
+         * @param {{ projectRoot: string }} ctx Inspector project root.
+         * @returns {Promise<{ sessions: Array<Record<string, unknown>>, delivery: string, notice?: string }>}
+         */
+        async listSessions(ctx) {
+            return listGrokSessions({ projectRoot: ctx.projectRoot, config });
+        },
         async send(request, context) {
-            const events = [{ type: 'started', text: 'Opening Grok Build' }];
+            const target = context.targetSession;
+            const events = [{ type: 'started', text: target ? 'Resuming Grok Build session' : 'Opening Grok Build' }];
             context.emit(events[0]);
             try {
                 const command = await resolveGrokBuildCommand(config);
@@ -185,20 +199,39 @@ export function createGrokBuildAdapter(config: any = {}) {
                         `"${resolveGrokBuildCommandCandidates(config)[0]}" not found. Install Grok Build (https://x.ai/cli) and ensure it is on PATH.`,
                     );
                 }
+                // Recheck immediately before any launcher file. The catalog may have been taken a moment ago.
+                if (target && await isGrokSessionLive(resolveGrokHome(config), target.id)) {
+                    const error = sessionErrorText('target-busy');
+                    const failed = { type: 'failed', text: error };
+                    events.push(failed);
+                    context.emit(failed);
+                    return {
+                        ok: false,
+                        agent: 'grok-build',
+                        requestId: request.id,
+                        code: 'target-busy',
+                        error,
+                        events,
+                    };
+                }
 
+                const pathConfig = target ? { ...config, projectRoot: target.cwd } : config;
                 // Rebuild with agent pathStyle (default relative); do not assume context.prompt matches Grok config.
-                let prompt = buildGrokBuildPrompt(request, config);
+                let prompt = buildGrokBuildPrompt(request, pathConfig);
                 let writtenPromptPath;
-                if (shouldWriteGrokBuildPromptFile(config, prompt)) {
+                if (shouldWriteGrokBuildPromptFile(pathConfig, prompt)) {
                     // Persist the same path-style prompt so the handoff markdown matches what Grok sees.
                     writtenPromptPath = writePromptFile(request, { ...context, prompt });
-                    prompt = buildGrokBuildFilePrompt(request, writtenPromptPath, config);
-                    const event = { type: 'file-change', text: `Wrote ${writtenPromptPath}` };
+                    prompt = buildGrokBuildFilePrompt(request, writtenPromptPath, pathConfig);
+                    const event = {
+                        type: 'file-change',
+                        text: target ? 'Wrote prompt handoff' : `Wrote ${writtenPromptPath}`,
+                    };
                     events.push(event);
                     context.emit(event);
                 }
 
-                const cwd = resolveGrokBuildProjectRoot(config, context);
+                const cwd = target ? target.cwd : resolveGrokBuildProjectRoot(config, context);
                 const permissionMode = typeof config.permissionMode === 'string' && config.permissionMode.trim()
                     ? config.permissionMode.trim()
                     : undefined;
@@ -209,8 +242,12 @@ export function createGrokBuildAdapter(config: any = {}) {
                     cwd,
                     prompt,
                     permissionMode,
+                    resumeSessionId: target?.id,
                 });
-                const launchEvent = { type: 'file-change', text: `Wrote launcher ${launchPath}` };
+                const launchEvent = {
+                    type: 'file-change',
+                    text: target ? 'Wrote launcher' : `Wrote launcher ${launchPath}`,
+                };
                 events.push(launchEvent);
                 context.emit(launchEvent);
 
@@ -223,10 +260,14 @@ export function createGrokBuildAdapter(config: any = {}) {
                     agent: 'grok-build',
                     requestId: request.id,
                     events,
-                    output: writtenPromptPath
-                        ? `Opened Grok Build. Full request context was written to ${writtenPromptPath}.`
-                        : `Opened Grok Build with the generated prompt prefilled (${promptPath}).`,
-                    writtenPromptPath: writtenPromptPath ?? promptPath,
+                    output: target
+                        ? 'Opened Grok Build and submitted the prompt to the session.'
+                        : writtenPromptPath
+                            ? `Opened Grok Build. Full request context was written to ${writtenPromptPath}.`
+                            : `Opened Grok Build with the generated prompt prefilled (${promptPath}).`,
+                    ...(target
+                        ? { targetSessionId: target.id }
+                        : { writtenPromptPath: writtenPromptPath ?? promptPath }),
                 };
             }
             catch (err) {

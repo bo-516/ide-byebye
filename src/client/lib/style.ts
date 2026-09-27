@@ -1,4 +1,5 @@
 import { OVERLAY_Z_INDEX, DIALOG_Z_INDEX, PLUGIN_NODE_ATTR } from '../../shared/constants.js';
+import { SESSION_PICKER_STYLE } from './style-session-picker.js';
 
 /**
  * STYLE_TEXT: Complete stylesheet for the plugin UI inside its shadow root.
@@ -853,7 +854,7 @@ export function createUi() {
     ].join(';');
     const root = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = STYLE_TEXT;
+    style.textContent = STYLE_TEXT + SESSION_PICKER_STYLE;
     root.appendChild(style);
     document.body.appendChild(host);
     if (!showUiHost(host))

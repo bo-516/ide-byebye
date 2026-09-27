@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -11,9 +12,28 @@ import path from 'node:path';
  * @returns {string} Project-relative POSIX path, or the original path when it is outside the root.
  */
 function repoRelativePath(filePath, projectRoot) {
-    const rel = path.relative(projectRoot, filePath);
+    // Same realpath pairing as the plain prompt formatter: session cwd and insp-path can disagree on /var vs /private/var.
+    const root = canonical(projectRoot);
+    const file = canonical(filePath);
+    const rel = path.relative(root, file);
     const value = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : filePath;
     return value.split(path.sep).join('/');
+}
+
+/**
+ * Realpath when the path exists. Missing paths stay `path.resolve` so fixture roots that were never created still format.
+ *
+ * @param {string} input File or directory.
+ * @returns {string} Canonical or resolved path.
+ */
+function canonical(input) {
+    const resolved = path.resolve(input);
+    try {
+        return fs.realpathSync.native(resolved);
+    }
+    catch {
+        return resolved;
+    }
 }
 
 /**

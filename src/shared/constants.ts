@@ -13,7 +13,60 @@ export const ENDPOINTS = {
     ping: `${ROUTE_PREFIX}/ping`,
     /** Same-origin session handoff for the Angular CLI bootstrap (only on runtimes created by `angularProxy`). */
     session: `${ROUTE_PREFIX}/session`,
+    /**
+     * Project-scoped session catalog. Plural on purpose: `session` is the Angular bootstrap handoff and must keep
+     * returning that payload.
+     */
+    sessions: `${ROUTE_PREFIX}/sessions`,
 };
+/**
+ * Session row statuses shared by the server catalog and the dialog menu.
+ *
+ * Boundary: these are language-neutral codes. The client maps them to copy. A status outside this list is treated as
+ * `idle` by the menu.
+ *
+ * @type {readonly ['working', 'waiting', 'idle']}
+ */
+export const SESSION_STATUSES = ['working', 'waiting', 'idle'];
+/**
+ * Why a listed session cannot receive the next prompt.
+ *
+ * Boundary: only these codes are returned to the page. `open-in-terminal` and `live-unknown` stay on the row;
+ * `cwd-missing` means the session directory is gone.
+ *
+ * @type {readonly ['open-in-terminal', 'live-unknown', 'cwd-missing']}
+ */
+export const SESSION_REASON_CODES = ['open-in-terminal', 'live-unknown', 'cwd-missing'];
+/**
+ * How a chosen session receives the prompt.
+ *
+ * @type {readonly ['prefill', 'resume-submit', 'submit']}
+ */
+export const SESSION_DELIVERIES = ['prefill', 'resume-submit', 'submit'];
+/**
+ * Send/list failures the page is allowed to branch on. Copy stays in the client i18n table.
+ *
+ * @type {readonly string[]}
+ */
+export const SESSION_ERROR_CODES = [
+    'target-invalid',
+    'target-missing',
+    'target-busy',
+    'sessions-unsupported',
+    'ls-tls',
+    'ls-requires-credentials',
+    'ls-unreachable',
+];
+/** Catalog notices that are not per-row failures. */
+export const SESSION_NOTICES = ['unsupported-format', 'ide-not-running'];
+/** Default and inclusive bounds for how many sessions a menu may show. */
+export const SESSION_LIMIT_DEFAULT = 20;
+export const SESSION_LIMIT_MIN = 1;
+export const SESSION_LIMIT_MAX = 50;
+/** Codex rollout mtime window when `sessions.lookbackDays` is omitted. */
+export const SESSION_LOOKBACK_DAYS_DEFAULT = 30;
+/** First-line title cap, including the ellipsis when the source line is longer. */
+export const SESSION_TITLE_MAX = 120;
 /** Header carrying the per-session dev token. */
 export const TOKEN_HEADER = 'x-intent-inspector-token';
 /** Global variable name holding the injected `ClientConfig`. */

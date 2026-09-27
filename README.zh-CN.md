@@ -47,6 +47,7 @@ Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。�
   - [录制（rrweb）](#录制-rrweb)
 - [产物](#产物)
 - [本地化](#本地化)
+- [发送到已有会话](#发送到已有会话)
 - [安全与隐私](#安全与隐私)
 - [从源码构建](#从源码构建)
 - [许可证](#许可证)
@@ -515,7 +516,7 @@ Enter 目标。想从 UI 拿到它那份 Markdown 文件，就给页脚 Agent �
 | `claudeApp` | `claude-app` | 是 | 打开并预填 **Claude App**；可附带文件与文件夹。 |
 | `cursorApp` | `cursor-app` | 是 | 打开并预填 **Cursor**（按 workspace 名路由）。 |
 | `grokBuild` | `grok-build` | 是 | 在 Terminal 打开 **Grok Build** 并预填 prompt。 |
-| `antigravityIde` | `antigravity-ide` | 是，**默认关闭** | 打开 **Antigravity IDE** 聊天（`antigravity-ide chat`）并预填 prompt。 |
+| `antigravityIde` | `antigravity-ide` | 是，**默认关闭** | 打开 **Antigravity IDE** 项目，并把 prompt 放进 agent 输入框。 |
 | `antigravity` | `antigravity` | 是，**默认关闭** | 打开 **Antigravity** 桌面应用，并把 prompt 放进输入框。 |
 
 ```js
@@ -595,6 +596,7 @@ ideByebye({
 | --- | --- | --- | --- |
 | `scheme` | `string` | `'codex'` | Deeplink scheme（`codex://new`）。 |
 | `projectRoot` | `string` | Vite / 打包器项目根 | deeplink 打开的文件夹。非空字符串覆盖；相对路径相对进程 cwd `path.resolve`。 |
+| `sessions` | `boolean \| { limit?, lookbackDays?, home? }` | 开启 | 已有线程菜单。`false` 去掉 ▾。`limit` 为 1–50（默认 20）。`lookbackDays` 默认 30，按文件修改时间。`home` 覆盖 `$CODEX_HOME` / `~/.codex`。 |
 
 #### `agents.cursorApp`
 
@@ -618,22 +620,24 @@ ideByebye({
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Grok prompt 里截图 / 静帧路径。 |
 | `permissionMode` | `string` | 无 | 传给 `--permission-mode`（`plan`、`acceptEdits`、`default` 等）。 |
 | `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件交接（ARGV / ARG_MAX）。 |
+| `sessions` | `boolean \| { limit?, home? }` | 开启 | 已有会话菜单。`false` 去掉 ▾。只能恢复已关闭的会话。`home` 覆盖 `~/.grok`。 |
 
 #### `agents.antigravityIde`
 
-不配置则关闭。执行 `antigravity-ide <projectRoot> chat`，在该目录打开 IDE 聊天。prompt 作为 chat 的位置参数传入（从 launcher 文件读取，不会写进脚本正文）。引用的源文件、截图和录制静帧在仍位于项目根内时，会用 `--add-file` 附上。
+不配置则关闭。用 `antigravity-ide <projectRoot>` 打开项目，再把 prompt 放进 agent 输入框，不会自动发送。这个 IDE 的 `antigravity-ide chat` 到不了那个输入框。仍位于项目根内的引用文件会随 prompt 一起附上。
 
 | 选项 | 类型 | 默认 | 可配内容 |
 | --- | --- | --- | --- |
 | `command` | `string` | `'antigravity-ide'`，其次 macOS app 内的 CLI | Node 的 PATH 找不到 shell 命令时给绝对路径。 |
-| `projectRoot` | `string` | Vite / 打包器项目根 | `chat` 之前的文件夹参数，以及 launcher 的 `cd`。 |
-| `mode` | `string` | 省略（IDE 默认 `agent`） | `--mode`：`ask`、`edit`、`agent`，或自定义 mode id。 |
-| `reuseWindow` | `boolean` | `false` | `--reuse-window`。`newWindow` 为 true 时忽略。 |
+| `projectRoot` | `string` | Vite / 打包器项目根 | IDE 打开的文件夹。 |
+| `mode` | `string` | 省略 | 为兼容保留。agent 输入框不接收 mode。 |
+| `reuseWindow` | `boolean` | `false` | 打开文件夹时的 `--reuse-window`。`newWindow` 为 true 时忽略。 |
 | `newWindow` | `boolean` | `false` | `--new-window`。优先于 `reuseWindow`。 |
-| `maximize` | `boolean` | `false` | `--maximize`。 |
-| `profile` | `string` | 无 | `--profile`。 |
-| `addFiles` | `boolean` | `true` | `false` 不再传 `--add-file`。项目根以外的路径一律丢弃。 |
+| `maximize` | `boolean` | `false` | 为兼容保留。不会作用到 agent 输入框。 |
+| `profile` | `string` | 无 | 为兼容保留。不会作用到 agent 输入框。 |
+| `addFiles` | `boolean` | `true` | `false` 不再附带文件。项目根以外的路径一律丢弃。 |
 | `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件指针。 |
+| `experimentalSessions` | `boolean` | `false` | 为 `true` 时，▾ 列出 IDE 里的会话，发送会直接投进选中的会话。默认关闭，因为会读取 IDE 进程里的 language-server CSRF token。 |
 
 #### `agents.antigravity`
 
@@ -741,7 +745,7 @@ SVG-`<foreignObject>` → canvas。无 CORS 的跨域资源可能空白，字体
 | --- | --- |
 | `requests/<timestamp>-<id>.md` | 完整请求 + prompt（`file` Agent，或任意页脚 Agent 在 `promptMode: 'file'` / auto 溢出时）。 |
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + 供 `grok --verbatim` 的 prompt。 |
-| `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE 聊天 launcher（仅在设置 `agents.antigravityIde` 之后）。 |
+| `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE 打开文件夹的 launcher，以及放进 agent 输入框的 prompt（仅在设置 `agents.antigravityIde` 之后）。 |
 | `launches/<timestamp>-<id>.agy.command` + `.agy.prompt.txt` | Antigravity CLI Terminal launcher（仅在设置 `agents.antigravity` 之后）。 |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | 事件流 + 静帧（使用录制时）。 |
 | 截图产物 | 由 prompt 引用。 |
@@ -771,6 +775,32 @@ UI 文案双语（`zh` / `en`）。解析顺序：
 ideByebye({ locale: 'en' });
 ```
 
+## 发送到已有会话
+
+Codex App、Grok Build，以及（需开关）Antigravity IDE，可以把下一次 prompt 送进已经存在的会话。没有选中会话时，发送和现在一样：新开 Codex 线程、新开 Grok 终端，或新开 Antigravity 聊天。
+
+页脚按钮是拆开的。文字部分仍按原来的方式发送。`▾` 列出**当前项目**的会话（标题、状态、目录、相对时间）。选中后，下一次 Enter 发给这个 agent 的这个会话。选择按 agent 记在 `localStorage` 里。`✕` 或「新会话」只清掉这个 agent。`sessions: false` 会去掉该 agent 的 `▾`。
+
+| Agent | 投递方式 | 你会看到什么 |
+| --- | --- | --- |
+| Codex App | 预填 | 打开 `codex://threads/<id>`，prompt 在输入框里。你仍要在 Codex 里回车。 |
+| Grok Build | 恢复并直接发送 | 新终端执行 `grok --resume <id>` 并提交 prompt。已经开在终端里的会话不能注入。 |
+| Antigravity IDE | 直接提交 | prompt 直接进入 IDE 会话（不是预填）。仅当 `agents.antigravityIde.experimentalSessions` 为 `true`。 |
+
+菜单只显示当前项目的会话：同一目录、子目录，或不高于 git 根的祖先目录。标题只取第一行，最多 120 字。页面拿不到绝对路径、进程号、会话正文或 token。
+
+Antigravity 默认关闭。服务端用 IDE 自带 CA，经回环访问 language server，CSRF token 来自该进程的命令行。不读取任何凭证文件。
+
+```js
+ideByebye({
+  agents: {
+    codexApp: { sessions: { limit: 20, lookbackDays: 30 } },
+    grokBuild: { sessions: true },
+    antigravityIde: { experimentalSessions: true },
+  },
+});
+```
+
 ## 安全与隐私
 
 - **仅开发** — 适配器跳过生产（Vite `apply: 'serve'`、webpack `mode === 'production'`、
@@ -782,6 +812,8 @@ ideByebye({ locale: 'en' });
 - **忽略产物目录** — 把 `.intent-inspector/`（或你的 `outputDir`）写入 `.gitignore`，
   避免截图、录制与交接文案进 git（详见 [产物](#产物)）。
 - **样式净化** — 捕获的样式值在服务端净化（剥控制字符），避免伪造额外 prompt 行。
+- **已有会话** — 菜单只返回当前项目范围内的标题（没有绝对路径、正文或 token）。
+  Antigravity 的会话投递默认关闭，且不读取凭证文件。`sessions: false` 去掉该 agent 的菜单。
 
 ## 从源码构建
 

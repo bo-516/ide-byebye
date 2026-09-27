@@ -2,18 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
-import { renderRequestMarkdown } from './file.js';
 import { quoteWindowsCmdArg } from './opener.js';
+import { createAntigravitySessionBridge } from '../sessions/antigravity-sessions.js';
+import { deliverAntigravityIdePrompt } from './antigravity-ide-bridge.js';
 import {
     antigravityIdeLauncherExtension,
     antigravityIdeMissingMessage,
-    buildAntigravityIdeFilePrompt,
     buildAntigravityIdeLauncherFile,
     collectAntigravityIdeContextFiles,
     resolveAntigravityIdeCommandCandidates,
     resolveAntigravityIdeProjectRoot,
     retainPathsInsideRoots,
-    shouldWriteAntigravityIdePromptFile,
 } from './antigravity-ide-cli.js';
 
 /** How long to wait for `antigravity-ide chat` to hand the prompt to the IDE and exit. */
@@ -88,28 +87,10 @@ async function resolveAntigravityIdeCommand(config) {
 }
 
 /**
- * Write the full request markdown under `outputDir/requests`.
- *
- * Boundary: the directory must stay inside the trusted project root. Outside paths throw before any file is created.
- *
- * @param {Record<string, unknown>} request Normalized intent request.
- * @param {{ outputDir: string, projectRoot: string, prompt: string }} context Storage and the prompt to render.
- * @returns {string} Absolute path of the written markdown file.
- */
-function writePromptFile(request, context) {
-    const requestsDir = path.join(context.outputDir, 'requests');
-    assertPathInsideRoot(requestsDir, context.projectRoot);
-    fs.mkdirSync(requestsDir, { recursive: true });
-    const target = path.join(requestsDir, `${fileStamp(new Date(request.createdAt))}-${request.id}.md`);
-    fs.writeFileSync(target, renderRequestMarkdown(request, context.prompt), 'utf8');
-    return target;
-}
-
-/**
- * Write the prompt body and the launcher that feeds it to `antigravity-ide chat`.
+ * Write the prompt body and the launcher that opens the project folder.
  *
  * Boundary: both files stay under `outputDir/launches` inside the project root. The launcher never contains the prompt
- * text. Windows writes `.cmd`; other platforms write `.command`.
+ * text — the bridge extension reads a separate request file. Windows writes `.cmd`; other platforms write `.command`.
  *
  * @param {{ request: Record<string, unknown>, context: { outputDir: string, projectRoot: string }, launcher: Record<string, unknown> }} input Write inputs. `launcher` is the script field bag plus `prompt`.
  * @returns {{ launchPath: string, promptPath: string }} Absolute paths.
@@ -195,43 +176,46 @@ function runLauncher(launchPath) {
  * Create the Antigravity IDE adapter.
  *
  * Boundary: registered only when `agents.antigravityIde` is `true` or an options object (`buildRegistry` does not
- * default it on). The adapter opens the IDE's chat via `antigravity-ide chat` and does not apply edits itself.
- * `openCommand` / `openArgs` are ignored — the CLI starts the app. Availability requires a working CLI binary.
+ * default it on). The CLI opens the project folder. A local bridge extension then places the prompt in the agent
+ * input and does not submit it. `openCommand` / `openArgs` are ignored. Availability requires a working CLI binary.
  *
  * @param {Record<string, unknown>} config Antigravity IDE adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.
  */
 export function createAntigravityIdeAdapter(config: any = {}) {
+    const sessions = createAntigravitySessionBridge(config);
     return {
         name: 'antigravity-ide',
+        sessionsEnabled: sessions.enabled,
         async isAvailable() {
             const command = await resolveAntigravityIdeCommand(config);
             if (!command)
                 return { available: false, reason: antigravityIdeMissingMessage(config) };
             return { available: true };
         },
+        /**
+         * List IDE conversations when `experimentalSessions` is on. Otherwise the route never calls this.
+         *
+         * @param {{ projectRoot: string }} ctx Inspector project root.
+         * @returns {Promise<{ sessions: Array<Record<string, unknown>>, delivery: string, notice?: string }>}
+         */
+        async listSessions(ctx) {
+            return sessions.list(ctx.projectRoot);
+        },
         async send(request, context) {
+            if (context.targetSession)
+                return sessions.send(request, context);
             const events = [{ type: 'started', text: 'Opening Antigravity IDE' }];
             context.emit(events[0]);
             try {
                 const command = await resolveAntigravityIdeCommand(config);
                 if (!command)
                     throw new Error(antigravityIdeMissingMessage(config));
-                let prompt = context.prompt;
-                let writtenPromptPath;
-                if (shouldWriteAntigravityIdePromptFile(config, prompt)) {
-                    writtenPromptPath = writePromptFile(request, context);
-                    prompt = buildAntigravityIdeFilePrompt(request, writtenPromptPath);
-                    const event = { type: 'file-change', text: `Wrote ${writtenPromptPath}` };
-                    events.push(event);
-                    context.emit(event);
-                }
+                const prompt = context.prompt;
                 const cwd = resolveAntigravityIdeProjectRoot(config, context);
                 const files = config.addFiles === false
                     ? []
                     : retainPathsInsideRoots(collectAntigravityIdeContextFiles(request), [context.projectRoot, cwd]);
-                if (writtenPromptPath && config.addFiles !== false)
-                    files.push(writtenPromptPath);
                 const { launchPath, promptPath } = writeLauncherFiles({
                     request,
                     context,
@@ -239,19 +223,21 @@ export function createAntigravityIdeAdapter(config: any = {}) {
                         command,
                         cwd,
                         prompt,
-                        mode: config.mode,
                         newWindow: config.newWindow === true,
                         reuseWindow: config.reuseWindow === true,
-                        maximize: config.maximize === true,
-                        profile: config.profile,
-                        files,
                     },
                 });
                 const launchEvent = { type: 'file-change', text: `Wrote launcher ${launchPath}` };
                 events.push(launchEvent);
                 context.emit(launchEvent);
-                await runLauncher(launchPath);
-                const completed = { type: 'completed', text: 'Antigravity IDE opened with a prefilled chat' };
+                await deliverAntigravityIdePrompt({
+                    id: request.id,
+                    workspacePath: cwd,
+                    message: prompt,
+                    files,
+                    openWorkspace: () => runLauncher(launchPath),
+                });
+                const completed = { type: 'completed', text: 'Antigravity IDE opened with the prompt in the agent input' };
                 events.push(completed);
                 context.emit(completed);
                 return {
@@ -259,10 +245,8 @@ export function createAntigravityIdeAdapter(config: any = {}) {
                     agent: 'antigravity-ide',
                     requestId: request.id,
                     events,
-                    output: writtenPromptPath
-                        ? `Opened Antigravity IDE. Full request context was written to ${writtenPromptPath}.`
-                        : `Opened Antigravity IDE with the generated prompt prefilled (${promptPath}).`,
-                    writtenPromptPath: writtenPromptPath ?? promptPath,
+                    output: `Opened Antigravity IDE with the generated prompt in the agent input (${promptPath}).`,
+                    writtenPromptPath: promptPath,
                 };
             }
             catch (err) {

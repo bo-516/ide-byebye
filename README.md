@@ -53,6 +53,7 @@ including SSR frameworks such as **Next.js**, **Nuxt** and **SvelteKit**. See
   - [Recording (rrweb)](#recording-rrweb)
 - [Artifacts](#artifacts)
 - [Localization](#localization)
+- [Send to an existing session](#send-to-an-existing-session)
 - [Security & privacy](#security--privacy)
 - [Build from source](#build-from-source)
 - [License](#license)
@@ -540,7 +541,7 @@ writes the same `requests/` file, then opens that app.
 | `claudeApp` | `claude-app` | yes | Open **Claude App** prefilled; can attach files & folders. |
 | `cursorApp` | `cursor-app` | yes | Open **Cursor** prefilled (routes by workspace name). |
 | `grokBuild` | `grok-build` | yes | Open **Grok Build** in Terminal with prompt prefilled. |
-| `antigravityIde` | `antigravity-ide` | yes, **off by default** | Open **Antigravity IDE** chat (`antigravity-ide chat`) with the prompt prefilled. |
+| `antigravityIde` | `antigravity-ide` | yes, **off by default** | Open **Antigravity IDE** on the project and put the prompt in the agent input. |
 | `antigravity` | `antigravity` | yes, **off by default** | Open the **Antigravity** desktop app and put the prompt in its composer. |
 
 ```js
@@ -623,6 +624,7 @@ In **WSL**, point `openCommand` at `wslview` or `explorer.exe` instead of `cmd`.
 | --- | --- | --- | --- |
 | `scheme` | `string` | `'codex'` | Deeplink scheme (`codex://new`). |
 | `projectRoot` | `string` | Vite / bundler project root | Folder opened by the deeplink. Non-empty string overrides; relative → `path.resolve` from process cwd. |
+| `sessions` | `boolean \| { limit?, lookbackDays?, home? }` | on | Existing-thread menu. `false` removes the ▾. `limit` is 1–50 (default 20). `lookbackDays` defaults to 30 and uses file mtime. `home` overrides `$CODEX_HOME` / `~/.codex`. |
 
 #### `agents.cursorApp`
 
@@ -646,22 +648,24 @@ In **WSL**, point `openCommand` at `wslview` or `explorer.exe` instead of `cmd`.
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in the Grok prompt. |
 | `permissionMode` | `string` | none | Passed as `--permission-mode` (`plan`, `acceptEdits`, `default`, …). |
 | `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to file handoff (ARGV / ARG_MAX). |
+| `sessions` | `boolean \| { limit?, home? }` | on | Existing-session menu. `false` removes the ▾. Only a closed session can be resumed. `home` overrides `~/.grok`. |
 
 #### `agents.antigravityIde`
 
-Off unless set. Runs `antigravity-ide <projectRoot> chat` so the IDE opens a chat in that folder. The prompt is passed as the chat positional (read from a launcher file, not inlined into the script). Referenced source files, screenshots, and recording stills are attached with `--add-file` when they stay inside the project root.
+Off unless set. Opens the project with `antigravity-ide <projectRoot>`, then places the prompt in the agent input without submitting it. This IDE's `antigravity-ide chat` command does not reach that input. Referenced source files that stay inside the project root are mentioned with the prompt.
 
 | Option | Type | Default | What you can set |
 | --- | --- | --- | --- |
 | `command` | `string` | `'antigravity-ide'`, then the macOS app bundle CLI | Absolute path when Node’s PATH cannot see the shell command. |
-| `projectRoot` | `string` | Vite / bundler project root | Folder argument before `chat`, and the launcher `cd`. |
-| `mode` | `string` | omitted (IDE default `agent`) | `--mode`: `ask`, `edit`, `agent`, or a custom mode id. |
-| `reuseWindow` | `boolean` | `false` | `--reuse-window`. Ignored when `newWindow` is true. |
+| `projectRoot` | `string` | Vite / bundler project root | Folder the IDE opens. |
+| `mode` | `string` | omitted | Accepted for compatibility. The agent input does not take a mode. |
+| `reuseWindow` | `boolean` | `false` | `--reuse-window` on the folder open. Ignored when `newWindow` is true. |
 | `newWindow` | `boolean` | `false` | `--new-window`. Wins over `reuseWindow`. |
-| `maximize` | `boolean` | `false` | `--maximize`. |
-| `profile` | `string` | none | `--profile`. |
-| `addFiles` | `boolean` | `true` | `false` skips `--add-file`. Paths outside the project root are always dropped. |
+| `maximize` | `boolean` | `false` | Accepted for compatibility. Not applied to the agent input. |
+| `profile` | `string` | none | Accepted for compatibility. Not applied to the agent input. |
+| `addFiles` | `boolean` | `true` | `false` skips file mentions. Paths outside the project root are always dropped. |
 | `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to a file pointer. |
+| `experimentalSessions` | `boolean` | `false` | When `true`, the ▾ lists IDE conversations and send delivers into the selected one. Off by default because it reads the language-server CSRF token from the IDE process. |
 
 #### `agents.antigravity`
 
@@ -771,7 +775,7 @@ Written under `outputDir` (default `.intent-inspector/`):
 | --- | --- |
 | `requests/<timestamp>-<id>.md` | Full request + prompt (`file` agent, or any footer agent in `promptMode: 'file'` / auto overflow). |
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + prompt for `grok --verbatim`. |
-| `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE chat launcher (only after `agents.antigravityIde` is set). |
+| `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE folder open and the prompt that was placed in the agent input (only after `agents.antigravityIde` is set). |
 | `launches/<timestamp>-<id>.agy.command` + `.agy.prompt.txt` | Antigravity CLI Terminal launcher (only after `agents.antigravity` is set). |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | Event stream + still (when recording is used). |
 | screenshot artifacts | Referenced by the prompt. |
@@ -801,6 +805,32 @@ UI copy is bilingual (`zh` / `en`). Resolves:
 ideByebye({ locale: 'en' });
 ```
 
+## Send to an existing session
+
+Codex App, Grok Build, and (behind a flag) Antigravity IDE can take the next prompt in a session you already have. With no session picked, send behaves exactly as before: a new Codex thread, a new Grok terminal, or a new Antigravity chat.
+
+The footer button is split. The label sends the way it always has. `▾` opens this project's sessions (title, status, directory, relative time). Pick one and the next Enter goes to that agent and that session. The choice is remembered per agent in `localStorage`. `✕` or **New session** clears only that agent. `sessions: false` removes that agent's `▾`.
+
+| Agent | Delivery | What you get |
+| --- | --- | --- |
+| Codex App | Prefill | Opens `codex://threads/<id>` with the prompt in the composer. You still press Enter in Codex. |
+| Grok Build | Resume and submit | A new terminal runs `grok --resume <id>` and submits the prompt. A session that is already open in a terminal cannot be injected. |
+| Antigravity IDE | Direct submit | The prompt is sent into the IDE conversation (not prefilled). Only when `agents.antigravityIde.experimentalSessions` is `true`. |
+
+The menu only shows sessions for the current project: the same directory, a child directory, or an ancestor that is not above the git root. Titles are a single line, capped at 120 characters. The page never receives absolute paths, process ids, transcripts, or tokens.
+
+Antigravity stays off unless you opt in. The server talks to the IDE language server on loopback with the IDE's own CA and the CSRF token from that process. It does not read credential files.
+
+```js
+ideByebye({
+  agents: {
+    codexApp: { sessions: { limit: 20, lookbackDays: 30 } },
+    grokBuild: { sessions: true },
+    antigravityIde: { experimentalSessions: true },
+  },
+});
+```
+
 ## Security & privacy
 
 - **Dev-only** — adapters skip production (Vite `apply: 'serve'`, webpack
@@ -817,6 +847,10 @@ ideByebye({ locale: 'en' });
   (see [Artifacts](#artifacts)).
 - **Style sanitization** — captured style values are sanitized server-side
   (control characters stripped) so they can't forge extra prompt lines.
+- **Existing sessions** — the menu returns project-scoped titles only (no
+  absolute paths, transcripts, or tokens). Antigravity session delivery is off
+  unless `experimentalSessions` is set, and it does not read credential files.
+  `sessions: false` removes that agent's menu.
 
 ## Build from source
 

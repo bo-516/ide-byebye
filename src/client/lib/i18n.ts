@@ -238,6 +238,33 @@ const STRINGS = {
         zh: '所选元素已不存在',
         en: 'Selected element is no longer available',
     },
+
+    // --- existing-session menu (codes stay language-neutral on the server) ---
+    'session.menu.title': { zh: '发送到 {label}', en: 'Send to {label}' },
+    'session.delivery.prefill': { zh: '预填到会话输入框', en: 'Prefill the session input' },
+    'session.delivery.resumeSubmit': { zh: '在新终端恢复并直接发送', en: 'Resume in a new terminal and send' },
+    'session.delivery.submit': { zh: '直接发送（不是预填）', en: 'Send directly (not a prefill)' },
+    'session.menu.new': { zh: '新会话', en: 'New session' },
+    'session.menu.loading': { zh: '读取会话中…', en: 'Loading sessions…' },
+    'session.menu.empty': { zh: '此项目暂无 {label} 会话', en: 'No {label} sessions for this project' },
+    'session.menu.error': { zh: '读取失败：{reason}', en: 'Could not read sessions: {reason}' },
+    'session.menu.retry': { zh: '重试', en: 'Retry' },
+    'session.menu.refresh': { zh: '刷新', en: 'Refresh' },
+    'session.status.working': { zh: '运行中', en: 'Working' },
+    'session.status.waiting': { zh: '等待输入', en: 'Waiting for input' },
+    'session.status.idle': { zh: '空闲', en: 'Idle' },
+    'session.status.closed': { zh: '已关闭', en: 'Closed' },
+    'session.reason.openInTerminal': { zh: '已在终端中打开，请直接在该终端输入', en: 'Already open in a terminal; type there' },
+    'session.reason.liveUnknown': { zh: '无法确认是否已在其他终端打开', en: 'Cannot tell whether it is open in another terminal' },
+    'session.reason.cwdMissing': { zh: '会话目录已不存在', en: 'The session directory no longer exists' },
+    'session.location.repoRoot': { zh: '仓库根', en: 'Repo root' },
+    'session.untitled': { zh: '未命名会话', en: 'Untitled session' },
+    'session.target.label': { zh: '发送到 {label} · {title}', en: 'Send to {label} · {title}' },
+    'session.target.clear': { zh: '改为新会话', en: 'Switch to a new session' },
+    'session.error.targetMissing': { zh: '目标会话已不存在或已归档，已切回新会话', en: 'That session is gone or archived. Switched back to a new session.' },
+    'session.error.targetBusy': { zh: '该会话已在终端中打开，无法注入，请直接在该终端输入', en: 'That session is already open in a terminal and cannot be injected. Type there.' },
+    'session.notice.ideNotRunning': { zh: 'Antigravity IDE 未运行，只能新建会话', en: 'Antigravity IDE is not running. Only a new session can be started.' },
+    'session.notice.unsupportedFormat': { zh: '无法识别本机 {label} 的会话数据格式', en: 'This machine\'s {label} session data is not recognized' },
 };
 
 /** Active locale, lazily resolved on first use. @type {string | null} */
@@ -316,4 +343,18 @@ export function t(key: string, params?: Record<string, unknown> | null): string 
     const locale = getLocale();
     const text = entry[locale] ?? entry.zh ?? entry.en ?? key;
     return interpolate(text, params);
+}
+
+/**
+ * Whether a translation exists for one locale.
+ *
+ * Boundary: a missing key or a blank string is false. Tests use this to require every `session.*` key in both zh and en.
+ *
+ * @param {string} key Translation id.
+ * @param {'zh' | 'en'} locale Locale to check.
+ * @returns {boolean} True when that locale has a non-empty string.
+ */
+export function hasString(key, locale) {
+    const entry = STRINGS[key];
+    return Boolean(entry && typeof entry[locale] === 'string' && entry[locale]);
 }

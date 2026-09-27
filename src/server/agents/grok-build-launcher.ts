@@ -160,13 +160,15 @@ export function shouldWriteGrokBuildPromptFile(config, prompt) {
  * the script — it is read at runtime via `cat` from `promptPath`. A wrong `command` / cwd makes the Terminal session
  * fail visibly instead of running a different tool.
  *
- * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string }} input Launcher fields.
+ * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }} input Launcher fields.
+ *        `resumeSessionId` must be a UUID; a bad value throws before the script is returned.
  * @returns {string} Executable bash script contents (including shebang).
  */
 export function buildGrokBuildLauncherScript(input) {
     const command = shellSingleQuote(input.command);
     const cwd = shellSingleQuote(input.cwd);
     const promptPath = shellSingleQuote(input.promptPath);
+    const resume = resumeFlag(input.resumeSessionId, shellSingleQuote);
     const permissionArgs = typeof input.permissionMode === 'string' && input.permissionMode.trim()
         ? ` --permission-mode ${shellSingleQuote(input.permissionMode.trim())}`
         : '';
@@ -174,9 +176,27 @@ export function buildGrokBuildLauncherScript(input) {
         '#!/bin/bash',
         'set -euo pipefail',
         `cd ${cwd} || exit 1`,
-        `exec ${command} --cwd ${cwd}${permissionArgs} --verbatim "$(cat ${promptPath})"`,
+        `exec ${command} --cwd ${cwd}${resume}${permissionArgs} --verbatim "$(cat ${promptPath})"`,
         '',
     ].join('\n');
+}
+
+/**
+ * `--resume '<uuid>'` or `''` when the send is a new session.
+ *
+ * Boundary: the id is checked against the UUID pattern before quoting. Anything else throws, so a page-supplied
+ * string cannot change the shell command. The quote function is bash or PowerShell depending on the caller.
+ *
+ * @param {string | undefined} sessionId Target session id, omitted for a new session.
+ * @param {(value: string) => string} quote Platform quoting helper.
+ * @returns {string} A leading-space flag, or `''`.
+ */
+function resumeFlag(sessionId, quote) {
+    if (sessionId == null || sessionId === '')
+        return '';
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(sessionId)))
+        throw new Error('Invalid resume session id');
+    return ` --resume ${quote(String(sessionId))}`;
 }
 
 /**
@@ -199,17 +219,18 @@ export function powershellSingleQuote(value) {
  * Boundary: the PowerShell program is UTF-16LE base64 (`-EncodedCommand`) so cwd / grok / prompt
  * paths are not subject to cmd metacharacters. The prompt body is still read at runtime from `promptPath`.
  *
- * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string }} input Launcher fields.
+ * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }} input Launcher fields.
  * @returns {string} `.cmd` file contents (CRLF).
  */
 export function buildGrokBuildWindowsLauncherScript(input) {
+    const resume = resumeFlag(input.resumeSessionId, powershellSingleQuote);
     const permissionArgs = typeof input.permissionMode === 'string' && input.permissionMode.trim()
         ? ` --permission-mode ${powershellSingleQuote(input.permissionMode.trim())}`
         : '';
     const program = [
         `Set-Location -LiteralPath ${powershellSingleQuote(input.cwd)}`,
         `$prompt = Get-Content -LiteralPath ${powershellSingleQuote(input.promptPath)} -Raw -Encoding UTF8`,
-        `& ${powershellSingleQuote(input.command)} --cwd ${powershellSingleQuote(input.cwd)}${permissionArgs} --verbatim $prompt`,
+        `& ${powershellSingleQuote(input.command)} --cwd ${powershellSingleQuote(input.cwd)}${resume}${permissionArgs} --verbatim $prompt`,
     ].join('; ');
     const encoded = Buffer.from(program, 'utf16le').toString('base64');
     return `@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}\r\n`;
@@ -230,7 +251,7 @@ export function grokBuildLauncherExtension(platform = process.platform) {
 /**
  * Build the launcher file body for the given platform.
  *
- * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string }} input Launcher fields.
+ * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }} input Launcher fields.
  * @param {string} [platform=process.platform] Node platform id.
  * @returns {string} Script contents to write.
  */

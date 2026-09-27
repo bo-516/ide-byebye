@@ -75,28 +75,18 @@ test('buildAntigravityIdeFilePrompt starts with a non-flag label and names the h
     assert.match(prompt, /-do it\n$/);
 });
 
-test('buildAntigravityIdeLauncherScript passes the folder before chat and reads the prompt from disk', () => {
+test('buildAntigravityIdeLauncherScript only opens the folder', () => {
     const script = buildAntigravityIdeLauncherScript({
         command: '/opt/antigravity-ide',
         cwd: '/tmp/proj',
-        promptPath: '/tmp/proj/prompt.txt',
-        mode: 'ask',
         reuseWindow: true,
         newWindow: true,
-        maximize: true,
-        profile: "me's",
-        files: ['/tmp/proj/src/App.tsx'],
     });
     assert.match(script, /^#!\/bin\/bash\n/);
     assert.match(script, /cd '\/tmp\/proj'/);
     assert.match(script, /'\/opt\/antigravity-ide' '\/tmp\/proj' --new-window\n/);
-    assert.match(script, /sleep 4\n/);
-    assert.match(script, /'\/opt\/antigravity-ide' chat --reuse-window --mode 'ask'/);
-    assert.match(script, /--maximize/);
-    assert.match(script, /--profile 'me'\\''s'/);
-    assert.match(script, /--add-file '\/tmp\/proj\/src\/App\.tsx'/);
-    assert.match(script, /"\$\(cat '\/tmp\/proj\/prompt\.txt'\)"/);
-    assert.doesNotMatch(script, /prompt body/);
+    assert.doesNotMatch(script, /\bchat\b/);
+    assert.doesNotMatch(script, /sleep/);
 });
 
 test('buildAntigravityIdeLauncherFile uses a cmd wrapper on Windows', () => {
@@ -104,15 +94,12 @@ test('buildAntigravityIdeLauncherFile uses a cmd wrapper on Windows', () => {
     const script = buildAntigravityIdeLauncherFile({
         command: 'antigravity-ide.cmd',
         cwd: 'C:\\repo',
-        promptPath: 'C:\\repo\\prompt.txt',
-        mode: 'agent',
     }, 'win32');
     assert.match(script, /^@echo off\r\n/);
     assert.match(script, /EncodedCommand /);
     const encoded = script.split('EncodedCommand ')[1].trim();
     const program = Buffer.from(encoded, 'base64').toString('utf16le');
-    assert.match(program, /Get-Content -LiteralPath 'C:\\repo\\prompt\.txt'/);
     assert.match(program, /& 'antigravity-ide\.cmd' 'C:\\repo'/);
-    assert.match(program, /Start-Sleep -Seconds 4/);
-    assert.match(program, /chat --reuse-window --mode 'agent' \$prompt/);
+    assert.doesNotMatch(program, /\bchat\b/);
+    assert.doesNotMatch(program, /Get-Content/);
 });
