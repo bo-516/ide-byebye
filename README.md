@@ -33,6 +33,28 @@ including SSR frameworks such as **Next.js**, **Nuxt** and **SvelteKit**. See
    the loopback server builds a structured prompt and opens the agent with
    `file:line` + intent already filled in.
 
+**Why hand over a line range**: give an agent a screenshot, or "the black button on
+the home page", and it has to guess where the code lives, then grep and read file
+after file. That burns tokens and fills the context, and the vaguer the hint, the
+likelier it edits a look-alike component. With `@file #lines` it starts on the right
+lines.
+
+Measured with Grok Build on a real React app (875 TS/TSX files): 3 UI changes, each
+pointed out three ways (a text description, a screenshot plus one sentence, and
+ide-byebye's `@file #lines`), 3 runs per way. All 27 runs edited the right place;
+the difference is the search (medians):
+
+| | Text description | Screenshot + text | ide-byebye |
+| --- | --- | --- | --- |
+| Tokens | 286k | 386k | **106k** |
+| Time | 99 s | 88 s | **48 s** |
+| File reads | 11 | 11 | **3** |
+| Peak context | 40k | 38k | **18k** |
+
+About 2/3 fewer tokens, about half the time, and less than half the peak context.
+On averages the gap is wider: about 80% fewer tokens and 60% less time. Codex,
+Claude and Cursor receive the same `@file #lines` prompt.
+
 ---
 
 ## Table of contents

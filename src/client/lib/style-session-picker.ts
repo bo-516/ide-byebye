@@ -2,24 +2,35 @@
  * Session-menu styles appended after the main dialog sheet.
  *
  * Boundary: the dialog becomes a size container so a menu opened below 420px can span the dialog. Rules here must not
- * restyle unrelated footer buttons; the split radius applies only while `.cii-agent-split-on` is present.
+ * restyle unrelated footer buttons; the split radius applies only while `.cii-agent-split-on` is present. Explicit
+ * hidden rules must override flex display, otherwise unsupported agents expose a caret with a broken rounded seam.
+ * Each split fills one footer grid cell; status dots are out of flow so selected targets cannot change its width.
+ * Custom labels truncate inside the main button; its existing title keeps the full action description available.
  *
  * @type {string}
  */
 export const SESSION_PICKER_STYLE = `
 .cii-dialog { container-type: inline-size; }
-.cii-agent-split { position: relative; display: inline-flex; align-items: stretch; }
+.cii-agent-split { position: relative; display: flex; align-items: stretch; min-width: 0; }
+.cii-agent-split > .cii-agent-action { flex: 1; display: block; overflow: hidden; text-overflow: ellipsis; }
 .cii-agent-split-on > .cii-agent-action { border-radius: 8px 0 0 8px; }
 .cii-session-caret {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 28px; padding: 0 8px; border: 0; border-radius: 0 8px 8px 0;
-  border-left: 1px solid rgba(255,255,255,0.35);
+  flex: 0 0 30px; width: 30px; padding: 0; border: 0; border-radius: 0 8px 8px 0;
+  border-left: 1px solid rgba(255,255,255,0.22);
   background: #0058be; color: #fff; font: 13px/1 system-ui, sans-serif; cursor: pointer;
+  transition: background 120ms ease;
 }
-.cii-session-caret:hover:not(:disabled) { background: #2170e4; }
+.cii-session-caret[hidden], .cii-session-dot[hidden] { display: none; }
+.cii-session-caret:hover:not(:disabled) { background: #0966d1; }
+.cii-session-caret:active:not(:disabled) { background: #004a9f; }
+.cii-agent-unavailable + .cii-session-caret { background: #64748b; }
+.cii-agent-unavailable + .cii-session-caret:hover:not(:disabled) { background: #475569; }
 .cii-session-caret:disabled { opacity: 0.5; cursor: default; }
 .cii-session-dot {
-  width: 6px; height: 6px; margin-left: 4px; border-radius: 999px; background: currentColor;
+  position: absolute; top: 6px; right: 5px;
+  width: 4px; height: 4px; border-radius: 999px; background: currentColor;
 }
 .cii-session-target {
   display: flex; align-items: center; gap: 8px;

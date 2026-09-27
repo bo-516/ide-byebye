@@ -134,14 +134,15 @@ test('every session copy key exists in zh and en', () => {
 test('dialog source wires the split control, menu, target line, and Esc-closes-menu-first', () => {
     const dialog = fs.readFileSync(new URL('./dialog.ts', import.meta.url), 'utf8');
     const picker = fs.readFileSync(new URL('./dialog-session-picker.ts', import.meta.url), 'utf8');
+    const action = fs.readFileSync(new URL('./dialog-session-action.ts', import.meta.url), 'utf8');
     const menu = fs.readFileSync(new URL('./dialog-session-menu.ts', import.meta.url), 'utf8');
     assert.match(dialog, /renderTargetLine\(/);
     assert.match(dialog, /targetSessionId/);
     assert.match(dialog, /consumeEscape\(/);
     const escape = dialog.slice(dialog.indexOf('closeFromEscape(event)'), dialog.indexOf('setState(state'));
     assert.match(escape, /consumeEscape\(\)[\s\S]*this\.close\(/);
-    assert.match(picker, /cii-agent-split/);
-    assert.match(picker, /cii-session-caret/);
+    assert.match(action, /cii-agent-split/);
+    assert.match(action, /cii-session-caret/);
     assert.match(menu, /cii-session-menu/);
     assert.match(picker, /applyAgentList/);
 });

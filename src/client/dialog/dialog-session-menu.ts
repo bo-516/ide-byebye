@@ -1,4 +1,4 @@
-import { el } from './dialog-utils.js';
+import { el, placeDropdownPanel } from './dialog-utils.js';
 import { getLocale, t } from '../lib/i18n.js';
 import { deliveryCopyKey, sessionMenuRow } from './dialog-session-model.js';
 
@@ -6,16 +6,19 @@ import { deliveryCopyKey, sessionMenuRow } from './dialog-session-model.js';
  * Fill an existing session menu element.
  *
  * Boundary: does not fetch or store targets. `hooks.onChoose` is not called for disabled rows. The first button is
- * always "new session" so keyboard index 0 matches {@link applySessionMenuKey}. A missing menu element is a no-op.
+ * always "new session" so keyboard index 0 matches {@link applySessionMenuKey}. The required menu must already be
+ * attached; a missing or invalid node cannot be rendered. Placement follows the supplied caret after every render,
+ * including loading and refresh results, so each row of agent buttons opens its menu beside its own trigger.
  *
  * @param {HTMLElement} menuEl Menu node already attached to the dialog.
  * @param {{ name: string, label: string }} action Agent the menu belongs to.
  * @param {{ loading?: boolean, error?: string, overlay?: boolean, res?: Record<string, unknown> }} view Fetch state.
  *        `overlay` keeps `res.sessions` on screen and covers them instead of replacing the list with a loading note.
  * @param {{ busy?: boolean, selectedId?: string, onRefresh: Function, onNew: Function, onChoose: Function }} hooks Actions.
+ * @param {HTMLElement | null} anchor Open caret; omitted/null leaves placement to the caller. A wrong node misanchors the menu.
  * @returns {{ rows: Array<Record<string, unknown>>, buttons: HTMLButtonElement[] }} Rows in keyboard order (index 0 is new).
  */
-export function fillSessionMenu(menuEl, action, view, hooks) {
+export function fillSessionMenu(menuEl, action, view, hooks, anchor = null) {
     const scrollTop = menuEl.scrollTop;
     menuEl.hidden = false;
     menuEl.replaceChildren();
@@ -87,6 +90,8 @@ export function fillSessionMenu(menuEl, action, view, hooks) {
     else if (view.error && rows.length)
         list.append(el('div', 'cii-session-note', t('session.menu.error', { reason: view.error })));
     menuEl.append(list);
+    if (anchor)
+        placeDropdownPanel(anchor, menuEl);
     menuEl.scrollTop = scrollTop;
     return { rows, buttons };
 }

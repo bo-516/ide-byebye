@@ -1,6 +1,8 @@
 import { agentLabel, el } from './dialog-utils.js';
 import { t } from '../lib/i18n.js';
 import { fillSessionMenu } from './dialog-session-menu.js';
+import { createSessionAction } from './dialog-session-action.js';
+import { observeSessionMenuPosition } from './dialog-session-position.js';
 import {
     applySessionMenuKey,
     applySessionSendResult,
@@ -10,9 +12,6 @@ import {
     withSessionTarget,
     writeSessionTargets,
 } from './dialog-session-model.js';
-
-/** Agents whose menu is on unless `/agents` says otherwise. Antigravity waits for the experimental flag. */
-const DEFAULT_SESSION_AGENTS = new Set(['codex-app', 'grok-build']);
 
 /**
  * Footer split button, session menu, and target line. The dialog owns send; this owns the stored target.
@@ -29,6 +28,7 @@ export class DialogSessionController {
     menuState = null;
     menuButtons = [];
     openCaret = null;
+    stopPositioning = null;
     busy = false;
     /** Last successful catalog per agent, so a refresh can keep those rows on screen. */
     catalogs = new Map();
@@ -40,20 +40,24 @@ export class DialogSessionController {
     }
 
     /**
-     * Bind the dialog and restore targets. Call once per render; a second attach without dispose stacks listeners.
-     * @param {HTMLElement} dialogEl Dialog. The menu is parented here so a narrow dialog can span it.
+     * Bind fresh dialog DOM and restore targets, releasing any previous menu and placement observers first.
+     * @param {HTMLElement} dialogEl Required current dialog; a stale node would attach menus to a closed dialog.
      * @returns {void}
      */
     attach(dialogEl) {
+        this.dispose();
         this.dialogEl = dialogEl;
+        this.menuEl = null;
         this.targets = readSessionTargets();
         document.addEventListener('keydown', this.onKey, true);
         this.refreshTargetLine();
         this.syncTargetMarkers();
     }
 
-    /** Drop the key listener and the open menu. A disposed controller ignores later Escape. */
+    /** Release listeners, queued placement, and the open menu; safe before first attach. @returns {void} */
     dispose() {
+        this.stopPositioning?.();
+        this.stopPositioning = null;
         document.removeEventListener('keydown', this.onKey, true);
         this.closeMenu();
     }
@@ -79,7 +83,7 @@ export class DialogSessionController {
     }
 
     /**
-     * Split control. The main button sends; the caret opens the menu.
+     * Register a split control: the main button sends; the caret opens and anchors the menu.
      *
      * Boundary: the caret starts visible for Codex and Grok only. `applyAgentList` hides it when `sessions` is false
      * and shows it for Antigravity when the flag is on. Returns the main button so the dialog can disable it.
@@ -90,28 +94,12 @@ export class DialogSessionController {
      * @returns {HTMLButtonElement} Main send button.
      */
     renderAction(action, container, onSend) {
-        const root = el('div', 'cii-agent-split');
-        const button = el('button', 'cii-btn cii-btn-primary cii-agent-action', action.label);
-        button.type = 'button';
-        button.title = action.title;
-        button.addEventListener('click', () => {
+        const split = createSessionAction(action, container, (name) => {
             this.closeMenu();
-            onSend(action.name);
-        });
-        const caret = el('button', 'cii-session-caret');
-        caret.type = 'button';
-        caret.append(document.createTextNode('▾'));
-        const dot = el('span', 'cii-session-dot');
-        dot.hidden = true;
-        caret.append(dot);
-        const show = DEFAULT_SESSION_AGENTS.has(action.name);
-        caret.hidden = !show;
-        root.classList.toggle('cii-agent-split-on', show);
-        caret.addEventListener('click', () => this.toggleMenu(action, caret));
-        root.append(button, caret);
-        container.append(root);
-        this.splits.set(action.name, { root, button, caret, dot, action });
-        return button;
+            onSend(name);
+        }, (caret) => this.toggleMenu(action, caret));
+        this.splits.set(action.name, split);
+        return split.button;
     }
 
     /**
@@ -287,7 +275,7 @@ export class DialogSessionController {
     }
 
     /**
-     * Rebuild the menu. `view.res` during loading is the list that stays under the cover.
+     * Rebuild and position the menu at the open caret. `view.res` during loading stays under the cover.
      *
      * @param {{ name: string, label: string }} action Agent the menu belongs to.
      * @param {{ loading?: boolean, overlay?: boolean, error?: string, res?: Record<string, unknown> }} view Fetch state.
@@ -299,6 +287,7 @@ export class DialogSessionController {
         if (!this.menuEl) {
             this.menuEl = el('div', 'cii-session-menu');
             this.dialogEl.append(this.menuEl);
+            this.stopPositioning = observeSessionMenuPosition(this.dialogEl, () => ({ anchor: this.openCaret, menu: this.menuEl }));
         }
         const filled = fillSessionMenu(this.menuEl, action, view, {
             busy: this.busy,
@@ -306,7 +295,7 @@ export class DialogSessionController {
             onRefresh: () => void this.loadMenu(action),
             onNew: () => this.clearTarget(action.name),
             onChoose: (session, row) => this.chooseRow(action.name, session, row),
-        });
+        }, this.openCaret);
         this.menuButtons = filled.buttons;
         this.menuState = { open: true, index: this.menuState?.index ?? 0, sessions: filled.rows };
         this.paintActive();
