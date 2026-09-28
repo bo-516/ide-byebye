@@ -5,9 +5,10 @@ import { DialogRecordingController } from '../recording/dialog-recordings.js';
 import { DialogStyleController } from '../style/dialog-style.js';
 import { DialogPin } from './dialog-pin.js';
 import { createDialogEditor } from './dialog-editor.js';
-import { agentLabel, anchorFromElement, clamp, configuredActions, el, isAgentVisible, loadLastAgent, saveLastAgent, sourceReferenceLabel, visibleAgentActions, } from './dialog-utils.js';
+import { agentLabel, anchorFromElement, clamp, configuredActions, el, isAgentVisible, loadLastAgent, saveLastAgent, sourceReferenceLabel, } from './dialog-utils.js';
 import { deliverPromptToClient } from './dialog-delivery.js';
 import { DialogSessionController } from './dialog-session-picker.js';
+import { DialogAgentPicker } from './dialog-agent-picker.js';
 import { t } from '../lib/i18n.js';
 import { iconSvg } from '../lib/icons.js';
 export class Dialog {
@@ -27,6 +28,7 @@ export class Dialog {
     editorEl = null;
     actionButtons = new Map();
     sessions;
+    picker;
     lastAgent;
     selection = null;
     selectedElement = null;
@@ -67,6 +69,14 @@ export class Dialog {
             getLastAgent: () => this.lastAgent,
             rememberAgent: (name) => this.rememberAgent(name),
             showError: (text) => this.showError(text),
+            onChange: () => this.refreshDestination(),
+        });
+        this.picker = new DialogAgentPicker({
+            config: () => this.config,
+            sessions: this.sessions,
+            getLastAgent: () => this.lastAgent,
+            rememberAgent: (name) => this.rememberAgent(name),
+            onPicked: () => this.restoreIntentFocus(),
         });
         this.editor = createDialogEditor({
             placeholder: t('intent.placeholder'),
@@ -153,7 +163,8 @@ export class Dialog {
     /**
      * Close the dialog and tear down current intent state.
      * Boundary: this cancels hidden reference-picking mode without restoring the hidden dialog. Pending async screenshot
-     * work may still settle, but its maps are cleared and no closed dialog is re-rendered.
+     * work may still settle, but its maps are cleared and no closed dialog is re-rendered. Open destination and session
+     * menus are closed so their document key listeners do not outlive the dialog.
      * @returns {void}
      */
     close() {
@@ -162,6 +173,7 @@ export class Dialog {
         this.references.clear();
         this.styles.clear();
         this.sessions?.dispose();
+        this.picker?.close();
         this.disableFocusGuard();
         this.setHostInteractive(false);
         this.parent.removeChild(this.backdrop);
@@ -181,11 +193,12 @@ export class Dialog {
      * Render the dialog shell for the current intent.
      * Boundary: this method creates fresh DOM for one open dialog. State that must survive re-rendering should live on
      * the class fields; passing a stale selection only affects async resolve and send payloads outside this renderer.
-     * Layout: header controls (pin, close) sit in the panel's top-right corner; the footer holds a toolbar row (capture
-     * tools, then the Copy button at its end) above the `.cii-action-buttons` tray of app hand-off keys, which must keep
-     * that class because the session menu observes it for placement. Footer buttons follow `config.enabledAgents`: an
-     * agent turned off in plugin config (including `clipboard`, which backs the Copy button) gets no button at all, and
-     * an empty tray is hidden by CSS.
+     * Layout: header controls (pin, close) sit in the panel's top-right corner; the `.cii-footer` action bar holds the
+     * capture tools on the left and, on the right, Copy, the destination picker, and the one Send button. The
+     * destination is a setting (it rarely changes), so it is a compact picker rather than a button per agent; Send and
+     * Enter both go to it. The session menu observes `.cii-footer` for placement, so the class must stay. Agents
+     * turned off in plugin config are never offered (including `clipboard`, which backs Copy); with no destination at
+     * all, the picker and Send hide and Copy becomes the primary action.
      * @param {Record<string, unknown>} _selection Current primary selection, intentionally unused by static layout.
      * @returns {void}
      */
@@ -233,11 +246,9 @@ export class Dialog {
         const stylePreviewEl = el('div', 'cii-screenshot-preview cii-style-preview');
         this.styles.attachPreview(stylePreviewEl);
         body.append(stylePreviewEl);
-        body.append(this.sessions.renderTargetLine());
         dialog.append(body);
-        // --- footer: capture tools + Copy share the toolbar row; app hand-off keys fill the tray below ---
+        // --- action bar: capture tools on the left; Copy, the destination picker, and Send on the right ---
         const footer = el('div', 'cii-footer');
-        const toolbar = el('div', 'cii-toolbar');
         const tools = el('div', 'cii-footer-tools');
         tools.append(this.references.renderButton());
         tools.append(this.screenshots.renderPicker());
@@ -245,39 +256,40 @@ export class Dialog {
         const recordButton = this.recordings.renderButton();
         if (recordButton)
             tools.append(recordButton);
-        toolbar.append(tools);
-        const actions = el('div', 'cii-action-buttons');
+        const actions = el('div', 'cii-send-group');
         this.actionButtons = new Map();
-        // Clipboard is a first-class footer action: it copies the assembled prompt so the user can paste it into any
-        // AI, with no app/deeplink dependency. It is deliberately kept out of `configuredActions()` so the Enter key
-        // still targets an app agent rather than the clipboard — which also keeps it out of `visibleAgentActions()`,
-        // so `agents.clipboard: false` has to be honored here, or the button could only ever alert "not enabled".
+        // Clipboard is a first-class action: it copies the assembled prompt so the user can paste it into any AI, with
+        // no app/deeplink dependency. It is deliberately kept out of `configuredActions()` so the Enter key still
+        // targets an app agent rather than the clipboard — which also keeps it out of `visibleAgentActions()`, so
+        // `agents.clipboard: false` has to be honored here, or the button could only ever alert "not enabled".
         if (isAgentVisible(this.config, 'clipboard')) {
-            const clipboardButton = el('button', 'cii-btn cii-agent-clipboard');
-            // Both labels exist up front, stacked in one grid cell, so the button is always as wide as the longer one and
-            // the "copied" flash (see `flashCopied`) swaps visibility without ever changing the toolbar's width/wrapping.
+            const clipboardButton = el('button', 'cii-icon-btn cii-agent-clipboard');
+            // Both labels exist up front, stacked in one grid cell, so the confirmation (see `flashCopied`) only swaps
+            // visibility and never resizes the bar; the visible icon comes from CSS and the live label names the state.
             clipboardButton.append(el('span', 'cii-copy-label cii-copy-idle', t('agent.clipboard.label')), el('span', 'cii-copy-label cii-copy-done', t('clipboard.copied')));
-            clipboardButton.title = t('agent.clipboard.title');
+            clipboardButton.dataset.ciiTip = t('agent.clipboard.label');
             clipboardButton.addEventListener('click', () => void this.send('clipboard'));
             this.actionButtons.set('clipboard', clipboardButton);
-            toolbar.append(clipboardButton);
+            actions.append(clipboardButton);
         }
-        // Agents disabled in plugin config are skipped entirely; only configured-but-unavailable ones get a greyed
-        // button (see `loadAgents`), because that state can still be fixed by installing the app.
         this.sessions.attach(dialog);
-        for (const action of visibleAgentActions(this.config)) {
-            const button = this.sessions.renderAction(action, actions, (name) => void this.send(name));
-            this.actionButtons.set(action.name, button);
-        }
-        this.updateAgentMarkers();
-        footer.append(toolbar, actions);
+        actions.append(this.picker.render());
+        const sendButton = el('button', 'cii-send-btn');
+        sendButton.type = 'button';
+        sendButton.innerHTML = iconSvg('arrow-up', 18);
+        sendButton.addEventListener('click', () => void this.send(this.lastAgent));
+        this.actionButtons.set('send', sendButton);
+        actions.append(sendButton);
+        footer.append(tools, actions);
         dialog.append(footer);
+        this.refreshDestination();
         dialog.addEventListener('mousedown', (event) => {
             const target = event.target;
             this.screenshots.closeMenuFromOutside(target);
             this.recordings.closeMenuFromOutside(target);
             this.styles.closeMenuFromOutside(target);
             this.sessions.closeMenuFromOutside(target);
+            this.picker.closeMenuFromOutside(target);
         }, true);
         backdrop.append(dialog);
         this.parent.append(backdrop);
@@ -455,20 +467,25 @@ export class Dialog {
     }
 
     /**
-     * Close the visible dialog from Escape before page handlers can consume the key.
+     * Handle Escape before page handlers can consume the key: close the innermost open menu, else the dialog.
+     *
+     * Boundary: layered, like any popover UI — the session menu, then the destination menu, then a capture tool's
+     * dropdown each take one Escape (focus returns to the editor) before the next Escape closes the dialog. Reference
+     * picking owns Escape itself, so it is left alone.
      *
      * @param {KeyboardEvent} event Keydown event from the page, shadow root, or textarea.
-     * @returns {boolean} True when Escape closed the dialog.
+     * @returns {boolean} True when Escape closed a menu or the dialog.
      */
     closeFromEscape(event) {
         if (event.key !== 'Escape')
             return false;
         if (this.references?.isPicking())
             return false;
-        if (this.sessions?.consumeEscape()) {
+        if (this.sessions?.consumeEscape() || this.picker?.consumeEscape() || this.closeToolMenus()) {
             event.preventDefault();
             event.stopPropagation();
             event.stopImmediatePropagation();
+            this.restoreIntentFocus();
             return true;
         }
         event.preventDefault();
@@ -476,6 +493,32 @@ export class Dialog {
         event.stopImmediatePropagation();
         this.close();
         return true;
+    }
+
+    /**
+     * Hide any open capture-tool dropdown (screenshot, style, recording).
+     *
+     * Boundary: those controllers read their menu's `hidden` flag as their open state, so hiding it is a full close.
+     * A closed dialog has nothing to hide.
+     *
+     * @returns {boolean} True when at least one dropdown was open.
+     */
+    closeToolMenus() {
+        const open = this.dialogEl ? Array.from(this.dialogEl.querySelectorAll('.cii-footer-tools .cii-screenshot-menu:not([hidden])')) : [];
+        for (const menu of open)
+            (menu as HTMLElement).hidden = true;
+        return open.length > 0;
+    }
+
+    /**
+     * Put focus back in the editor unless it is already there (which keeps the caret where the user left it).
+     *
+     * @returns {void}
+     */
+    restoreIntentFocus() {
+        if (!this.editorEl || this.parent?.activeElement === this.editorEl)
+            return;
+        this.focusIntent();
     }
 
     /**
@@ -499,28 +542,41 @@ export class Dialog {
         this.recordings.setDisabled(busy);
         this.styles.setDisabled(busy);
         this.sessions?.setDisabled(busy);
+        this.picker?.setDisabled(busy);
         // Only lock the editor while actually sending so the user can keep typing during the initial resolve.
         this.editor.setDisabled(busy && state === 'sending');
+        // The Send button shows a spinner for an app handoff in flight (Copy never locks, so it never spins).
+        this.dialogEl?.classList.toggle('cii-sending', busy && state === 'sending');
     }
     /**
-     * Mark the app button that Enter will use.
+     * Repaint everything that shows where the prompt goes: the destination picker and the Send button's label.
      *
-     * Boundary: this only changes visual state. It does not check whether the app is currently available, because the
-     * availability check is asynchronous and the send path owns user-facing errors.
+     * Boundary: visual only. It does not check whether the app is currently available beyond what `loadAgents`
+     * already reported, because the send path owns user-facing errors. With no destination offered, Send hides and the
+     * stylesheet promotes Copy. Safe before the first render (only the picker's rows update).
      *
      * @returns {void}
      */
-    updateAgentMarkers() {
-        for (const [agent, button] of this.actionButtons) {
-            button.classList.toggle('cii-agent-last', agent === this.lastAgent);
-        }
-        this.sessions?.syncTargetMarkers();
+    refreshDestination() {
+        this.picker?.refresh();
+        const button = this.actionButtons.get('send');
+        if (!button)
+            return;
+        const label = agentLabel(this.lastAgent);
+        const target = this.sessions?.targetFor(this.lastAgent);
+        const text = target
+            ? t('session.target.label', { label, title: target.title || t('session.untitled') })
+            : t('send.title', { label });
+        button.dataset.ciiTip = `${text}  ↵`;
+        button.setAttribute('aria-label', text);
+        button.hidden = this.picker?.hasDestinations() === false;
+        button.classList.toggle('cii-send-unavailable', this.picker?.current()?.unavailable === true);
     }
     /**
-     * Persist and display the app agent most recently requested by the user.
+     * Persist and display the app agent most recently chosen by the user.
      *
      * Boundary: invalid agent names are harmless; storage rejects are swallowed by `saveLastAgent`, while the in-memory
-     * value still updates so Enter repeats the last click within the same dialog.
+     * value still updates so Enter follows the choice within the same dialog.
      *
      * @param {string} agent App agent name.
      * @returns {void}
@@ -528,8 +584,7 @@ export class Dialog {
     rememberAgent(agent) {
         this.lastAgent = agent;
         saveLastAgent(agent);
-        this.updateAgentMarkers();
-        this.sessions?.refreshTargetLine();
+        this.refreshDestination();
     }
     /**
      * Build the server payload for route resolution and agent dispatch.
@@ -632,10 +687,10 @@ export class Dialog {
     }
 
     /**
-     * Load app availability and decorate footer buttons.
+     * Load app availability and session support, and hand both to the destination picker.
      *
-     * Boundary: availability is best-effort. Failed discovery leaves buttons visible and lets the send path report the
-     * adapter-specific error if the user submits.
+     * Boundary: availability is best-effort. Failed discovery keeps every destination listed as available and lets the
+     * send path report the adapter-specific error if the user submits.
      *
      * @returns {Promise<void>} Resolves when availability has been applied or ignored.
      */
@@ -644,20 +699,8 @@ export class Dialog {
             const res = await this.api.agents();
             this.availability = res.agents;
             this.sessions?.applyAgentList(res.agents);
-            for (const action of visibleAgentActions(this.config)) {
-                const button = this.actionButtons.get(action.name);
-                if (!button)
-                    continue;
-                const configured = this.config.enabledAgents.includes(action.name);
-                const info = res.agents.find((a) => a.name === action.name);
-                const unavailable = !configured || info?.available === false;
-                button.classList.toggle('cii-agent-unavailable', unavailable);
-                button.title = !configured
-                    ? t('agent.notEnabledInConfig', { label: action.label })
-                    : info?.available === false
-                        ? info.reason ?? t('agent.currentlyUnavailable', { label: action.label })
-                        : action.title;
-            }
+            this.picker?.setAvailability(res.agents);
+            this.refreshDestination();
         }
         catch {
             // availability is best-effort; keep the static list.
@@ -951,8 +994,9 @@ export class Dialog {
      * Collapse the open dialog into the floating orb without losing its content.
      *
      * Boundary: keeps the live dialog DOM detached in memory (`pinnedNode`) for a perfect same-session restore, and also
-     * persists a light draft so the orb and text survive a full page reload. Page-level listeners are removed while
-     * pinned so Escape/resize do not act on the detached dialog. No-op when the dialog is not open.
+     * persists a light draft so the orb and text survive a full page reload. Page-level listeners are removed and open
+     * destination/session menus are closed while pinned so Escape, arrows, and resize do not act on the detached
+     * dialog. No-op when the dialog is not open.
      *
      * @returns {void}
      */
@@ -960,6 +1004,8 @@ export class Dialog {
         if (!this.backdrop)
             return;
         this.pin.writeDraft(this.buildColdDraft());
+        this.picker?.close();
+        this.sessions?.closeMenu();
         this.pinnedNode = this.backdrop;
         this.parent.removeChild(this.backdrop);
         this.backdrop = null;

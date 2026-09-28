@@ -1,6 +1,7 @@
 import { DIALOG_Z_INDEX, PLUGIN_NODE_ATTR } from '../../shared/constants.js';
 import { ICONS_STYLE } from './icons.js';
 import { CAPTURE_STYLE } from './style-capture.js';
+import { DESTINATION_STYLE } from './style-destination.js';
 import { FOOTER_STYLE } from './style-footer.js';
 import { PREVIEWS_STYLE } from './style-previews.js';
 import { RECORDING_STYLE } from './style-recording.js';
@@ -20,7 +21,7 @@ import { TOOLS_STYLE } from './style-tools.js';
  * @type {string} Complete base CSS text for consumers that render or inject the plugin UI.
  */
 export const STYLE_TEXT = ICONS_STYLE + TOKENS_STYLE + SHELL_STYLE + PREVIEWS_STYLE + FOOTER_STYLE + TOOLS_STYLE
-    + RECORDING_STYLE + RECORDING_EDITOR_STYLE + CAPTURE_STYLE;
+    + DESTINATION_STYLE + RECORDING_STYLE + RECORDING_EDITOR_STYLE + CAPTURE_STYLE;
 
 /**
  * Create an isolated shadow-DOM host for all plugin UI so page CSS cannot leak

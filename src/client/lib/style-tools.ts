@@ -29,6 +29,11 @@ export const TOOLS_STYLE = `
 .cii-icon-btn-active,
 .cii-icon-btn-active:hover:not(:disabled) { background: var(--cii-accent-soft); color: var(--cii-accent-text); }
 .cii-icon-btn:disabled { opacity: 0.45; cursor: default; }
+/* A tool whose dropdown is open reads as pressed (an already-active tool keeps its accent). */
+.cii-screenshot-picker:has(> .cii-screenshot-menu:not([hidden])) > .cii-icon-btn:not(.cii-icon-btn-active) {
+  background: var(--cii-fill-strong);
+  color: var(--cii-text);
+}
 .cii-code-ref-icon,
 .cii-shot-icon,
 .cii-style-icon {

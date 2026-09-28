@@ -1,69 +1,52 @@
 import { DIALOG_Z_INDEX } from '../../shared/constants.js';
 
 /**
- * Recording controls (record key + scope picker), recording thumbnails, the floating recording pill, and the
- * pinned-dialog orb. The recording editor lives in RECORDING_EDITOR_STYLE.
+ * Record tool and its scope/start popover, recording thumbnails, the floating recording pill, and the pinned-dialog
+ * orb. The recording editor lives in RECORDING_EDITOR_STYLE.
  *
  * Boundary: requires the tokens, icon masks, and shared button/menu styles; keep it after the capture-tool rules. The
- * pill and orb are direct children of the shadow root rather than of the scrim, so each sets its own colours (fonts
- * come from the tokens' top-level rule). The pill centres itself with the `translate` property, leaving `transform`
- * free for its entrance animation; the orb animates opacity only because its drag handler measures
- * `getBoundingClientRect()`.
+ * record tool stays a neutral glyph like its neighbours and only turns red on intent (hover, open, recording), so the
+ * bar has no permanent alarm colour. The pill and orb are direct children of the shadow root rather than of the
+ * scrim, so each sets its own colours (fonts come from the tokens' top-level rule). The pill centres itself with the
+ * `translate` property, leaving `transform` free for its entrance animation; the orb animates opacity only because
+ * its drag handler measures `getBoundingClientRect()`.
  * @type {string} CSS fragment composed into the shadow-root stylesheet in its original cascade order.
  */
 export const RECORDING_STYLE = `
-/* Record key + scope form one segmented control, so the scope reads as "record what". */
-.cii-rec-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 11px;
-  box-shadow: inset 0 0 0 1px var(--cii-line);
+.cii-rec-icon {
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: var(--cii-mask-record);
+  mask: var(--cii-mask-record);
 }
-.cii-footer-tools > .cii-rec-controls:not(:first-child) { margin-left: 6px; }
-.cii-rec-controls > .cii-rec-toggle { width: 28px; height: 28px; border-radius: 8px; }
-.cii-rec-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--cii-danger);
-  box-shadow: 0 0 0 3px var(--cii-danger-soft);
-  transition: border-radius 120ms ease, box-shadow 120ms ease;
-}
-.cii-rec-toggle:hover:not(:disabled) .cii-rec-dot { box-shadow: 0 0 0 4px var(--cii-danger-soft); }
-.cii-rec-toggle.cii-rec-active { background: var(--cii-danger-soft); }
-.cii-rec-toggle.cii-rec-active .cii-rec-dot { border-radius: 3px; animation: cii-rec-pulse 1.2s ease-in-out infinite; }
+.cii-rec-toggle:hover:not(:disabled),
+.cii-rec-picker:has(> .cii-rec-menu:not([hidden])) > .cii-rec-toggle { color: var(--cii-danger); }
+.cii-rec-toggle.cii-rec-active { background: var(--cii-danger-soft); color: var(--cii-danger); }
+.cii-rec-toggle.cii-rec-active .cii-rec-icon { animation: cii-rec-pulse 1.2s ease-in-out infinite; }
 @keyframes cii-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-.cii-rec-scope-picker { position: relative; }
-.cii-rec-scope-btn {
-  display: inline-flex;
+.cii-screenshot-menu.cii-rec-menu { width: 220px; padding: 6px; }
+/* Single-select scope: a bare check marks the active row instead of a checkbox. */
+.cii-rec-menu .cii-choice-mark,
+.cii-rec-menu .cii-choice-active .cii-choice-mark { background: none; box-shadow: none; color: var(--cii-accent); }
+.cii-rec-start {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 6px 0 8px;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  margin-top: 6px;
   border: 0;
   border-radius: 8px;
-  background: transparent;
-  color: var(--cii-text-muted);
-  font: 500 12.5px/1 var(--cii-font);
+  background: var(--cii-danger);
+  color: #ffffff;
+  font: 600 13px/1 var(--cii-font);
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: filter 120ms ease;
 }
-.cii-rec-scope-btn:hover:not(:disabled) { background: var(--cii-fill); color: var(--cii-text); }
-.cii-rec-scope-btn:disabled { opacity: 0.45; cursor: default; }
-.cii-rec-scope-caret {
-  width: 14px;
-  height: 14px;
-  font-size: 0;
-  background: currentColor;
-  opacity: 0.7;
-  -webkit-mask: var(--cii-mask-chevron-down);
-  mask: var(--cii-mask-chevron-down);
-}
-/* Single-select scope menu: a bare check marks the active row instead of a checkbox. */
-.cii-rec-scope-picker .cii-choice-mark,
-.cii-rec-scope-picker .cii-choice-active .cii-choice-mark { background: none; box-shadow: none; color: var(--cii-accent); }
+.cii-rec-start::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.cii-rec-start:hover { filter: brightness(1.08); }
 
 .cii-recording-preview[hidden] { display: none; }
 /* Wider than a screenshot thumb so the "scope · duration" badge fits without truncating the duration. */

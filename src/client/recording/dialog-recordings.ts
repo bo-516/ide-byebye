@@ -17,9 +17,9 @@ function durationLabel(ms) {
 /**
  * Dialog controller for rrweb element-behavior recordings.
  *
- * Boundary: recordings live for one dialog open cycle (cleared on close). The controller owns the footer record button +
- * scope picker, the floating "recording" control shown while capturing, the per-segment thumbnails, and the outgoing
- * payload. Active only when `config.recording.enabled`. While recording, the dialog is hidden and the host made
+ * Boundary: recordings live for one dialog open cycle (cleared on close). The controller owns the record tool and its
+ * scope/start popover, the floating "recording" control shown while capturing, the per-segment thumbnails, and the
+ * outgoing payload. Active only when `config.recording.enabled`. While recording, the dialog is hidden and the host made
  * click-through so the user can actually interact with the page; the inspector's own UI is excluded from the capture.
  * Each recording is scoped (selected node / its parent / app mount root) so the still and viewer focus that subtree.
  */
@@ -29,9 +29,7 @@ export class DialogRecordingController {
     pendingScope: any;
     host;
     button = null;
-    scopeBtn = null;
-    scopeMenu = null;
-    scopeLabel = null;
+    menu = null;
     scopeChoiceButtons = new Map();
     previewEl = null;
     control = null;
@@ -92,56 +90,51 @@ export class DialogRecordingController {
     }
 
     /**
-     * Render the footer recording controls: the record toggle button followed by its scope picker, styled as one
-     * segmented control that reads "record · <scope>".
-     * Boundary: returns null when recording is disabled so the dialog omits the controls. The record button only starts
-     * recording; stopping happens from the floating control (the dialog is hidden while capturing). DOM order is the
-     * visual and focus order, so the record key comes first here rather than being reordered by CSS.
-     * @returns {HTMLElement | null} Controls wrapper, or null when disabled.
+     * Render the recording tool: one icon button whose popover picks the scope and starts recording.
+     * Boundary: returns null when recording is disabled so the dialog omits the tool. Recording is deliberate and
+     * infrequent, so it takes a confirming click ("Start recording") instead of a permanently visible scope control;
+     * stopping happens from the floating control (the dialog is hidden while capturing). The scope choice survives
+     * dialog opens.
+     * @returns {HTMLElement | null} Tool wrapper (button + popover), or null when disabled.
      */
     renderButton() {
         if (!this.isEnabled())
             return null;
-        const wrapper = el('div', 'cii-rec-controls');
-        // Scope picker — a custom dropdown matching the screenshot picker (white menu + ✓), not a native <select>.
-        const scope = el('div', 'cii-screenshot-picker cii-rec-scope-picker');
-        this.scopeBtn = el('button', 'cii-rec-scope-btn');
-        this.scopeBtn.type = 'button';
-        this.scopeBtn.dataset.ciiTip = t('recording.scope.title');
-        this.scopeLabel = el('span', 'cii-rec-scope-label', recordingScopeLabel(this.scope));
-        this.scopeBtn.append(this.scopeLabel, el('span', 'cii-rec-scope-caret', '⌄'));
-        this.scopeBtn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            if (!this.scopeMenu)
-                return;
-            if (this.scopeMenu.hidden)
-                revealDropdownPanel(this.scopeBtn, this.scopeMenu);
-            else
-                this.scopeMenu.hidden = true;
-        });
-        this.scopeMenu = el('div', 'cii-screenshot-menu');
-        this.scopeMenu.hidden = true;
-        this.scopeChoiceButtons = new Map();
-        for (const value of RECORDING_SCOPES)
-            this.scopeMenu.append(this.renderScopeChoice(value));
-        scope.append(this.scopeBtn, this.scopeMenu);
-        this.updateScopeMarks();
-        // Record toggle button.
+        const wrapper = el('div', 'cii-screenshot-picker cii-rec-picker');
         this.button = el('button', 'cii-icon-btn cii-rec-toggle');
         this.button.type = 'button';
         this.button.dataset.ciiTip = t('recording.toggle.title');
         this.button.setAttribute('aria-label', t('recording.toggle.title'));
-        this.button.append(el('span', 'cii-rec-dot'));
+        this.button.setAttribute('aria-haspopup', 'menu');
+        this.button.append(el('span', 'cii-rec-icon'));
         this.button.addEventListener('click', (event) => {
             event.stopPropagation();
+            if (this.menu.hidden)
+                revealDropdownPanel(this.button, this.menu);
+            else
+                this.menu.hidden = true;
+        });
+        this.menu = el('div', 'cii-screenshot-menu cii-rec-menu');
+        this.menu.hidden = true;
+        this.menu.append(el('div', 'cii-menu-caption', t('recording.scope.title')));
+        this.scopeChoiceButtons = new Map();
+        for (const value of RECORDING_SCOPES)
+            this.menu.append(this.renderScopeChoice(value));
+        const start = el('button', 'cii-rec-start', t('recording.start'));
+        start.type = 'button';
+        start.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.menu.hidden = true;
             void this.start();
         });
-        wrapper.append(this.button, scope);
+        this.menu.append(start);
+        this.updateScopeMarks();
+        wrapper.append(this.button, this.menu);
         return wrapper;
     }
 
     /**
-     * Render one scope choice row for the dropdown (label + ✓ when active), mirroring the screenshot picker.
+     * Render one scope choice row (label + check when active); picking a scope keeps the popover open for Start.
      * @param {'selection'|'parent'|'root'} scope Scope value.
      * @returns {HTMLButtonElement} Choice button.
      */
@@ -153,10 +146,6 @@ export class DialogRecordingController {
             event.stopPropagation();
             this.scope = scope;
             this.updateScopeMarks();
-            if (this.scopeLabel)
-                this.scopeLabel.textContent = recordingScopeLabel(scope);
-            if (this.scopeMenu)
-                this.scopeMenu.hidden = true;
         });
         this.scopeChoiceButtons.set(scope, button);
         return button;
@@ -174,24 +163,24 @@ export class DialogRecordingController {
     }
 
     /**
-     * Close the scope dropdown when a click lands outside it (wired from the dialog's mousedown listener).
+     * Close the recording popover when a click lands outside it (wired from the dialog's mousedown listener).
      * @param {EventTarget | null} target Event target from the dialog mousedown listener.
      * @returns {void}
      */
     closeMenuFromOutside(target) {
-        if (!this.scopeMenu || !this.scopeBtn || this.scopeMenu.hidden)
+        if (!this.menu || !this.button || this.menu.hidden)
             return;
-        if (target instanceof Node && !this.scopeBtn.contains(target) && !this.scopeMenu.contains(target)) {
-            this.scopeMenu.hidden = true;
+        if (target instanceof Node && !this.button.contains(target) && !this.menu.contains(target)) {
+            this.menu.hidden = true;
         }
     }
 
-    /** Disable/enable the record controls during busy dialog states. @param {boolean} disabled @returns {void} */
+    /** Disable/enable the record tool during busy dialog states; disabling also closes its popover. @param {boolean} disabled @returns {void} */
     setDisabled(disabled) {
         if (this.button)
             this.button.disabled = disabled;
-        if (this.scopeBtn)
-            this.scopeBtn.disabled = disabled;
+        if (disabled && this.menu)
+            this.menu.hidden = true;
     }
 
     /**

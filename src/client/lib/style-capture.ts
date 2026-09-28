@@ -158,8 +158,7 @@ export const CAPTURE_STYLE = `
   height: 30px;
   padding: 0 4px 0 10px;
   border-radius: 9px;
-  background: var(--cii-surface-sunken);
-  box-shadow: inset 0 0 0 1px var(--cii-line);
+  background: var(--cii-fill);
   color: var(--cii-text-muted);
   font: 500 12.5px/1 var(--cii-font);
 }

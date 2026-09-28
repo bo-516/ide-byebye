@@ -66,7 +66,7 @@ button:focus-visible, [role="button"]:focus-visible {
 
 .cii-dialog {
   position: absolute;
-  width: min(600px, calc(100vw - 24px));
+  width: min(560px, calc(100vw - 24px));
   max-height: min(86vh, calc(100vh - 24px));
   display: flex;
   flex-direction: column;
@@ -109,11 +109,11 @@ button:focus-visible, [role="button"]:focus-visible {
    masked background; opt the icon slots out and paint them in the text colour instead. New icon slots belong here. */
 @media (forced-colors: active) {
   .cii-code-ref-icon, .cii-shot-icon, .cii-style-icon, .cii-style-chip-icon, .cii-mention-icon, .cii-pin-orb-icon,
-  .cii-rec-scope-caret, .cii-rec-dot, .cii-copy-label::before, .cii-choice-active .cii-choice-mark::before,
-  .cii-session-caret::before, .cii-session-target::before, .cii-session-new::before, .cii-session-refresh::before,
-  .cii-mention-remove::before, .cii-thumb-remove::before, .cii-style-chip-remove::before,
-  .cii-session-target-clear::before, .cii-image-close::before, .cii-rv-close::before, .cii-rv-seg-x::before,
-  .cii-recording-thumb .cii-thumb-media::before {
+  .cii-rec-icon, .cii-agent-kind, .cii-agent-pill-caret, .cii-agent-row-selected .cii-agent-row-check,
+  .cii-agent-row-sessions::before, .cii-agent-row-session::before, .cii-copy-label::before,
+  .cii-choice-active .cii-choice-mark::before, .cii-session-new::before, .cii-session-refresh::before,
+  .cii-session-back::before, .cii-mention-remove::before, .cii-thumb-remove::before, .cii-style-chip-remove::before,
+  .cii-image-close::before, .cii-rv-close::before, .cii-rv-seg-x::before, .cii-recording-thumb .cii-thumb-media::before {
     forced-color-adjust: none;
     background: CanvasText;
   }

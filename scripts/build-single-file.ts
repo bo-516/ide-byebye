@@ -39,6 +39,7 @@ const CLIENT_CSS_TEMPLATE_MODULES = [
     path.join(ROOT_DIR, 'src/client/lib/style-previews.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-footer.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-tools.ts'),
+    path.join(ROOT_DIR, 'src/client/lib/style-destination.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-recording.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-recording-editor.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-capture.ts'),

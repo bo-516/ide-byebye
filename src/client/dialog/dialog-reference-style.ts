@@ -146,8 +146,7 @@ export const DIALOG_REFERENCE_STYLE_TEXT = `
   padding: 0 5px 0 8px;
   gap: 7px;
   border-radius: 8px;
-  background: var(--cii-surface-sunken);
-  box-shadow: inset 0 0 0 1px var(--cii-line);
+  background: var(--cii-fill);
   color: var(--cii-text);
   font: 500 12.5px/1 var(--cii-font);
 }

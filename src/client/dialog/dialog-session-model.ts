@@ -4,7 +4,7 @@ import { readJsonStore, writeJsonStore } from './dialog-utils.js';
 export const SESSION_TARGET_PREF_KEY = 'code-intent-inspector:session-targets';
 
 /**
- * Copy keys the session menu, target line, and send errors read.
+ * Copy keys the session menu, the Send button's session label, and send errors read.
  *
  * Boundary: every key must exist in both `zh` and `en`. The test walks this list. Adding a key here without a
  * translation makes that test fail.
@@ -22,6 +22,7 @@ export const SESSION_COPY_KEYS = [
     'session.menu.error',
     'session.menu.retry',
     'session.menu.refresh',
+    'session.menu.back',
     'session.status.working',
     'session.status.waiting',
     'session.status.idle',
@@ -32,7 +33,6 @@ export const SESSION_COPY_KEYS = [
     'session.location.repoRoot',
     'session.untitled',
     'session.target.label',
-    'session.target.clear',
     'session.error.targetMissing',
     'session.error.targetBusy',
     'session.notice.ideNotRunning',

@@ -23,6 +23,14 @@ const ICON_PATHS = {
     'corner-down-right': "<path d='M5 4.5v6a4 4 0 0 0 4 4h10M15 10.5l4 4-4 4'/>",
     search: "<circle cx='11' cy='11' r='6.5'/><path d='m20 20-4.2-4.2'/>",
     play: "<path d='M9 7.2v9.6a.8.8 0 0 0 1.2.7l7.6-4.8a.8.8 0 0 0 0-1.4l-7.6-4.8a.8.8 0 0 0-1.2.7Z' fill='black' stroke='none'/>",
+    'arrow-up': "<path d='M12 19V5.5M6 11.5l6-6 6 6'/>",
+    'chevron-right': "<path d='m10 7 5 5-5 5'/>",
+    'chevron-left': "<path d='m14 7-5 5 5 5'/>",
+    record: "<circle cx='12' cy='12' r='8'/><circle cx='12' cy='12' r='3.6' fill='black' stroke='none'/>",
+    app: "<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='M3.5 9h17'/>",
+    ide: "<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='m10 10-2.5 2.5L10 15M14 10l2.5 2.5L14 15'/>",
+    terminal: "<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='m7.5 10 2.5 2.5L7.5 15M12.5 15.5h4'/>",
+    custom: "<path d='M9 3.5v4M15 3.5v4M6.5 7.5h11v3a5.5 5.5 0 0 1-11 0zM12 16v4.5'/>",
 };
 
 /**

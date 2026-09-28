@@ -1,7 +1,7 @@
 import { placeDropdownPanel } from './dialog-utils.js';
 
 /**
- * Keep the open menu anchored when the dialog moves or its action grid changes columns.
+ * Keep the open menu anchored when the dialog moves or its action bar reflows (attachments, narrow widths).
  * Boundary: DOM observation stays here; placement math is shared with the other dropdowns. Frame scheduling lets
  * the dialog's resize handler clamp its own position before the menu is measured. Closed menus are ignored.
  * @param {HTMLElement} dialog Connected dialog that owns the menu; a missing element cannot be observed.
@@ -25,9 +25,9 @@ export function observeSessionMenuPosition(dialog, getOpenMenu) {
     };
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
     observer?.observe(dialog);
-    const actions = dialog.querySelector('.cii-action-buttons');
-    if (actions)
-        observer?.observe(actions);
+    const actionBar = dialog.querySelector('.cii-footer');
+    if (actionBar)
+        observer?.observe(actionBar);
     window.addEventListener('resize', schedule);
     /** Release observation and queued work; safe to call again after the first cleanup. */
     return () => {

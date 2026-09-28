@@ -326,6 +326,7 @@ pnpm dev:react:rspack
 | **截图** | `selection` / `parent` / `viewport`（可多选）。作为 UI 偏好持久化。 |
 | **渲染样式** | 精选计算 CSS（约 110 项），元素或祖先链。需显式开启；发送时读取。 |
 | **录制** | rrweb 元素行为捕获 + 静帧。默认关闭；开启时需 `@rrweb/*`。 |
+| **发送** | 一个发送按钮（↑）和 Enter 都发给它旁边显示的目标。在这个目标选择器里切换 Agent（也能选已有会话）；选择会被记住，所以弹窗始终只有一行操作。**复制 Prompt**（⧉）则改为复制到剪贴板。 |
 | **Pin** | 收成跨页悬浮球。热恢复保留附件；整页刷新只保留文本。 |
 
 ## 配置参考
@@ -412,7 +413,7 @@ ideByebye({
 | --- | --- |
 | **类型** | `string` |
 | **默认** | `'claude-app'` |
-| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'antigravity-ide'` / `'antigravity'`，或 [`agents.custom`](#agentscustom) 里的客户端名。`'clipboard'` / `'file'` 永远不是 Enter 目标 —— 和未知 / 已禁用的值一样，回退到第一个已启用的页脚 Agent（Codex → Claude → Cursor → Grok Build → Antigravity IDE → Antigravity → 自定义）；一个都没启用时，Enter 只会报「未启用」。点过某个页脚 Agent 后，Enter 改为沿用那次的选择（记在当前浏览器里）。`'antigravity-ide'` / `'antigravity'` 只有在对应 Agent 打开之后才有效。 |
+| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'antigravity-ide'` / `'antigravity'`，或 [`agents.custom`](#agentscustom) 里的客户端名。`'clipboard'` / `'file'` 永远不是 Enter 目标 —— 和未知 / 已禁用的值一样，回退到第一个已启用的页脚 Agent（Codex → Claude → Cursor → Grok Build → Antigravity IDE → Antigravity → 自定义）；一个都没启用时，Enter 只会报「未启用」。在发送按钮旁的目标选择器里换了 Agent 后，Enter 改为沿用那次的选择（记在当前浏览器里）。`'antigravity-ide'` / `'antigravity'` 只有在对应 Agent 打开之后才有效。 |
 
 #### `applyMode`
 
@@ -618,7 +619,7 @@ ideByebye({
 | --- | --- | --- | --- |
 | `scheme` | `string` | `'codex'` | Deeplink scheme（`codex://new`）。 |
 | `projectRoot` | `string` | Vite / 打包器项目根 | deeplink 打开的文件夹。非空字符串覆盖；相对路径相对进程 cwd `path.resolve`。 |
-| `sessions` | `boolean \| { limit?, lookbackDays?, home? }` | 开启 | 已有线程菜单。`false` 去掉 ▾。`limit` 为 1–50（默认 20）。`lookbackDays` 默认 30，按文件修改时间。`home` 覆盖 `$CODEX_HOME` / `~/.codex`。 |
+| `sessions` | `boolean \| { limit?, lookbackDays?, home? }` | 开启 | 已有线程列表。`false` 去掉 `›`。`limit` 为 1–50（默认 20）。`lookbackDays` 默认 30，按文件修改时间。`home` 覆盖 `$CODEX_HOME` / `~/.codex`。 |
 
 #### `agents.cursorApp`
 
@@ -642,7 +643,7 @@ ideByebye({
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Grok prompt 里截图 / 静帧路径。 |
 | `permissionMode` | `string` | 无 | 传给 `--permission-mode`（`plan`、`acceptEdits`、`default` 等）。 |
 | `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件交接（ARGV / ARG_MAX）。 |
-| `sessions` | `boolean \| { limit?, home? }` | 开启 | 已有会话菜单。`false` 去掉 ▾。只能恢复已关闭的会话。`home` 覆盖 `~/.grok`。 |
+| `sessions` | `boolean \| { limit?, home? }` | 开启 | 已有会话列表。`false` 去掉 `›`。只能恢复已关闭的会话。`home` 覆盖 `~/.grok`。 |
 
 #### `agents.antigravityIde`
 
@@ -659,7 +660,7 @@ ideByebye({
 | `profile` | `string` | 无 | 为兼容保留。不会作用到 agent 输入框。 |
 | `addFiles` | `boolean` | `true` | `false` 不再附带文件。项目根以外的路径一律丢弃。 |
 | `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件指针。 |
-| `experimentalSessions` | `boolean` | `false` | 为 `true` 时，▾ 列出 IDE 里的会话，发送会直接投进选中的会话。默认关闭，因为会读取 IDE 进程里的 language-server CSRF token。 |
+| `experimentalSessions` | `boolean` | `false` | 为 `true` 时，`›` 列出 IDE 里的会话，发送会直接投进选中的会话。默认关闭，因为会读取 IDE 进程里的 language-server CSRF token。 |
 
 #### `agents.antigravity`
 
@@ -801,7 +802,7 @@ ideByebye({ locale: 'en' });
 
 Codex App、Grok Build，以及（需开关）Antigravity IDE，可以把下一次 prompt 送进已经存在的会话。没有选中会话时，发送和现在一样：新开 Codex 线程、新开 Grok 终端，或新开 Antigravity 聊天。
 
-页脚按钮是拆开的。文字部分仍按原来的方式发送。`▾` 列出**当前项目**的会话（标题、状态、目录、相对时间）。选中后，下一次 Enter 发给这个 agent 的这个会话。选择按 agent 记在 `localStorage` 里。`✕` 或「新会话」只清掉这个 agent。`sessions: false` 会去掉该 agent 的 `▾`。
+打开发送按钮旁的目标选择器：能续接会话的 agent 会显示 `›`，点开列出**当前项目**的会话（标题、状态、目录、相对时间）。选中后，下一次 Enter（或发送）发给这个 agent 的这个会话，选择器会显示成「Agent / 会话标题」。选择按 agent 记在 `localStorage` 里。「新会话」只清掉这个 agent。`sessions: false` 会去掉该 agent 的 `›`。
 
 | Agent | 投递方式 | 你会看到什么 |
 | --- | --- | --- |

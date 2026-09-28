@@ -30,8 +30,8 @@ function main() {
     window.__CII_INSTALLED__ = true;
     // Resolve the UI locale before any dialog copy is built (falls back to navigator language when unset).
     setLocale(config.locale);
-    // Custom prompt-delivery clients are config-defined, so their footer buttons must exist before the first dialog is
-    // built. Absent config leaves the built-in footer untouched.
+    // Custom prompt-delivery clients are config-defined, so they must be registered as destinations before the first
+    // dialog is built. Absent config leaves the built-in destinations untouched.
     setCustomAgentActions(config.customAgents);
     const boot = () => {
         const { root } = createUi();
