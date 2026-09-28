@@ -92,7 +92,8 @@ export interface CodexAppAgentOptions extends AgentOpenOptions {
   /** Folder opened by the deeplink; relative paths resolve from process cwd. */
   projectRoot?: string;
   /**
-   * Existing-thread menu. Default on. `false` removes the ▾. An object overrides limit, lookback, or home.
+   * Existing-thread list (the `›` beside this agent in the dialog's destination picker). Default on. `false` removes
+   * it. An object overrides limit, lookback, or home.
    */
   sessions?: boolean | SessionPickerOptions;
 }
@@ -145,7 +146,8 @@ export interface AntigravityIdeAgentOptions extends AgentOpenOptions {
   /** In `auto` mode, longer prompts switch to a file pointer. Default `12000`. */
   promptArgLimit?: number;
   /**
-   * When `true`, the ▾ lists IDE conversations and send delivers into the selected one.
+   * When `true`, the `›` beside this agent in the destination picker lists IDE conversations and send delivers into
+   * the selected one.
    * Default `false`. Reads the language-server CSRF token from the IDE process command line.
    */
   experimentalSessions?: boolean;
@@ -184,7 +186,8 @@ export interface GrokBuildAgentOptions extends AgentOpenOptions {
   /** In `auto` mode, longer prompts switch to file handoff. Default `12000`. */
   promptArgLimit?: number;
   /**
-   * Existing-session menu. Default on. `false` removes the ▾. Only closed sessions can be targeted.
+   * Existing-session list (the `›` beside this agent in the dialog's destination picker). Default on. `false` removes
+   * it. Only closed sessions can be targeted.
    */
   sessions?: boolean | SessionPickerOptions;
 }

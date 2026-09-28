@@ -44,7 +44,7 @@ function readPathStyles(entry) {
  *
  * Boundary: `url` must be an absolute `http(s)` URL — the dev server POSTs to it directly, so a relative path or a
  * custom scheme has no meaning here. A missing or unusable URL is *not* dropped: it is reported through `configError`
- * so the footer button greys out with the reason instead of silently disappearing. Non-string header entries are
+ * so the dialog's destination picker marks it unavailable with the reason instead of silently dropping it. Non-string header entries are
  * skipped, and a non-positive / non-numeric timeout falls back to {@link DEFAULT_DELIVERY_TIMEOUT_MS}.
  *
  * @param {Record<string, unknown>} entry Raw custom-client entry from plugin config.

@@ -351,6 +351,7 @@ Hold ⌘ and click any element to open the intent dialog. Details:
 | **Screenshots** | `selection` / `parent` / `viewport` (multi-select). Persisted as UI preference. |
 | **Rendered styles** | Curated computed CSS (~110 props), element or ancestor chain. Opt-in; read at send time. |
 | **Recording** | rrweb element-behavior capture + still frame. Off by default; needs `@rrweb/*` when enabled. |
+| **Send** | One Send button (↑) — and Enter — hands off to the destination shown beside it. Change the destination (and pick an existing session) from that picker; it is remembered, so the dialog stays one row. **Copy prompt** (⧉) copies instead. |
 | **Pin** | Collapse to a floating orb across pages. Warm restore keeps attachments; full reload keeps text only. |
 
 ## Configuration reference
@@ -438,7 +439,7 @@ ideByebye({
 | --- | --- |
 | **Type** | `string` |
 | **Default** | `'claude-app'` |
-| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'antigravity-ide'` / `'antigravity'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → Antigravity IDE → Antigravity → custom); if none is enabled, Enter only shows a "not enabled" error. Once you click a footer agent, Enter follows that choice instead (remembered in this browser). `'antigravity-ide'` and `'antigravity'` work only after those agents are turned on. |
+| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'antigravity-ide'` / `'antigravity'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → Antigravity IDE → Antigravity → custom); if none is enabled, Enter only shows a "not enabled" error. Once you pick another agent in the destination picker next to Send, Enter follows that choice instead (remembered in this browser). `'antigravity-ide'` and `'antigravity'` work only after those agents are turned on. |
 
 #### `applyMode`
 
@@ -650,7 +651,7 @@ In **WSL**, point `openCommand` at `wslview` or `explorer.exe` instead of `cmd`.
 | --- | --- | --- | --- |
 | `scheme` | `string` | `'codex'` | Deeplink scheme (`codex://new`). |
 | `projectRoot` | `string` | Vite / bundler project root | Folder opened by the deeplink. Non-empty string overrides; relative → `path.resolve` from process cwd. |
-| `sessions` | `boolean \| { limit?, lookbackDays?, home? }` | on | Existing-thread menu. `false` removes the ▾. `limit` is 1–50 (default 20). `lookbackDays` defaults to 30 and uses file mtime. `home` overrides `$CODEX_HOME` / `~/.codex`. |
+| `sessions` | `boolean \| { limit?, lookbackDays?, home? }` | on | Existing-thread list. `false` removes the `›`. `limit` is 1–50 (default 20). `lookbackDays` defaults to 30 and uses file mtime. `home` overrides `$CODEX_HOME` / `~/.codex`. |
 
 #### `agents.cursorApp`
 
@@ -674,7 +675,7 @@ In **WSL**, point `openCommand` at `wslview` or `explorer.exe` instead of `cmd`.
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in the Grok prompt. |
 | `permissionMode` | `string` | none | Passed as `--permission-mode` (`plan`, `acceptEdits`, `default`, …). |
 | `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to file handoff (ARGV / ARG_MAX). |
-| `sessions` | `boolean \| { limit?, home? }` | on | Existing-session menu. `false` removes the ▾. Only a closed session can be resumed. `home` overrides `~/.grok`. |
+| `sessions` | `boolean \| { limit?, home? }` | on | Existing-session list. `false` removes the `›`. Only a closed session can be resumed. `home` overrides `~/.grok`. |
 
 #### `agents.antigravityIde`
 
@@ -691,7 +692,7 @@ Off unless set. Opens the project with `antigravity-ide <projectRoot>`, then pla
 | `profile` | `string` | none | Accepted for compatibility. Not applied to the agent input. |
 | `addFiles` | `boolean` | `true` | `false` skips file mentions. Paths outside the project root are always dropped. |
 | `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to a file pointer. |
-| `experimentalSessions` | `boolean` | `false` | When `true`, the ▾ lists IDE conversations and send delivers into the selected one. Off by default because it reads the language-server CSRF token from the IDE process. |
+| `experimentalSessions` | `boolean` | `false` | When `true`, the `›` lists IDE conversations and send delivers into the selected one. Off by default because it reads the language-server CSRF token from the IDE process. |
 
 #### `agents.antigravity`
 
@@ -835,7 +836,7 @@ ideByebye({ locale: 'en' });
 
 Codex App, Grok Build, and (behind a flag) Antigravity IDE can take the next prompt in a session you already have. With no session picked, send behaves exactly as before: a new Codex thread, a new Grok terminal, or a new Antigravity chat.
 
-The footer button is split. The label sends the way it always has. `▾` opens this project's sessions (title, status, directory, relative time). Pick one and the next Enter goes to that agent and that session. The choice is remembered per agent in `localStorage`. `✕` or **New session** clears only that agent. `sessions: false` removes that agent's `▾`.
+Open the destination picker next to Send: agents that can continue a session show `›`, which opens this project's sessions (title, status, directory, relative time). Pick one and the next Enter (or Send) goes to that agent and that session; the picker then reads `Agent / session title`. The choice is remembered per agent in `localStorage`. **New session** clears only that agent. `sessions: false` removes that agent's `›`.
 
 | Agent | Delivery | What you get |
 | --- | --- | --- |

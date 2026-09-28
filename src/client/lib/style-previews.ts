@@ -1,73 +1,35 @@
 /**
- * Reference chips, screenshot previews, and image-lightbox presentation.
+ * Attachment thumbnails (screenshots and recordings) and the full-size image lightbox.
  *
- * Boundary: Requires the shell stylesheet reset and dialog context; using these rules alone loses shared sizing and inherited typography.
+ * Boundary: requires the tokens, icon masks, and shell reset; used alone the thumbnails lose their surfaces and the
+ * close glyphs paint as empty boxes. Preview rows are flex items of the dialog body, so screenshot, recording, and
+ * style attachments line up in one wrapping row. Remove buttons reveal on hover/focus only where hover exists, so
+ * touch users always see them.
  * @type {string} CSS fragment composed into the shadow-root stylesheet in its original cascade order.
  */
 export const PREVIEWS_STYLE = `
-.cii-reference-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 10px;
-}
-.cii-reference-preview[hidden] { display: none; }
-.cii-code-ref-chip {
-  max-width: 100%;
-  min-height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 6px 0 10px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  color: inherit;
-  opacity: 0.78;
-}
-.cii-code-ref-link,
-.cii-code-ref-remove {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.cii-code-ref-link {
-  max-width: min(260px, 70vw);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0;
-  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  text-decoration: underline;
-}
-.cii-code-ref-remove {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border-radius: 999px;
-  font: 16px/1 system-ui, sans-serif;
-}
-
 .cii-screenshot-preview {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 8px;
+  min-width: 0;
 }
 .cii-screenshot-preview[hidden] { display: none; }
 .cii-screenshot-thumb {
   position: relative;
-  width: 116px;
-  height: 82px;
+  width: 96px;
+  height: 68px;
   padding: 0;
-  border: 1px solid #e0e3e5;
-  border-radius: 8px;
-  background: #f7f9fb;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cii-surface-sunken);
+  box-shadow: 0 0 0 1px var(--cii-line);
   overflow: hidden;
-  cursor: pointer;
+  cursor: zoom-in;
+  transition: box-shadow 140ms ease;
+}
+.cii-screenshot-thumb:hover {
+  box-shadow: 0 0 0 1px var(--cii-line-strong), 0 8px 18px -8px rgba(0, 0, 0, 0.35);
 }
 .cii-thumb-media {
   width: 100%;
@@ -76,40 +38,55 @@ export const PREVIEWS_STYLE = `
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #eceef0;
+  background: var(--cii-surface-sunken);
 }
 .cii-thumb-media img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 .cii-thumb-loading {
-  width: 42px;
-  height: 42px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
-  border: 3px solid rgba(80, 95, 118, 0.2);
-  border-top-color: #505f76;
-  animation: cii-spin 800ms linear infinite;
+  border: 2px solid var(--cii-line-strong);
+  border-top-color: var(--cii-accent);
+  animation: cii-spin 700ms linear infinite;
 }
 .cii-thumb-remove {
-  width: 24px;
-  height: 24px;
   position: absolute;
-  top: 5px;
-  right: 5px;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.86);
-  color: #424754;
-  font: 18px/1 system-ui, sans-serif;
+  background: rgba(18, 18, 22, 0.72);
+  color: #ffffff;
+  font-size: 0;
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease;
 }
-.cii-thumb-remove:hover { background: #ffffff; color: #191c1e; }
-.cii-thumb-pending { opacity: 0.78; }
-@keyframes cii-spin { to { transform: rotate(360deg); } }
+.cii-thumb-remove::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  -webkit-mask: var(--cii-mask-x);
+  mask: var(--cii-mask-x);
+}
+.cii-thumb-remove:hover { background: rgba(18, 18, 22, 0.92); }
+.cii-screenshot-thumb:hover .cii-thumb-remove,
+.cii-screenshot-thumb:focus-within .cii-thumb-remove { opacity: 1; }
+@media (hover: none) { .cii-thumb-remove { opacity: 1; } }
+.cii-thumb-pending { opacity: 0.72; }
 
 .cii-image-lightbox {
   position: fixed;
@@ -118,21 +95,24 @@ export const PREVIEWS_STYLE = `
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: rgba(15, 23, 42, 0.64);
+  padding: 32px;
+  background: var(--cii-scrim-strong);
+  backdrop-filter: blur(8px);
+  animation: cii-fade-in 160ms ease-out;
 }
 .cii-image-frame {
   position: relative;
   max-width: min(92vw, 1100px);
   max-height: 86vh;
+  animation: cii-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .cii-image-frame img {
   display: block;
   max-width: 100%;
   max-height: 86vh;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #ffffff;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 30px 80px -20px rgba(0, 0, 0, 0.6);
 }
 .cii-image-close {
   position: absolute;
@@ -143,12 +123,21 @@ export const PREVIEWS_STYLE = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   border: 0;
   border-radius: 999px;
-  background: #ffffff;
-  color: #191c1e;
-  font: 20px/1 system-ui, sans-serif;
+  background: var(--cii-surface-raised);
+  color: var(--cii-text);
+  box-shadow: var(--cii-shadow-pop);
+  font-size: 0;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+.cii-image-close::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  -webkit-mask: var(--cii-mask-x);
+  mask: var(--cii-mask-x);
 }
 `;

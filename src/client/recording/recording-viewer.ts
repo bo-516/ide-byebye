@@ -89,8 +89,9 @@ function focusStage(stage, replayer, viewport, scopeSelector) {
 }
 
 /**
- * Open the recording editor: a light-themed lightbox that plays one recording, lets the user keep **multiple time
- * segments** (cut gaps are compressed to a single held frame on playback) and pick **any frame as the still**.
+ * Open the recording editor: a lightbox (following the OS light/dark theme) that plays one recording, lets the user
+ * keep **multiple time segments** (cut gaps are compressed to a single held frame on playback) and pick **any frame as
+ * the still**.
  *
  * Boundary: requires `@rrweb/replay` (lazy-loaded). Mutates `recording.segments`, `recording.stillAt`, and
  * `recording.still` in place and calls `onUpdate(recording)` so the dialog refreshes thumbnail + payload. Tears down the
@@ -115,7 +116,7 @@ export async function openRecordingViewer(opts) {
     if (recording.stillAt == null)
         recording.stillAt = recording.segments[recording.segments.length - 1].t1;
 
-    // --- shell (light theme) ---
+    // --- shell (themed by RECORDING_EDITOR_STYLE) ---
     const lightbox = el('div', 'cii-recording-lightbox');
     const frame = el('div', 'cii-recording-frame');
     const header = el('div', 'cii-rv-header');

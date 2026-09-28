@@ -1,68 +1,61 @@
 /**
- * Style-capture controls, property picker, and selected-style preview presentation.
+ * Style-capture panel (scope segmented control, node stepper, property filter and checklist) and its preview chip.
  *
- * Boundary: Requires shell textarea variables and shared capture-tool rules; missing either leaves focus feedback or picker controls incomplete.
+ * Boundary: the panel reuses the dropdown shell and checkbox marks from TOOLS_STYLE, so it must be composed after it;
+ * missing either leaves the panel without a surface or its rows without state. `[hidden]` rules must keep beating the
+ * flex display rules here, otherwise the node-limit row shows for the single-node `self` scope.
  * @type {string} CSS fragment composed into the shadow-root stylesheet in its original cascade order.
  */
 export const CAPTURE_STYLE = `
-/* Style-capture footer button + dropdown panel. */
 .cii-style-picker { position: relative; }
-.cii-style-icon {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 18px;
-}
-.cii-style-icon::before {
-  content: "{ }";
-  font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: -1px;
-}
 .cii-style-panel {
-  width: 340px;
-  max-width: 90vw;
+  width: 320px;
+  max-width: calc(100vw - 24px);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: min(440px, 68vh);
+  gap: 10px;
+  padding: 12px;
+  max-height: min(460px, 70vh);
 }
-.cii-style-panel-title { font-size: 12px; font-weight: 600; color: #334155; padding: 0 2px; }
-.cii-style-scope-label { font-size: 11px; font-weight: 600; color: #64748b; padding: 0 2px; }
+/* Only the property list may give up height when the panel is capped; every other row keeps its natural size. */
+.cii-style-panel > * { flex-shrink: 0; }
+.cii-style-panel-title { padding: 0 2px; color: var(--cii-text); font: 600 13px/1.3 var(--cii-font); }
+.cii-style-scope-label,
+.cii-style-nodes-label { padding: 0 2px; color: var(--cii-text-faint); font: 500 11.5px/1.2 var(--cii-font); }
+.cii-style-scope-label { margin-bottom: -4px; }
 .cii-style-scope {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 3px;
-  background: #eef2f6;
-  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  background: var(--cii-fill);
+  border-radius: 9px;
 }
 .cii-style-scope-btn {
-  flex: 1 1 40%;
-  min-width: 96px;
+  min-width: 0;
   padding: 6px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
-  color: #475569;
-  font: 12px/1.2 system-ui, sans-serif;
-  font-weight: 600;
+  color: var(--cii-text-muted);
+  font: 500 12px/1.25 var(--cii-font);
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
-.cii-style-scope-btn:hover:not(.cii-style-scope-active) { background: #e2e8f0; }
-.cii-style-scope-active { background: #ffffff; color: #0058be; box-shadow: 0 1px 3px rgba(15,23,42,0.12); }
-.cii-style-nodes {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 2px;
+.cii-style-scope-btn:hover:not(.cii-style-scope-active) { color: var(--cii-text); }
+.cii-style-scope-active {
+  background: var(--cii-surface-raised);
+  color: var(--cii-text);
+  box-shadow: 0 0 0 1px var(--cii-line), 0 1px 2px rgba(0, 0, 0, 0.08);
 }
+.cii-style-nodes { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cii-style-nodes[hidden] { display: none; }
-.cii-style-nodes-label { font-size: 11px; font-weight: 600; color: #64748b; }
 .cii-style-nodes-stepper {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 2px;
-  background: #eef2f6;
+  background: var(--cii-fill);
   border-radius: 8px;
 }
 .cii-style-nodes-btn {
@@ -71,43 +64,45 @@ export const CAPTURE_STYLE = `
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   border: 0;
   border-radius: 6px;
-  background: #ffffff;
-  color: #0058be;
-  font: 15px/1 system-ui, sans-serif;
-  font-weight: 600;
+  background: var(--cii-surface-raised);
+  color: var(--cii-text);
+  font: 500 15px/1 var(--cii-font);
+  box-shadow: 0 0 0 1px var(--cii-line), 0 1px 2px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(15,23,42,0.12);
 }
-.cii-style-nodes-btn:hover { background: #f2f4f6; }
+.cii-style-nodes-btn:hover { color: var(--cii-accent-text); }
 .cii-style-nodes-value {
-  min-width: 22px;
+  min-width: 26px;
   text-align: center;
-  font: 12px/1 system-ui, sans-serif;
-  font-weight: 600;
-  color: #334155;
+  color: var(--cii-text);
+  font: 600 12px/1 var(--cii-mono);
+  font-variant-numeric: tabular-nums;
 }
 .cii-style-search {
   width: 100%;
-  padding: 7px 10px;
-  border: 1px solid #e0e3e5;
+  height: 32px;
+  padding: 0 10px 0 32px;
+  border: 0;
   border-radius: 8px;
-  background: #ffffff;
-  color: #0f172a;
-  font: 13px/1.4 system-ui, sans-serif;
+  background: var(--cii-image-search) 10px center / 15px 15px no-repeat, var(--cii-fill);
+  color: var(--cii-text);
+  font: 13px/1.4 var(--cii-font);
+  transition: box-shadow 120ms ease, background-color 120ms ease;
 }
 .cii-style-search:focus {
   outline: 0;
-  border-color: var(--cii-color-textarea-border-focus);
-  box-shadow: var(--cii-shadow-textarea-focus);
+  box-shadow: 0 0 0 1px var(--cii-accent), 0 0 0 4px var(--cii-accent-soft);
 }
-.cii-style-search::placeholder { color: var(--cii-color-textarea-placeholder); }
-.cii-style-list {
+.cii-style-search::placeholder { color: var(--cii-text-faint); }
+.cii-style-panel > .cii-style-list {
   flex: 1 1 auto;
   min-height: 60px;
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-color: var(--cii-line-strong) transparent;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -116,83 +111,88 @@ export const CAPTURE_STYLE = `
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 9px;
+  padding: 5px 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
-  color: #191c1e;
+  color: var(--cii-text-muted);
   text-align: left;
   cursor: pointer;
 }
-.cii-style-opt:hover { background: #f2f4f6; }
-.cii-style-opt.cii-choice-active { background: #f2f4f6; }
+.cii-style-opt:hover { background: var(--cii-fill); color: var(--cii-text); }
+.cii-style-opt.cii-choice-active { color: var(--cii-text); }
 .cii-style-opt-label {
-  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 12px/1.4 var(--cii-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cii-style-empty { padding: 12px 8px; color: #94a3b8; font-size: 12px; text-align: center; }
+.cii-style-empty { padding: 16px 8px; color: var(--cii-text-faint); font-size: 12px; text-align: center; }
 .cii-style-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 2px;
-  border-top: 1px solid #eef2f6;
+  padding-top: 8px;
+  border-top: 1px solid var(--cii-line);
 }
-.cii-style-count { font-size: 12px; color: #64748b; }
+.cii-style-count { color: var(--cii-text-muted); font: 500 12px/1 var(--cii-font); }
 .cii-style-foot-actions { display: flex; align-items: center; gap: 2px; }
 .cii-style-action {
+  padding: 6px 8px;
   border: 0;
+  border-radius: 6px;
   background: transparent;
-  color: #0058be;
-  font: 12px/1 system-ui, sans-serif;
-  font-weight: 600;
+  color: var(--cii-accent-text);
+  font: 500 12px/1 var(--cii-font);
   cursor: pointer;
-  padding: 6px 4px;
 }
-.cii-style-action:hover { text-decoration: underline; }
+.cii-style-action:hover { background: var(--cii-accent-softer); }
+
 .cii-style-preview[hidden] { display: none; }
 .cii-style-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   max-width: 100%;
-  padding: 6px 8px 6px 12px;
-  border: 1px solid #e0e3e5;
-  border-radius: 999px;
-  background: #f7f9fb;
-  color: #334155;
+  height: 30px;
+  padding: 0 4px 0 10px;
+  border-radius: 9px;
+  background: var(--cii-fill);
+  color: var(--cii-text-muted);
+  font: 500 12.5px/1 var(--cii-font);
 }
 .cii-style-chip-icon {
-  width: 14px; height: 12px;
-  flex: 0 0 auto;
-  display: inline-flex; align-items: center; justify-content: center;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  background: var(--cii-accent);
+  -webkit-mask: var(--cii-mask-palette);
+  mask: var(--cii-mask-palette);
 }
-.cii-style-chip-icon::before {
-  content: "{ }";
-  font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: -1px;
-  color: #0058be;
-}
-.cii-style-chip-text {
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.cii-style-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cii-style-chip-remove {
-  width: 20px; height: 20px;
-  flex: 0 0 auto;
-  display: inline-flex; align-items: center; justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 6px;
   background: transparent;
-  color: #64748b;
-  font: 15px/1 system-ui, sans-serif;
+  color: var(--cii-text-faint);
+  font-size: 0;
   cursor: pointer;
 }
-.cii-style-chip-remove:hover { background: #e2e8f0; color: #191c1e; }
-
+.cii-style-chip-remove::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  -webkit-mask: var(--cii-mask-x);
+  mask: var(--cii-mask-x);
+}
+.cii-style-chip-remove:hover { background: var(--cii-fill); color: var(--cii-text); }
 `;

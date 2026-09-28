@@ -24,7 +24,7 @@ export class AgentRegistry {
      * `experimentalSessions` is true. Callers still re-check the id at send time.
      *
      * @param {string} name Registered agent name.
-     * @returns {boolean} True when the ▾ and `targetSessionId` are allowed.
+     * @returns {boolean} True when the dialog's session list (`›`) and `targetSessionId` are allowed.
      */
     sessionCapable(name) {
         const adapter = this.adapters.get(name);

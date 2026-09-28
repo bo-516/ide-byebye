@@ -1,4 +1,5 @@
 import { el } from './dialog-utils.js';
+import { splitMentionLabel } from './dialog-mention-label.js';
 import { t } from '../lib/i18n.js';
 
 /**
@@ -20,9 +21,12 @@ export function displayMentionLabel(label) {
  * createMentionElement(label, options): create one atomic mention chip node.
  *
  * Purpose: uses `contenteditable=false` so a reference behaves as a single unit the caret cannot split; static (primary)
- * chips have no remove button, supplementary references carry a `×`.
- * Boundary: the node only handles display and remove interaction; the selection data is kept by the caller in an
- * external Map keyed by refId, so no objects are stuffed into DOM attributes.
+ * chips have no remove button, supplementary references carry a `×`. The visible label is split by
+ * {@link splitMentionLabel} into `.cii-mention-dir` (omitted without a directory), `.cii-mention-file`, and a
+ * `.cii-mention-range` tag (omitted without a range) so the stylesheet can dim, emphasize, or hide each part.
+ * Boundary: the node only handles display and remove interaction; the full prompt-facing label lives in `data-label`
+ * (what serialization reads) and the selection data is kept by the caller in an external Map keyed by refId, so no
+ * objects are stuffed into DOM attributes. A missing label renders an empty chip.
  *
  * @param {string} label Reference label (with `@`).
  * @param {{ refId?: string, inspPath?: string, static?: boolean, onRemove?: Function }} options Chip behavior config.
@@ -39,9 +43,14 @@ function createMentionElement(label, options: any = {}) {
         chip.dataset.refId = options.refId;
     chip.title = options.inspPath || text;
 
-    const icon = el('span', 'cii-mention-icon');
-    const labelEl = el('span', 'cii-mention-text', displayMentionLabel(text));
-    chip.append(icon, labelEl);
+    const parts = splitMentionLabel(text);
+    const labelEl = el('span', 'cii-mention-text');
+    if (parts.dir)
+        labelEl.append(el('span', 'cii-mention-dir', parts.dir));
+    labelEl.append(el('span', 'cii-mention-file', parts.file));
+    chip.append(el('span', 'cii-mention-icon'), labelEl);
+    if (parts.lines)
+        chip.append(el('span', 'cii-mention-range', parts.lines));
 
     if (!options.static) {
         const remove = el('button', 'cii-mention-remove', '×');

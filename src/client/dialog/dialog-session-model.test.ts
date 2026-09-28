@@ -131,18 +131,19 @@ test('every session copy key exists in zh and en', () => {
     }
 });
 
-test('dialog source wires the split control, menu, target line, and Esc-closes-menu-first', () => {
+test('dialog source wires the destination picker, session menu, and Esc-closes-menus-first', () => {
     const dialog = fs.readFileSync(new URL('./dialog.ts', import.meta.url), 'utf8');
-    const picker = fs.readFileSync(new URL('./dialog-session-picker.ts', import.meta.url), 'utf8');
-    const action = fs.readFileSync(new URL('./dialog-session-action.ts', import.meta.url), 'utf8');
+    const sessions = fs.readFileSync(new URL('./dialog-session-picker.ts', import.meta.url), 'utf8');
+    const picker = fs.readFileSync(new URL('./dialog-agent-picker.ts', import.meta.url), 'utf8');
     const menu = fs.readFileSync(new URL('./dialog-session-menu.ts', import.meta.url), 'utf8');
-    assert.match(dialog, /renderTargetLine\(/);
+    assert.match(dialog, /new DialogAgentPicker\(/);
     assert.match(dialog, /targetSessionId/);
     assert.match(dialog, /consumeEscape\(/);
     const escape = dialog.slice(dialog.indexOf('closeFromEscape(event)'), dialog.indexOf('setState(state'));
-    assert.match(escape, /consumeEscape\(\)[\s\S]*this\.close\(/);
-    assert.match(action, /cii-agent-split/);
-    assert.match(action, /cii-session-caret/);
-    assert.match(menu, /cii-session-menu/);
-    assert.match(picker, /applyAgentList/);
+    // Menus (session, then destination, then tool dropdowns) take Escape before the dialog does.
+    assert.match(escape, /sessions\?\.consumeEscape\(\)[\s\S]*picker\?\.consumeEscape\(\)[\s\S]*this\.close\(/);
+    // The destination picker opens a session menu anchored at its own trigger, with a way back to the agent list.
+    assert.match(picker, /sessions\?\.openMenu\([^)]*this\.triggerEl, \(\) => this\.open\(\)\)/);
+    assert.match(menu, /cii-session-menu|cii-session-back/);
+    assert.match(sessions, /applyAgentList/);
 });

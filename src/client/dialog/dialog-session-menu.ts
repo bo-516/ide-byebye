@@ -6,16 +6,19 @@ import { deliveryCopyKey, sessionMenuRow } from './dialog-session-model.js';
  * Fill an existing session menu element.
  *
  * Boundary: does not fetch or store targets. `hooks.onChoose` is not called for disabled rows. The first button is
- * always "new session" so keyboard index 0 matches {@link applySessionMenuKey}. The required menu must already be
- * attached; a missing or invalid node cannot be rendered. Placement follows the supplied caret after every render,
- * including loading and refresh results, so each row of agent buttons opens its menu beside its own trigger.
+ * always "new session" so keyboard index 0 matches {@link applySessionMenuKey}; its plus icon is drawn by CSS, so the
+ * label is plain text (the refresh button's `⟳` text and the back button are likewise drawn as CSS icons). A back
+ * button leads the header only when `hooks.onBack` is given. The required menu must already be attached; a missing or
+ * invalid node cannot be rendered. Placement follows the supplied anchor after every render, including loading and
+ * refresh results, so the menu stays beside the control that opened it.
  *
  * @param {HTMLElement} menuEl Menu node already attached to the dialog.
  * @param {{ name: string, label: string }} action Agent the menu belongs to.
  * @param {{ loading?: boolean, error?: string, overlay?: boolean, res?: Record<string, unknown> }} view Fetch state.
  *        `overlay` keeps `res.sessions` on screen and covers them instead of replacing the list with a loading note.
- * @param {{ busy?: boolean, selectedId?: string, onRefresh: Function, onNew: Function, onChoose: Function }} hooks Actions.
- * @param {HTMLElement | null} anchor Open caret; omitted/null leaves placement to the caller. A wrong node misanchors the menu.
+ * @param {{ busy?: boolean, selectedId?: string, onRefresh: Function, onNew: Function, onChoose: Function,
+ *        onBack?: Function | null }} hooks Actions; omit `onBack` for a menu with nowhere to return to.
+ * @param {HTMLElement | null} anchor Opening control; omitted/null leaves placement to the caller. A wrong node misanchors the menu.
  * @returns {{ rows: Array<Record<string, unknown>>, buttons: HTMLButtonElement[] }} Rows in keyboard order (index 0 is new).
  */
 export function fillSessionMenu(menuEl, action, view, hooks, anchor = null) {
@@ -23,6 +26,13 @@ export function fillSessionMenu(menuEl, action, view, hooks, anchor = null) {
     menuEl.hidden = false;
     menuEl.replaceChildren();
     const head = el('div', 'cii-session-menu-head');
+    if (hooks.onBack) {
+        const back = el('button', 'cii-session-back');
+        back.type = 'button';
+        back.setAttribute('aria-label', t('session.menu.back'));
+        back.addEventListener('click', () => hooks.onBack());
+        head.append(back);
+    }
     const hint = view.res?.delivery ? t(deliveryCopyKey(view.res.delivery)) : '';
     const titleText = hint
         ? `${t('session.menu.title', { label: action.label })} · ${hint}`
@@ -35,7 +45,7 @@ export function fillSessionMenu(menuEl, action, view, hooks, anchor = null) {
     refresh.addEventListener('click', () => hooks.onRefresh());
     head.append(el('div', 'cii-session-menu-title', titleText), refresh);
     menuEl.append(head);
-    const fresh = el('button', 'cii-session-new', `＋ ${t('session.menu.new')}`);
+    const fresh = el('button', 'cii-session-new', t('session.menu.new'));
     fresh.type = 'button';
     fresh.addEventListener('click', () => hooks.onNew());
     menuEl.append(fresh);

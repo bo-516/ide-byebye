@@ -26,18 +26,22 @@ const LEGACY_CLIENT_OUTPUT_FILE = path.join(ROOT_DIR, 'client.js');
 /**
  * Browser CSS fragments whose template exports should be compacted only in generated client artifacts.
  *
- * Boundary: these paths must stay absolute so Rolldown transform ids match. Every composed style fragment must appear
- * here or its generated CSS remains unminified. Adding a non-style module can compact unrelated template text, so
- * composition modules without CSS templates and modules with runtime templates do not belong here.
+ * Boundary: these paths must stay absolute so Rolldown transform ids match. Every composed style fragment written as a
+ * CSS template must appear here or its generated CSS remains unminified. Adding a non-style module can compact
+ * unrelated template text, so composition modules without CSS templates and modules with runtime templates (such as
+ * `src/client/lib/icons.ts`, whose stylesheet is generated already compact) do not belong here.
  *
  * @type {string[]} Absolute source files for build-time CSS template minification.
  */
 const CLIENT_CSS_TEMPLATE_MODULES = [
+    path.join(ROOT_DIR, 'src/client/lib/style-tokens.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-shell.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-previews.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-footer.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-tools.ts'),
+    path.join(ROOT_DIR, 'src/client/lib/style-destination.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-recording.ts'),
+    path.join(ROOT_DIR, 'src/client/lib/style-recording-editor.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-capture.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-session-picker.ts'),
     path.join(ROOT_DIR, 'src/client/dialog/dialog-reference-style.ts'),

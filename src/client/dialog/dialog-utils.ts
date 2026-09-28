@@ -27,7 +27,7 @@ export const SCREENSHOT_SCOPE_ORDER = ['selection', 'parent', 'viewport'];
  * Human-readable labels for app agents surfaced in errors and result messages.
  *
  * Boundary: keys must match `AGENT_ACTIONS` names. Missing labels fall back to raw agent ids, which is useful for
- * hidden/custom agents but looks rough for footer buttons.
+ * hidden/custom agents but looks rough in the destination picker.
  *
  * @type {Record<string, string>} Label text by app agent id.
  */
@@ -41,46 +41,54 @@ export const AGENT_LABELS = {
     clipboard: 'Clipboard',
 };
 /**
- * App-agent actions displayed in the dialog footer.
+ * App-agent actions offered as send destinations in the dialog.
  *
- * Boundary: this list is UI-only; a button is rendered only when `enabledAgents` includes its name. Antigravity IDE
- * and Antigravity stay off unless the plugin config registers them, so a zero-config page does not show those buttons.
- * Adding an action without a matching registered adapter shows an unavailable button instead of sending to a missing
- * route. `titleKey` is resolved to a localized title at call time by `configuredActions()`. Grok Build and Antigravity
- * are CLI handoffs (Terminal launchers); Antigravity IDE launches `antigravity-ide chat`.
+ * Boundary: this list is UI-only; an agent is offered only when `enabledAgents` includes its name. Antigravity IDE
+ * and Antigravity stay off unless the plugin config registers them, so a zero-config page does not list them.
+ * Adding an action without a matching registered adapter lists an unavailable destination instead of sending to a
+ * missing route. `titleKey` is resolved to a localized title at call time by `configuredActions()`. `kind` describes the
+ * handoff (`app` opens a desktop app, `ide` an editor, `terminal` a CLI in a new terminal) and picks the icon only
+ * when the destination has no brand mark in `AGENT_MARK_BRANDS` (lib/agent-icons.ts): Grok Build and Antigravity are
+ * CLI handoffs (Terminal launchers); Antigravity IDE launches `antigravity-ide chat`.
  *
- * @type {Array<{ name: string, label: string, titleKey: string }>} Ordered footer app actions.
+ * @type {Array<{ name: string, label: string, titleKey: string, kind: 'app' | 'ide' | 'terminal' }>} Ordered actions.
  */
 export const AGENT_ACTIONS = [
     {
         name: 'codex-app',
         label: 'Codex App',
         titleKey: 'agent.codexApp.title',
+        kind: 'app',
     },
     {
         name: 'claude-app',
         label: 'Claude App',
         titleKey: 'agent.claudeApp.title',
+        kind: 'app',
     },
     {
         name: 'cursor-app',
         label: 'Cursor',
         titleKey: 'agent.cursorApp.title',
+        kind: 'ide',
     },
     {
         name: 'grok-build',
         label: 'Grok Build',
         titleKey: 'agent.grokBuild.title',
+        kind: 'terminal',
     },
     {
         name: 'antigravity-ide',
         label: 'Antigravity IDE',
         titleKey: 'agent.antigravityIde.title',
+        kind: 'ide',
     },
     {
         name: 'antigravity',
         label: 'Antigravity',
         titleKey: 'agent.antigravity.title',
+        kind: 'terminal',
     },
 ];
 
@@ -152,14 +160,14 @@ export function el(tag: string, className?: string, text?: string | null): any {
 }
 
 /**
- * Return the app actions displayed in the dialog footer.
+ * Return the app actions the dialog offers as send destinations.
  *
- * Boundary: this exposes footer handoff agents (app deeplinks + Grok Build) followed by the custom prompt-delivery
+ * Boundary: this exposes handoff agents (app deeplinks, IDEs, terminal CLIs) followed by the custom prompt-delivery
  * clients registered by {@link setCustomAgentActions}. Adding agents here also makes Enter target them, so callers
- * should keep the list limited to user-visible footer buttons. A custom client without a configured `title` gets
- * localized generic copy so its tooltip still follows the active locale.
+ * should keep the list limited to user-visible destinations. A custom client without a configured `title` gets
+ * localized generic copy so its tooltip still follows the active locale, and always has the `custom` kind.
  *
- * @returns {Array<{ name: string, label: string, title: string }>} Ordered footer app actions.
+ * @returns {Array<{ name: string, label: string, title: string, kind: string }>} Ordered destination actions.
  */
 export function configuredActions() {
     return [
@@ -167,26 +175,28 @@ export function configuredActions() {
             name: action.name,
             label: action.label,
             title: t(action.titleKey),
+            kind: action.kind,
         })),
         ...customAgentActions.map((action) => ({
             name: action.name,
             label: action.label,
             title: action.title ?? t('agent.custom.title', { label: action.label }),
+            kind: 'custom',
         })),
     ];
 }
 
 /**
- * Decide whether the footer button backed by agent `name` should be rendered for this page.
+ * Decide whether agent `name` should be offered on this page (as a send destination, or as the Copy button).
  *
  * Boundary: an agent turned off in plugin config (`agents.codexApp: false`, `agents.clipboard: false`, …) is absent
  * from `enabledAgents` and never becomes usable — the dialog's `send` guard and the server `/send` route both reject
- * it — so its button is dropped instead of left as a control that can only alert "not enabled". A missing or empty
- * `enabledAgents` (malformed config) keeps every button rather than rendering an empty footer.
+ * it — so it is dropped instead of left as a control that can only alert "not enabled". A missing or empty
+ * `enabledAgents` (malformed config) keeps every agent rather than rendering no destination at all.
  *
  * @param {Record<string, unknown>} config Browser config injected by the plugin.
- * @param {string} name Agent id behind the button (`'clipboard'` for the Copy button).
- * @returns {boolean} True when the button should be rendered.
+ * @param {string} name Agent id (`'clipboard'` for the Copy button).
+ * @returns {boolean} True when the agent should be offered.
  */
 export function isAgentVisible(config, name) {
     const enabled = Array.isArray(config?.enabledAgents) ? config.enabledAgents : [];
@@ -194,15 +204,15 @@ export function isAgentVisible(config, name) {
 }
 
 /**
- * Return the footer actions that should actually be rendered for this page.
+ * Return the send destinations that should actually be offered on this page.
  *
  * Boundary: filters {@link configuredActions} through {@link isAgentVisible} — that is what makes a project configured
- * with only a custom client show only that button. Agents that ARE configured but currently unavailable (missing
- * binary) stay visible and are greyed by `loadAgents`, because that state is actionable. The Copy button is not in this
- * list (it must never become the Enter target), so the dialog gates it with {@link isAgentVisible} directly.
+ * with only a custom client offer only that destination. Agents that ARE configured but currently unavailable (missing
+ * binary) stay listed and are marked by the destination menu, because that state is actionable. The Copy button is not
+ * in this list (it must never become the Enter target), so the dialog gates it with {@link isAgentVisible} directly.
  *
  * @param {Record<string, unknown>} config Browser config injected by the plugin.
- * @returns {Array<{ name: string, label: string, title: string }>} Footer actions to render, in order.
+ * @returns {Array<{ name: string, label: string, title: string, kind: string }>} Destinations to offer, in order.
  */
 export function visibleAgentActions(config) {
     return configuredActions().filter((action) => isAgentVisible(config, action.name));
