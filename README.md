@@ -21,17 +21,19 @@ Works with **React**, **Vue**, **Svelte**, **Solid**, **Preact** and **Angular**
 including SSR frameworks such as **Next.js**, **Nuxt** and **SvelteKit**. See
 [Framework support](#framework-support).
 
-![⌘-click an element, describe the change, hand off to an agent](./demo-recording.gif)
+[![⌘-click an element, describe the change, hand off to Claude App or an open Codex session](./media/demo-handoff.gif)](./media/demo-handoff.mp4)
 
-**What the clip shows** (React demo → Codex App):
+**What the clip shows** (an animated walkthrough of the Vue demo; [MP4](./media/demo-handoff.mp4)):
 
 1. **Pick** — hold ⌘ and click a rendered node; the overlay resolves
-   `data-insp-path` to source (`react/src/components/AddTask.jsx #27-38` in the recording).
+   `data-insp-path` to source (`src/App.vue #85-87` in the clip).
 2. **Describe** — type plain-language intent in the dialog (optional `@code`,
    screenshots, styles, or recording).
 3. **Hand off** — choose **Codex App / Claude App / Cursor / Grok Build**;
    the loopback server builds a structured prompt and opens the agent with
-   `file:line` + intent already filled in.
+   `file:line` + intent already filled in. In the clip the prompt goes to Claude App,
+   then the filter bar (`#99-129`) goes into a Codex thread that is already open
+   ([Send to an existing session](#send-to-an-existing-session)).
 
 ![⌘-click the tag list, describe the change, hand off to Claude App](./demo-recording-claude.gif)
 
