@@ -51,3 +51,6 @@ Thumbs.db
 
 # Local docs (not published with the package)
 docs/
+
+# Local promo workspace (Remotion renders, voice takes, its own node_modules/.env)
+promo/

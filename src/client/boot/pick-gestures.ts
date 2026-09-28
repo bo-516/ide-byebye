@@ -2,6 +2,7 @@ import { isPluginNode } from '../inspect/dom.js';
 import {
     applyKeyboardModifierEvent,
     emptyHeldModifiers,
+    hasLiveModifierFlags,
     matchingClickModifier,
     matchesClickModifier,
     mergeModifierFlags,
@@ -36,8 +37,9 @@ export {
  * Create the pick-gesture state machine (modifier+pointer and long-press).
  *
  * Purpose: Chrome device mode turns clicks into touch and drops `metaKey` on the synthesized event; this controller
- * tracks Command/Ctrl from keydown and treats `pointerup`/`click` as the same pick. A stationary press opens the
- * dialog with no modifier: 1s on touch (mobile / device mode), 4s on mouse.
+ * tracks Command/Ctrl from keydown and treats `pointerup`/`click` as the same pick. Real mouse / pen events resync
+ * that tracker from their own flags, so a keyup the page never saw cannot leave ⌘ stuck and make plain clicks pick.
+ * A stationary press opens the dialog with no modifier: 1s on touch (mobile / device mode), 4s on mouse.
  * Boundary: does not attach listeners (see `installPickGestures`). `picker.selectTarget` is the only way it opens the
  * dialog — if that returns false (plugin UI, picker already active, dialog open), the gesture is a no-op. Timers come
  * from `schedule`/`cancelSchedule` so tests can fire the hold path without waiting. Omitting `matchModifier` disables
@@ -60,7 +62,14 @@ export function createPickGestureController(options) {
     let capturePointerId = null;
     let lastPickAt = Number.NEGATIVE_INFINITY;
 
-    const flagsFrom = (event) => mergeModifierFlags(event, held);
+    // Mouse / pen flags are the live OS state: resync first, or a Command/Ctrl keyup swallowed outside the page without
+    // a window blur (system shortcut, input-source switch, screenshot tool) keeps every later plain click a pick.
+    // Touch-synthesized events keep the OR fallback because device mode clears their bits.
+    const flagsFrom = (event) => {
+        if (hasLiveModifierFlags(event))
+            applyKeyboardModifierEvent(held, event);
+        return mergeModifierFlags(event, held);
+    };
 
     const modifierHeld = (event) => matchModifier != null && matchesClickModifier(flagsFrom(event), matchModifier);
 

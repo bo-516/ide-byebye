@@ -166,7 +166,9 @@ export function isClickModifierKey(key: string, modifier: string | null | undefi
  *
  * Purpose: Chrome device mode synthesizes `click` / `pointerup` from touch and typically reports `metaKey`/`ctrlKey`
  * as `false` even while the physical key is down. The keyboard tracker fills that gap.
- * Boundary: all bits start false; callers must apply keydown/keyup (and reset on blur) or every pick looks unmodified.
+ * Boundary: all bits start false; callers must apply keydown/keyup, resync from live mouse events
+ * (`hasLiveModifierFlags`), and reset on blur. Without keydown every touch pick looks unmodified; without the mouse
+ * resync one missed keyup leaves the bit stuck and every plain click picks.
  *
  * @returns {{ alt: boolean, ctrl: boolean, meta: boolean, shift: boolean }} Fresh all-false modifier state.
  */
@@ -175,15 +177,36 @@ export function emptyHeldModifiers() {
 }
 
 /**
- * Copy modifier bits off a keyboard event into the held-modifier tracker.
+ * Whether an event's own modifier flags report the live keyboard state.
+ *
+ * Purpose: real mouse and pen input carries the OS modifier state on every event, so those flags can overwrite the
+ * held-modifier tracker. That heals a Command/Ctrl keyup the page never received — a system shortcut, input-source
+ * switch or screenshot tool can swallow it without blurring the window — instead of letting the stale bit turn every
+ * later plain click into a pick.
+ * Boundary: only an explicit `pointerType` of `'mouse'` or `'pen'` counts. Touch pointers, TouchEvents, and plain
+ * MouseEvents without `pointerType` (such as the compat `mouseup` after a tap) return false: device mode reports those
+ * with the bits cleared, and trusting them would erase a Command that keydown really saw.
+ *
+ * @param {{ pointerType?: string } | null | undefined} event Pointer / mouse / touch event.
+ * @returns {boolean} True when the event's flags should overwrite the tracker before matching.
+ */
+export function hasLiveModifierFlags(event): boolean {
+    const type = String(event?.pointerType || '').toLowerCase();
+    return type === 'mouse' || type === 'pen';
+}
+
+/**
+ * Copy modifier bits off a keyboard event, or a live mouse / pen event, into the held-modifier tracker.
  *
  * Purpose: keep a source of truth that pointer/touch events can consult after device-mode drops the flags.
  * Boundary: overwrites every bit from the event; it does not OR with previous state. Missing `altKey` etc. become
- * false, so calling this with a non-keyboard object clears the tracker. Keyup of Meta/Control reports the bit as
- * false in current browsers — that is how a release is recorded.
+ * false, so calling this with a non-keyboard object clears the tracker — only pass pointer events that satisfy
+ * `hasLiveModifierFlags`. Keyup of Meta/Control reports the bit as false in current browsers — that is how a release
+ * is recorded.
  *
  * @param {{ alt: boolean, ctrl: boolean, meta: boolean, shift: boolean }} held Mutable tracker.
- * @param {{ altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, shiftKey?: boolean }} event Keyboard-like event.
+ * @param {{ altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, shiftKey?: boolean }} event Keyboard event, or a
+ *   mouse / pen pointer event whose flags are live.
  * @returns {{ alt: boolean, ctrl: boolean, meta: boolean, shift: boolean }} The same `held` object, mutated.
  */
 export function applyKeyboardModifierEvent(held, event) {
@@ -200,7 +223,8 @@ export function applyKeyboardModifierEvent(held, event) {
  * Purpose: device-mode and real touch fire `click`/`pointerup` with all modifier bits false; without the merge,
  * `matchesClickModifier` would miss a physical ⌘/Ctrl that `keydown` already recorded.
  * Boundary: a missing event or missing held object treats that side as all-false. The result is a new flag object;
- * it does not mutate `event`.
+ * it does not mutate `event`. The OR can only add bits, so a stale tracker makes an unmodified event match — callers
+ * resync `held` from live mouse events (`hasLiveModifierFlags`) before merging.
  *
  * @param {{ altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, shiftKey?: boolean } | null | undefined} event
  *   Pointer/click-like event (flags often empty on touch).

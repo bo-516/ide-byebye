@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
     applyKeyboardModifierEvent,
     emptyHeldModifiers,
+    hasLiveModifierFlags,
     isAutoClickModifier,
     matchingClickModifier,
     matchesClickModifier,
@@ -96,4 +97,14 @@ test('applyKeyboardModifierEvent overwrites bits from the latest keyboard event'
     applyKeyboardModifierEvent(held, { metaKey: true, ctrlKey: true });
     applyKeyboardModifierEvent(held, { metaKey: false, ctrlKey: false, altKey: true });
     assert.deepEqual(held, { alt: true, ctrl: false, meta: false, shift: false });
+});
+
+test('hasLiveModifierFlags trusts mouse and pen, not touch or pointerType-less compat events', () => {
+    assert.equal(hasLiveModifierFlags({ pointerType: 'mouse' }), true);
+    assert.equal(hasLiveModifierFlags({ pointerType: 'pen' }), true);
+    assert.equal(hasLiveModifierFlags({ pointerType: 'touch' }), false);
+    assert.equal(hasLiveModifierFlags({ pointerType: '' }), false);
+    assert.equal(hasLiveModifierFlags({ changedTouches: [{ clientX: 1, clientY: 1 }] }), false);
+    assert.equal(hasLiveModifierFlags({}), false);
+    assert.equal(hasLiveModifierFlags(null), false);
 });

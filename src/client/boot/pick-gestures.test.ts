@@ -191,6 +191,55 @@ test('keydown Command plus pointerup without metaKey picks and cancels the long-
     assert.equal(picker.calls.select.length, 1);
 });
 
+test('touch pointerup with cleared flags still picks from the keyboard tracker', () => {
+    const { picker, controller } = makeController('auto');
+    const node = pageNode();
+    controller.onKeyDown(keyEvent({ metaKey: true }));
+    controller.onPointerDown(pointerEvent({ pointerType: 'touch', target: node, pointerId: 2 }));
+    controller.onPointerUp(pointerEvent({ pointerType: 'touch', target: node, pointerId: 2 }));
+    assert.equal(picker.calls.select.length, 1);
+});
+
+test('a Command keyup the page never saw does not turn a plain mouse click into a pick', () => {
+    const { picker, controller } = makeController('auto');
+    const node = pageNode();
+    // keydown reached the page; the keyup was swallowed outside it (system shortcut) and no blur fired.
+    controller.onKeyDown(keyEvent({ metaKey: true }));
+    controller.onPointerMove(pointerEvent({ pointerType: 'mouse', target: node }));
+    assert.equal(picker.calls.preview, 0);
+    controller.onPointerDown(pointerEvent({ pointerType: 'mouse', target: node, pointerId: 1 }));
+    const up = pointerEvent({ pointerType: 'mouse', target: node, pointerId: 1 });
+    controller.onPointerUp(up);
+    // The compat mouseup has no pointerType, so it relies on the tracker the pointerup just resynced.
+    const mouseUp = pointerEvent({ target: node, pointerId: undefined });
+    controller.onPointerUp(mouseUp);
+    const click = pointerEvent({ pointerType: 'mouse', target: node });
+    controller.onClick(click);
+    assert.equal(picker.calls.select.length, 0);
+    assert.equal(up.prevented, undefined);
+    assert.equal(mouseUp.prevented, undefined);
+    assert.equal(click.prevented, undefined);
+});
+
+test('a mouse move clears a stale Command before a flagless click can reuse it', () => {
+    const { picker, controller } = makeController('auto');
+    controller.onKeyDown(keyEvent({ metaKey: true }));
+    controller.onPointerMove(pointerEvent({ pointerType: 'mouse' }));
+    controller.onClick(pointerEvent());
+    assert.equal(picker.calls.select.length, 0);
+});
+
+test('a real mouse Command-click picks from its own flags without a prior keydown', () => {
+    const { picker, controller } = makeController('auto');
+    const node = pageNode();
+    controller.onPointerMove(pointerEvent({ pointerType: 'mouse', target: node, metaKey: true }));
+    assert.equal(picker.calls.preview, 1);
+    controller.onPointerDown(pointerEvent({ pointerType: 'mouse', target: node, pointerId: 1, metaKey: true }));
+    controller.onPointerUp(pointerEvent({ pointerType: 'mouse', target: node, pointerId: 1, metaKey: true }));
+    assert.equal(picker.calls.select.length, 1);
+    assert.equal(picker.calls.select[0].target, node);
+});
+
 test('auto matching also picks from Ctrl when the UA looks like a phone', () => {
     const { picker, controller } = makeController('auto');
     const click = pointerEvent({ ctrlKey: true });
