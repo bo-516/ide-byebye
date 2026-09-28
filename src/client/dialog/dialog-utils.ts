@@ -46,9 +46,10 @@ export const AGENT_LABELS = {
  * Boundary: this list is UI-only; an agent is offered only when `enabledAgents` includes its name. Antigravity IDE
  * and Antigravity stay off unless the plugin config registers them, so a zero-config page does not list them.
  * Adding an action without a matching registered adapter lists an unavailable destination instead of sending to a
- * missing route. `titleKey` is resolved to a localized title at call time by `configuredActions()`. `kind` only picks
- * the destination icon (`app` opens a desktop app, `ide` an editor, `terminal` a CLI in a new terminal): Grok Build
- * and Antigravity are CLI handoffs (Terminal launchers); Antigravity IDE launches `antigravity-ide chat`.
+ * missing route. `titleKey` is resolved to a localized title at call time by `configuredActions()`. `kind` describes the
+ * handoff (`app` opens a desktop app, `ide` an editor, `terminal` a CLI in a new terminal) and picks the icon only
+ * when the destination has no brand mark in `AGENT_MARK_BRANDS` (lib/agent-icons.ts): Grok Build and Antigravity are
+ * CLI handoffs (Terminal launchers); Antigravity IDE launches `antigravity-ide chat`.
  *
  * @type {Array<{ name: string, label: string, titleKey: string, kind: 'app' | 'ide' | 'terminal' }>} Ordered actions.
  */

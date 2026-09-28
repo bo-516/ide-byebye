@@ -17,14 +17,29 @@ export function agentRowTitle(row) {
 }
 
 /**
- * Icon slot for a destination kind (`app`, `ide`, `terminal`, `custom`); the glyph itself is drawn by CSS.
+ * Point an icon slot at a destination: its brand mark when the stylesheet has one for `name` (AGENT_ICONS_STYLE), else
+ * the glyph for its kind (`app`, `ide`, `terminal`, `custom`). Both are drawn by CSS.
  *
- * @param {string} kind Destination kind; an unknown kind renders an empty slot of the same size.
+ * @param {HTMLElement} icon Slot created by {@link agentIcon}.
+ * @param {string} kind Destination kind; an unknown kind with no mark renders an empty slot of the same size.
+ * @param {string} [name] Agent id; omitted or empty shows the kind glyph (e.g. for a target that is no longer offered).
+ * @returns {void}
+ */
+export function paintAgentIcon(icon, kind, name = '') {
+    icon.dataset.kind = kind;
+    icon.dataset.agent = name;
+}
+
+/**
+ * Icon slot for one destination; see {@link paintAgentIcon}.
+ *
+ * @param {string} kind Destination kind.
+ * @param {string} [name] Agent id; omit for the generic kind glyph.
  * @returns {HTMLElement} Icon span.
  */
-export function agentKindIcon(kind) {
+export function agentIcon(kind, name = '') {
     const icon = el('span', 'cii-agent-kind');
-    icon.dataset.kind = kind;
+    paintAgentIcon(icon, kind, name);
     return icon;
 }
 
@@ -44,7 +59,7 @@ export function createAgentPickerDom(onToggle) {
     const trigger = el('button', 'cii-agent-pill');
     trigger.type = 'button';
     trigger.setAttribute('aria-haspopup', 'menu');
-    const kind = agentKindIcon('app');
+    const kind = agentIcon('app');
     const label = el('span', 'cii-agent-pill-label');
     const session = el('span', 'cii-agent-pill-session');
     trigger.append(kind, label, session, el('span', 'cii-agent-pill-caret'));
@@ -64,8 +79,9 @@ export function createAgentPickerDom(onToggle) {
  * paintAgentTrigger(dom, row, fallbackLabel): show the current destination on the trigger.
  *
  * Boundary: a null `row` (the Enter target is not offered, e.g. disabled in config) shows `fallbackLabel` with the
- * generic app icon. A stored session is appended as `/ title`. An unavailable target dims the trigger and uses its
- * reason as the tooltip; otherwise the tooltip names the control.
+ * generic app glyph; otherwise the icon is the row's brand mark (or kind glyph). A stored session is appended as
+ * `/ title`. An unavailable target dims the trigger and uses its reason as the tooltip; otherwise the tooltip names the
+ * control.
  *
  * @param {{ trigger: HTMLElement, kind: HTMLElement, label: HTMLElement, session: HTMLElement }} dom Nodes from
  * {@link createAgentPickerDom}.
@@ -74,7 +90,7 @@ export function createAgentPickerDom(onToggle) {
  * @returns {void}
  */
 export function paintAgentTrigger(dom, row, fallbackLabel) {
-    dom.kind.dataset.kind = row?.kind ?? 'app';
+    paintAgentIcon(dom.kind, row?.kind ?? 'app', row?.name);
     dom.label.textContent = row?.label ?? fallbackLabel;
     dom.session.textContent = row?.target ? (row.target.title || t('session.untitled')) : '';
     dom.session.hidden = !row?.target;
@@ -85,8 +101,9 @@ export function paintAgentTrigger(dom, row, fallbackLabel) {
 /**
  * fillAgentMenu(menuEl, rows, hooks): render the destination menu ("Send to") into an existing element.
  *
- * Purpose: one row per destination with its kind icon, label, a subtitle (the stored session, or "unavailable"), a
- * check on the Enter target, and — for agents that list sessions — a trailing button that opens the session menu.
+ * Purpose: one row per destination with its icon (brand mark or kind glyph), label, a subtitle (the stored session, or
+ * "unavailable"), a check on the Enter target, and — for agents that list sessions — a trailing button that opens the
+ * session menu.
  * Boundary: only builds DOM and forwards clicks; it never changes the Enter target itself. Row buttons swallow
  * `mousedown` so the intent editor keeps focus and caret while the user picks. Replaces all previous children.
  *
@@ -113,7 +130,7 @@ export function fillAgentMenu(menuEl, rows, hooks) {
             text.append(el('span', 'cii-agent-row-sub cii-agent-row-session', row.target.title || t('session.untitled')));
         else if (row.unavailable)
             text.append(el('span', 'cii-agent-row-sub', t('agent.menu.unavailable')));
-        main.append(agentKindIcon(row.kind), text, el('span', 'cii-agent-row-check'));
+        main.append(agentIcon(row.kind, row.name), text, el('span', 'cii-agent-row-check'));
         main.addEventListener('mousedown', keepFocus);
         main.addEventListener('click', (event) => {
             event.stopPropagation();

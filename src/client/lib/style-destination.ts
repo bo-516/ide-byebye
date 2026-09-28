@@ -4,8 +4,10 @@
  * Boundary: the menu reuses the dropdown shell from TOOLS_STYLE (`.cii-screenshot-menu`), so this must be composed
  * after it. Each row is a flex container of a main button (choose) and, for agents that list sessions, a trailing
  * button (open sessions); hover and keyboard highlight paint the whole row so the two read as one item. Destination
- * kinds (`data-kind`) only swap the icon mask. `[hidden]` rules must beat the flex displays here, or a page without
- * destinations would still show an empty trigger.
+ * kinds (`data-kind`) swap the generic glyph; brand marks per agent (`data-agent`) come from AGENT_ICONS_STYLE, composed
+ * right after this. An unavailable destination's icon is desaturated rather than recoloured, because a logo cannot be
+ * tinted. `[hidden]` rules must beat the flex displays here, or a page without destinations would still show an empty
+ * trigger.
  * @type {string} CSS fragment composed into the shadow-root stylesheet after TOOLS_STYLE.
  */
 export const DESTINATION_STYLE = `
@@ -50,7 +52,8 @@ export const DESTINATION_STYLE = `
   mask: var(--cii-mask-chevron-down);
 }
 .cii-agent-pill-unavailable { color: var(--cii-text-faint); }
-.cii-agent-pill-unavailable .cii-agent-kind { color: var(--cii-warning); }
+.cii-agent-pill-unavailable .cii-agent-kind,
+.cii-agent-row-unavailable .cii-agent-row-main .cii-agent-kind { filter: grayscale(1); opacity: 0.5; }
 
 .cii-agent-kind {
   flex: none;
@@ -83,7 +86,7 @@ export const DESTINATION_STYLE = `
   text-align: left;
   cursor: pointer;
 }
-.cii-agent-row-main .cii-agent-kind { color: var(--cii-text-muted); }
+.cii-agent-row-main .cii-agent-kind { width: 18px; height: 18px; color: var(--cii-text-muted); }
 .cii-agent-row-selected .cii-agent-row-main .cii-agent-kind { color: var(--cii-accent); }
 .cii-agent-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cii-agent-row-label,
@@ -103,7 +106,6 @@ export const DESTINATION_STYLE = `
   mask: var(--cii-mask-corner-down-right);
 }
 .cii-agent-row-unavailable .cii-agent-row-label { color: var(--cii-text-muted); }
-.cii-agent-row-unavailable .cii-agent-row-main .cii-agent-kind { opacity: 0.5; }
 .cii-agent-row-check { flex: none; width: 16px; height: 16px; }
 .cii-agent-row-selected .cii-agent-row-check {
   background: var(--cii-accent);
