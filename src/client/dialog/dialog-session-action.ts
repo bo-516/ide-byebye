@@ -5,7 +5,10 @@ const DEFAULT_SESSION_AGENTS = new Set(['codex-app', 'grok-build']);
 
 /**
  * Create one app action and its session-menu trigger without owning dialog state.
- * Boundary: the caller stores the returned nodes and owns sending, menu state, and later availability updates.
+ * Boundary: the caller stores the returned nodes and owns sending, menu state, and later availability updates. The
+ * main button carries no fill of its own: the tray styles it as a neutral key, and the dialog's `cii-agent-last` class
+ * turns it into the filled Enter target. The caret must stay the button's next sibling, because its styling follows
+ * the button's state through sibling selectors.
  * @param {{ name: string, label: string, title: string }} action Required configured agent; invalid data mislabels dispatch.
  * @param {HTMLElement} container Live action grid; a missing container cannot receive the control.
  * @param {(name: string) => void} onSend Required handoff callback, invoked only by the main button.
@@ -14,7 +17,7 @@ const DEFAULT_SESSION_AGENTS = new Set(['codex-app', 'grok-build']);
  */
 export function createSessionAction(action, container, onSend, onMenu) {
     const root = el('div', 'cii-agent-split');
-    const button = el('button', 'cii-btn cii-btn-primary cii-agent-action', action.label);
+    const button = el('button', 'cii-btn cii-agent-action', action.label);
     button.type = 'button';
     button.title = action.title;
     button.addEventListener('click', () => onSend(action.name));

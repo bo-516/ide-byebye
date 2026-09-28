@@ -1,112 +1,179 @@
 /**
- * Footer layout and shared action-button presentation inside the inspector shadow root.
- * Boundary: copy occupies its own grid row; app cells keep equal, label-independent widths. Container queries
- * reduce the column count on narrow dialogs without shrinking labels or changing the order of configured agents.
- * Both copy labels remain in the same cell so confirmation cannot resize the footer. Requires the dialog's
- * inline-size container from SESSION_PICKER_STYLE; without it, narrow layouts retain three columns.
+ * Footer layout: the toolbar row (capture tools + Copy), the hand-off tray of agent keys, and shared buttons.
+ *
+ * Boundary: the tray is an auto-fit grid, so agent keys keep equal, label-independent widths and drop from three
+ * columns to two or one as the dialog narrows without reordering. The Enter target (`.cii-agent-last`) is the only
+ * filled key; its `↵` hint is inline, so switching targets shifts that key's label but never a grid cell. Both Copy
+ * labels share one grid cell so the confirmation cannot resize the toolbar, and below 460px the button collapses to
+ * its icon; that query needs the dialog's inline-size container from SESSION_PICKER_STYLE, without which Copy keeps
+ * its label and wraps. Container-level key states use `:has()`; browsers without it still get the filled/dimmed button,
+ * only the key's outer ring stays neutral. Requires the tokens and icon masks.
  * @type {string} CSS composed into STYLE_TEXT before session-control overrides.
  */
 export const FOOTER_STYLE = `
 .cii-footer {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
   flex: 0 0 auto;
-  gap: 12px;
-  padding: 12px 18px 16px;
-  border-top: 1px solid #e0e3e5;
-  background: #f7f9fb;
-  border-radius: 0 0 12px 12px;
 }
-.cii-btn {
-  font: 600 13px/1.3 system-ui, sans-serif;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-.cii-btn:disabled { opacity: 0.5; cursor: default; }
-.cii-btn:focus-visible, .cii-session-caret:focus-visible {
-  position: relative;
-  z-index: 1;
-  outline: 2px solid #0058be;
-  outline-offset: 3px;
-}
-.cii-btn-secondary { background: transparent; color: #505f76; border-color: transparent; }
-.cii-btn-secondary:hover:not(:disabled) { background: #f2f4f6; }
-.cii-btn-primary { background: #0058be; color: #fff; }
-.cii-btn-primary:hover:not(:disabled) { background: #0966d1; }
-.cii-btn-primary:active:not(:disabled) { background: #004a9f; }
-.cii-action-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 196px));
-  justify-content: center;
+.cii-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  width: 100%;
+  padding: 2px 12px 12px;
 }
-.cii-action-buttons:empty { display: none; }
 .cii-footer-tools {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 2px;
+  min-width: 0;
 }
-.cii-agent-action {
-  position: relative;
+
+.cii-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 0;
-  min-height: 38px;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  font: 500 13px/1 var(--cii-font);
   white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease, box-shadow 120ms ease, color 120ms ease, opacity 120ms ease;
 }
-/* The remembered-agent marker is out of flow so switching the Enter target never moves a label or a grid cell. */
-.cii-agent-last::after {
-  content: "";
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: 0.85;
+.cii-btn:disabled { opacity: 0.5; cursor: default; }
+.cii-btn-primary {
+  background: linear-gradient(180deg, var(--cii-ink-top), var(--cii-ink));
+  color: var(--cii-on-ink);
+  box-shadow: var(--cii-shadow-ink);
 }
+.cii-btn-primary:hover:not(:disabled) { background: var(--cii-ink-hover); }
+.cii-btn-secondary { background: var(--cii-key); color: var(--cii-text); box-shadow: var(--cii-shadow-key); }
+.cii-btn-secondary:hover:not(:disabled) { box-shadow: var(--cii-shadow-key-hover); }
+
 .cii-agent-clipboard {
-  grid-column: 1 / -1;
   display: inline-grid;
   place-items: center;
-  margin-bottom: 4px;
-  background: #fff;
-  color: #475569;
-  border-color: #dce2e9;
+  height: 32px;
+  margin-left: auto;
+  padding: 0 12px 0 10px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--cii-text-muted);
+  box-shadow: inset 0 0 0 1px var(--cii-line-strong);
+  font-size: 12.5px;
 }
-.cii-agent-clipboard:hover:not(:disabled) { background: #f0f5fc; border-color: #b8cce7; color: #0058be; }
-.cii-agent-clipboard:active:not(:disabled) { background: #e8f0fb; }
-.cii-copy-label { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 8px; }
-.cii-copy-idle::before {
+.cii-agent-clipboard:hover:not(:disabled) { background: var(--cii-fill); color: var(--cii-text); }
+.cii-agent-clipboard:active:not(:disabled) { background: var(--cii-fill-strong); }
+.cii-copy-label { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 7px; }
+.cii-copy-label::before {
   content: "";
-  width: 10px;
-  height: 11px;
-  margin: 2px 0 0 2px;
-  border: 1.4px solid currentColor;
-  border-radius: 2px;
-  box-shadow: -3px -3px 0 -1px #fff, -3px -3px 0 0 currentColor;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  -webkit-mask: var(--cii-mask-copy);
+  mask: var(--cii-mask-copy);
 }
+.cii-copy-done::before { -webkit-mask: var(--cii-mask-check); mask: var(--cii-mask-check); }
 .cii-copy-done,
 .cii-agent-copied > .cii-copy-idle { visibility: hidden; }
 .cii-agent-copied > .cii-copy-done { visibility: visible; }
 .cii-agent-clipboard.cii-agent-copied,
 .cii-agent-clipboard.cii-agent-copied:hover:not(:disabled) {
-  color: #15803d; border-color: #bbdec8; background: #f4fbf6;
+  color: var(--cii-success);
+  background: var(--cii-success-soft);
+  box-shadow: inset 0 0 0 1px var(--cii-success-line);
 }
-.cii-agent-unavailable { background: #64748b; }
-.cii-agent-unavailable:hover:not(:disabled) { background: #475569; }
-@container (max-width: 539px) {
-  .cii-action-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* A narrow panel keeps the toolbar on one row by collapsing Copy to its icon; the title still names the action. */
+@container (max-width: 459px) {
+  .cii-agent-clipboard { width: 32px; padding: 0; }
+  .cii-copy-label { gap: 0; font-size: 0; }
 }
-@container (max-width: 359px) {
-  .cii-action-buttons { grid-template-columns: minmax(0, 1fr); }
+/* Clipboard-only setups have no hand-off tray, so Copy is the one primary action left. */
+.cii-footer:has(> .cii-action-buttons:empty) .cii-agent-clipboard:not(.cii-agent-copied) {
+  background: linear-gradient(180deg, var(--cii-ink-top), var(--cii-ink));
+  color: var(--cii-on-ink);
+  box-shadow: var(--cii-shadow-ink);
 }
+
+.cii-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 8px;
+  padding: 12px;
+  background: var(--cii-surface-sunken);
+  border-top: 1px solid var(--cii-line);
+  border-radius: 0 0 18px 18px;
+}
+.cii-action-buttons:empty { display: none; }
+.cii-agent-split {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--cii-key);
+  box-shadow: var(--cii-shadow-key);
+  transition: box-shadow 140ms ease, background 140ms ease;
+}
+.cii-agent-split:hover { box-shadow: var(--cii-shadow-key-hover); }
+.cii-agent-split > .cii-agent-action {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cii-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cii-agent-split-on > .cii-agent-action { border-radius: 10px 0 0 10px; }
+.cii-agent-split > .cii-agent-action:hover:not(:disabled) { background: var(--cii-fill); }
+.cii-agent-split > .cii-agent-action:active:not(:disabled) { background: var(--cii-fill-strong); }
+.cii-agent-split > .cii-agent-action:focus-visible { z-index: 1; }
+
+.cii-agent-split:has(> .cii-agent-last) { background: var(--cii-ink); box-shadow: var(--cii-shadow-ink); }
+.cii-agent-split > .cii-agent-action.cii-agent-last {
+  background: linear-gradient(180deg, var(--cii-ink-top), var(--cii-ink));
+  color: var(--cii-on-ink);
+}
+.cii-agent-split > .cii-agent-action.cii-agent-last:hover:not(:disabled) { background: var(--cii-ink-hover); }
+.cii-agent-last::after {
+  content: "↵";
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: var(--cii-on-ink-soft);
+  font: 600 11px/18px var(--cii-font);
+  text-align: center;
+  vertical-align: 1px;
+}
+
+.cii-agent-split:has(> .cii-agent-unavailable) {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed var(--cii-line-strong);
+  outline-offset: -1px;
+}
+.cii-agent-split > .cii-agent-action.cii-agent-unavailable { color: var(--cii-text-faint); }
+.cii-agent-split > .cii-agent-action.cii-agent-last.cii-agent-unavailable {
+  background: var(--cii-fill);
+  color: var(--cii-text-muted);
+}
+.cii-agent-split > .cii-agent-action.cii-agent-last.cii-agent-unavailable:hover:not(:disabled) {
+  background: var(--cii-fill-strong);
+}
+.cii-agent-last.cii-agent-unavailable::after { background: var(--cii-fill-strong); }
 `;

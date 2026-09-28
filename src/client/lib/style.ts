@@ -1,20 +1,26 @@
 import { DIALOG_Z_INDEX, PLUGIN_NODE_ATTR } from '../../shared/constants.js';
+import { ICONS_STYLE } from './icons.js';
 import { CAPTURE_STYLE } from './style-capture.js';
 import { FOOTER_STYLE } from './style-footer.js';
 import { PREVIEWS_STYLE } from './style-previews.js';
 import { RECORDING_STYLE } from './style-recording.js';
+import { RECORDING_EDITOR_STYLE } from './style-recording-editor.js';
 import { SESSION_PICKER_STYLE } from './style-session-picker.js';
 import { SHELL_STYLE } from './style-shell.js';
+import { TOKENS_STYLE } from './style-tokens.js';
 import { TOOLS_STYLE } from './style-tools.js';
 
 /**
  * Compose the plugin's shadow-root stylesheet while preserving component cascade order.
  *
- * Boundary: shell defaults and variables must precede dependent controls; omitting or reordering fragments can alter
- * button, picker, or editor presentation. Session-menu overrides remain appended by `createUi`.
+ * Boundary: icon masks and design tokens come first because every later fragment reads them (light and dark themes
+ * both live in the tokens), then shell defaults precede dependent controls; omitting or reordering fragments can
+ * alter button, picker, or editor presentation. Session-menu overrides remain appended by `createUi`, and the editor
+ * styles by `installDialogReferenceStyle`.
  * @type {string} Complete base CSS text for consumers that render or inject the plugin UI.
  */
-export const STYLE_TEXT = SHELL_STYLE + PREVIEWS_STYLE + FOOTER_STYLE + TOOLS_STYLE + RECORDING_STYLE + CAPTURE_STYLE;
+export const STYLE_TEXT = ICONS_STYLE + TOKENS_STYLE + SHELL_STYLE + PREVIEWS_STYLE + FOOTER_STYLE + TOOLS_STYLE
+    + RECORDING_STYLE + RECORDING_EDITOR_STYLE + CAPTURE_STYLE;
 
 /**
  * Create an isolated shadow-DOM host for all plugin UI so page CSS cannot leak

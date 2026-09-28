@@ -1,152 +1,136 @@
 import { DIALOG_Z_INDEX } from '../../shared/constants.js';
 
 /**
- * Footer capture icons, their tooltips, and screenshot-menu presentation.
+ * Toolbar icon buttons, their tooltips, and the shared dropdown-menu presentation (screenshot, recording scope, style).
  *
- * Boundary: Requires shell defaults and shared button styles; keep after footer rules so capture controls retain their existing cascade.
+ * Boundary: requires the tokens, icon masks, and shared button styles; keep after footer rules so capture controls
+ * retain their cascade. Icons are painted through masks on the existing glyph spans, so no controller markup changes.
+ * Menus open upward by default; `placeDropdownPanel` flips and clamps them inline, which is why their entrance
+ * animation may transform freely (placement reads `offsetWidth/offsetHeight`, not the transformed box).
  * @type {string} CSS fragment composed into the shadow-root stylesheet in its original cascade order.
  */
 export const TOOLS_STYLE = `
 .cii-screenshot-picker { position: relative; }
 .cii-icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   background: transparent;
-  color: #424754;
+  color: var(--cii-text-muted);
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
-.cii-icon-btn:hover:not(:disabled),
-.cii-icon-btn-active {
-  background: #f2f4f6;
-  color: #191c1e;
+.cii-icon-btn:hover:not(:disabled) { background: var(--cii-fill); color: var(--cii-text); }
+.cii-icon-btn-active,
+.cii-icon-btn-active:hover:not(:disabled) { background: var(--cii-accent-soft); color: var(--cii-accent-text); }
+.cii-icon-btn:disabled { opacity: 0.45; cursor: default; }
+.cii-code-ref-icon,
+.cii-shot-icon,
+.cii-style-icon {
+  width: 18px;
+  height: 18px;
+  background: currentColor;
 }
-.cii-icon-btn:disabled { opacity: 0.5; cursor: default; }
+.cii-code-ref-icon { -webkit-mask: var(--cii-mask-at); mask: var(--cii-mask-at); }
+.cii-shot-icon { -webkit-mask: var(--cii-mask-capture); mask: var(--cii-mask-capture); }
+.cii-style-icon { -webkit-mask: var(--cii-mask-palette); mask: var(--cii-mask-palette); }
 
-/* --- Footer control tooltips ---
-   A dark hover bubble (with a downward caret) that replaces the browser's native title= tooltip on the capture/record
-   icons: same look everywhere, no ~1s browser delay, and readable text instead of a system pill. Driven purely by a
-   \`data-cii-tip\` attribute so any control can opt in. The bubble opens upward out of the footer (the dialog is
-   overflow:visible, so it is not clipped) and is suppressed while that control's own dropdown is open so it can never
-   sit on top of the menu. */
+/* --- Tooltips ---
+   A compact bubble driven by \`data-cii-tip\`, replacing the native title= tooltip on icon controls: same look everywhere
+   and no ~1s browser delay. It opens upward out of the toolbar (the panel is overflow:visible) and is suppressed while
+   that control's own dropdown is open so it can never sit on top of the menu. */
 [data-cii-tip] { position: relative; }
-[data-cii-tip]::after,
-[data-cii-tip]::before {
+[data-cii-tip]::after {
+  content: attr(data-cii-tip);
   position: absolute;
   left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: ${DIALOG_Z_INDEX};
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--cii-tip-bg);
+  color: var(--cii-tip-text);
+  font: 500 11.5px/1.3 var(--cii-font);
+  white-space: nowrap;
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.35);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 110ms ease;
-  z-index: ${DIALOG_Z_INDEX};
-}
-[data-cii-tip]::after {
-  content: attr(data-cii-tip);
-  bottom: calc(100% + 7px);
-  transform: translateX(-50%);
-  padding: 5px 9px;
-  border-radius: 7px;
-  background: #26292e;
-  color: #fff;
-  font: 550 11.5px/1.35 system-ui, -apple-system, sans-serif;
-  white-space: nowrap;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.20), 0 1px 2px rgba(0,0,0,0.14);
-}
-/* Caret: a small rotated square whose centre is pushed ~2px up into the bubble body, so the bubble paints over its
-   top half and the two read as one seamless shape (the earlier version only touched at a point and split apart). */
-[data-cii-tip]::before {
-  content: "";
-  bottom: calc(100% + 4px);
-  width: 8px;
-  height: 8px;
-  background: #26292e;
-  border-radius: 1.5px;
-  transform: translateX(-50%) rotate(45deg);
+  transform: translate(-50%, 3px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
 }
 [data-cii-tip]:hover::after,
-[data-cii-tip]:hover::before,
-[data-cii-tip]:focus-visible::after,
-[data-cii-tip]:focus-visible::before {
+[data-cii-tip]:focus-visible::after {
   opacity: 1;
   visibility: visible;
-  transition-delay: 70ms;
+  transform: translate(-50%, 0);
+  transition-delay: 180ms;
 }
-/* While a footer dropdown (screenshot / style / recording-scope) is open it also opens upward — hide that control's
-   tooltip so the bubble does not overlap the menu. Higher specificity than the :hover rule, so it wins. */
-.cii-screenshot-picker:has(> .cii-screenshot-menu:not([hidden])) > [data-cii-tip]::after,
-.cii-screenshot-picker:has(> .cii-screenshot-menu:not([hidden])) > [data-cii-tip]::before {
+/* Header tips open downward and right-aligned: upward would leave the viewport when the panel hugs the top edge. */
+.cii-header [data-cii-tip]::after { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; transform: translateY(-3px); }
+.cii-header [data-cii-tip]:hover::after,
+.cii-header [data-cii-tip]:focus-visible::after { transform: none; }
+/* An open dropdown hides its trigger's tooltip. Higher specificity than the :hover rule, so it wins. */
+.cii-screenshot-picker:has(> .cii-screenshot-menu:not([hidden])) > [data-cii-tip]::after {
   opacity: 0;
   visibility: hidden;
 }
-.cii-code-ref-icon {
-  font: 700 20px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-.cii-code-ref-icon::before { content: "@"; }
-.cii-shot-icon {
-  position: relative;
-  width: 20px;
-  height: 16px;
-  border: 2px solid currentColor;
-  border-radius: 4px;
-}
-.cii-shot-icon::before,
-.cii-shot-icon::after {
-  content: "";
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  border-color: currentColor;
-}
-.cii-shot-icon::before {
-  top: -4px;
-  left: -4px;
-  border-top: 2px solid currentColor;
-  border-left: 2px solid currentColor;
-}
-.cii-shot-icon::after {
-  right: -4px;
-  bottom: -4px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-}
+
 .cii-screenshot-menu {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  width: 192px;
-  padding: 8px;
-  background: #ffffff;
-  border: 1px solid #e0e3e5;
-  border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.16);
-  z-index: 1;
+  z-index: 5;
+  width: 212px;
+  padding: 4px;
+  background: var(--cii-surface-raised);
+  color: var(--cii-text);
+  border-radius: 12px;
+  box-shadow: var(--cii-shadow-pop);
+  animation: cii-pop 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .cii-screenshot-menu[hidden] { display: none; }
 .cii-screenshot-choice {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 7px 10px 7px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: #191c1e;
-  font: 13px/1 system-ui, sans-serif;
-  font-weight: 500;
+  color: var(--cii-text);
+  font: 500 13px/1.25 var(--cii-font);
   text-align: left;
   cursor: pointer;
 }
-.cii-screenshot-choice:hover { background: #f2f4f6; }
-.cii-choice-active { background: #f2f4f6; }
+.cii-screenshot-choice:hover { background: var(--cii-fill); }
+/* Multi-select rows show a checkbox; the active one fills with the accent and a check glyph (the text ✓ is hidden). */
 .cii-choice-mark {
+  flex: none;
   width: 16px;
-  color: #0058be;
-  font-weight: 700;
-  text-align: center;
-}`;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1.5px var(--cii-line-strong);
+  color: #ffffff;
+  font-size: 0;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.cii-choice-active .cii-choice-mark { background: var(--cii-accent); box-shadow: none; }
+.cii-choice-active .cii-choice-mark::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  -webkit-mask: var(--cii-mask-check);
+  mask: var(--cii-mask-check);
+}
+`;

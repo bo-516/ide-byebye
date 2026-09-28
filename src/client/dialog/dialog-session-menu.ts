@@ -6,9 +6,10 @@ import { deliveryCopyKey, sessionMenuRow } from './dialog-session-model.js';
  * Fill an existing session menu element.
  *
  * Boundary: does not fetch or store targets. `hooks.onChoose` is not called for disabled rows. The first button is
- * always "new session" so keyboard index 0 matches {@link applySessionMenuKey}. The required menu must already be
- * attached; a missing or invalid node cannot be rendered. Placement follows the supplied caret after every render,
- * including loading and refresh results, so each row of agent buttons opens its menu beside its own trigger.
+ * always "new session" so keyboard index 0 matches {@link applySessionMenuKey}; its plus icon is drawn by CSS, so the
+ * label is plain text (the refresh button's `⟳` text is likewise replaced by a CSS icon). The required menu must
+ * already be attached; a missing or invalid node cannot be rendered. Placement follows the supplied caret after every
+ * render, including loading and refresh results, so each row of agent buttons opens its menu beside its own trigger.
  *
  * @param {HTMLElement} menuEl Menu node already attached to the dialog.
  * @param {{ name: string, label: string }} action Agent the menu belongs to.
@@ -35,7 +36,7 @@ export function fillSessionMenu(menuEl, action, view, hooks, anchor = null) {
     refresh.addEventListener('click', () => hooks.onRefresh());
     head.append(el('div', 'cii-session-menu-title', titleText), refresh);
     menuEl.append(head);
-    const fresh = el('button', 'cii-session-new', `＋ ${t('session.menu.new')}`);
+    const fresh = el('button', 'cii-session-new', t('session.menu.new'));
     fresh.type = 'button';
     fresh.addEventListener('click', () => hooks.onNew());
     menuEl.append(fresh);

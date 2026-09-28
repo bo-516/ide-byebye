@@ -9,6 +9,7 @@ import { agentLabel, anchorFromElement, clamp, configuredActions, el, isAgentVis
 import { deliverPromptToClient } from './dialog-delivery.js';
 import { DialogSessionController } from './dialog-session-picker.js';
 import { t } from '../lib/i18n.js';
+import { iconSvg } from '../lib/icons.js';
 export class Dialog {
     copyResetTimer: any;
     parent;
@@ -180,8 +181,11 @@ export class Dialog {
      * Render the dialog shell for the current intent.
      * Boundary: this method creates fresh DOM for one open dialog. State that must survive re-rendering should live on
      * the class fields; passing a stale selection only affects async resolve and send payloads outside this renderer.
-     * Footer buttons follow `config.enabledAgents`: an agent turned off in plugin config (including `clipboard`, which
-     * backs the Copy button) gets no button at all.
+     * Layout: header controls (pin, close) sit in the panel's top-right corner; the footer holds a toolbar row (capture
+     * tools, then the Copy button at its end) above the `.cii-action-buttons` tray of app hand-off keys, which must keep
+     * that class because the session menu observes it for placement. Footer buttons follow `config.enabledAgents`: an
+     * agent turned off in plugin config (including `clipboard`, which backs the Copy button) gets no button at all, and
+     * an empty tray is hidden by CSS.
      * @param {Record<string, unknown>} _selection Current primary selection, intentionally unused by static layout.
      * @returns {void}
      */
@@ -192,21 +196,21 @@ export class Dialog {
                 this.close();
         });
         const dialog = el('div', 'cii-dialog');
-        // --- header: pin + close live at the top, away from the action buttons ---
+        // --- header: pin + close sit in the top-right corner, away from the hand-off keys ---
         const header = el('div', 'cii-header');
         const pinBtn = el('button', 'cii-pin-btn');
         pinBtn.type = 'button';
-        pinBtn.title = t('dialog.pin.title');
+        pinBtn.dataset.ciiTip = t('dialog.pin.title');
         pinBtn.setAttribute('aria-label', t('dialog.pin.aria'));
-        pinBtn.innerHTML = '<svg class="cii-pin-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0058be" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4"/><path d="M9 15l-4.5 4.5"/><path d="M14.5 4l5.5 5.5"/></svg>';
+        pinBtn.innerHTML = iconSvg('pin', 16);
         pinBtn.addEventListener('click', () => this.pinDialog());
         const closeBtn = el('button', 'cii-close-btn');
         closeBtn.type = 'button';
-        closeBtn.title = t('dialog.close.title');
+        closeBtn.dataset.ciiTip = t('dialog.close.title');
         closeBtn.setAttribute('aria-label', t('dialog.close.aria'));
-        closeBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>';
+        closeBtn.innerHTML = iconSvg('x', 16);
         closeBtn.addEventListener('click', () => this.close());
-        header.append(pinBtn, el('span', 'cii-header-div'), closeBtn);
+        header.append(pinBtn, closeBtn);
         dialog.append(header);
         const body = el('div', 'cii-body');
         const intentField = this.editor.render();
@@ -231,8 +235,9 @@ export class Dialog {
         body.append(stylePreviewEl);
         body.append(this.sessions.renderTargetLine());
         dialog.append(body);
-        // --- footer: capture tools grouped on the left, app actions on the right ---
+        // --- footer: capture tools + Copy share the toolbar row; app hand-off keys fill the tray below ---
         const footer = el('div', 'cii-footer');
+        const toolbar = el('div', 'cii-toolbar');
         const tools = el('div', 'cii-footer-tools');
         tools.append(this.references.renderButton());
         tools.append(this.screenshots.renderPicker());
@@ -240,6 +245,7 @@ export class Dialog {
         const recordButton = this.recordings.renderButton();
         if (recordButton)
             tools.append(recordButton);
+        toolbar.append(tools);
         const actions = el('div', 'cii-action-buttons');
         this.actionButtons = new Map();
         // Clipboard is a first-class footer action: it copies the assembled prompt so the user can paste it into any
@@ -247,14 +253,14 @@ export class Dialog {
         // still targets an app agent rather than the clipboard — which also keeps it out of `visibleAgentActions()`,
         // so `agents.clipboard: false` has to be honored here, or the button could only ever alert "not enabled".
         if (isAgentVisible(this.config, 'clipboard')) {
-            const clipboardButton = el('button', 'cii-btn cii-btn-primary cii-agent-action cii-agent-clipboard');
+            const clipboardButton = el('button', 'cii-btn cii-agent-clipboard');
             // Both labels exist up front, stacked in one grid cell, so the button is always as wide as the longer one and
-            // the "copied" flash (see `flashCopied`) swaps visibility without ever changing the footer's width/wrapping.
+            // the "copied" flash (see `flashCopied`) swaps visibility without ever changing the toolbar's width/wrapping.
             clipboardButton.append(el('span', 'cii-copy-label cii-copy-idle', t('agent.clipboard.label')), el('span', 'cii-copy-label cii-copy-done', t('clipboard.copied')));
             clipboardButton.title = t('agent.clipboard.title');
             clipboardButton.addEventListener('click', () => void this.send('clipboard'));
             this.actionButtons.set('clipboard', clipboardButton);
-            actions.append(clipboardButton);
+            toolbar.append(clipboardButton);
         }
         // Agents disabled in plugin config are skipped entirely; only configured-but-unavailable ones get a greyed
         // button (see `loadAgents`), because that state can still be fixed by installing the app.
@@ -264,7 +270,7 @@ export class Dialog {
             this.actionButtons.set(action.name, button);
         }
         this.updateAgentMarkers();
-        footer.append(tools, actions);
+        footer.append(toolbar, actions);
         dialog.append(footer);
         dialog.addEventListener('mousedown', (event) => {
             const target = event.target;
@@ -278,12 +284,13 @@ export class Dialog {
         this.backdrop = backdrop;
         this.dialogEl = dialog;
         this.setHostInteractive(true);
+        // Reflect any persisted style selection in the body preview before measuring: rendered after `positionDialog`,
+        // the chip grew the panel past the height it was clamped with and pushed its bottom edge off-screen.
+        this.styles.updatePreview();
         this.positionDialog(dialog, this.anchor);
         document.addEventListener('keydown', this.keyHandler, true);
         this.parent.addEventListener('keydown', this.keyHandler, true);
         window.addEventListener('resize', this.resizeHandler, true);
-        // Reflect any persisted style selection in the body preview once the preview container is attached.
-        this.styles.updatePreview();
     }
 
     /**

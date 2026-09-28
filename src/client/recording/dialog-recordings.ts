@@ -92,9 +92,11 @@ export class DialogRecordingController {
     }
 
     /**
-     * Render the footer recording controls: a scope picker plus the record toggle button.
+     * Render the footer recording controls: the record toggle button followed by its scope picker, styled as one
+     * segmented control that reads "record · <scope>".
      * Boundary: returns null when recording is disabled so the dialog omits the controls. The record button only starts
-     * recording; stopping happens from the floating control (the dialog is hidden while capturing).
+     * recording; stopping happens from the floating control (the dialog is hidden while capturing). DOM order is the
+     * visual and focus order, so the record key comes first here rather than being reordered by CSS.
      * @returns {HTMLElement | null} Controls wrapper, or null when disabled.
      */
     renderButton() {
@@ -134,7 +136,7 @@ export class DialogRecordingController {
             event.stopPropagation();
             void this.start();
         });
-        wrapper.append(scope, this.button);
+        wrapper.append(this.button, scope);
         return wrapper;
     }
 
@@ -415,8 +417,8 @@ export class DialogRecordingController {
     openViewer(recording) {
         if (!this.host.backdrop())
             return;
-        // Attach the viewer to the shadow root (not the dialog backdrop): the backdrop has `backdrop-filter`, which makes
-        // it a containing block for `position:fixed`, so a full-screen viewer nested inside it would collapse.
+        // Attach the viewer to the shadow root (not the dialog backdrop): no scrim-level filter, transform, or containment
+        // can then become the containing block of its `position:fixed` shell and collapse the full-screen viewer.
         const parent = this.host.parent ? this.host.parent() : this.host.backdrop();
         void openRecordingViewer({
             parent,

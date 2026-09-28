@@ -1,34 +1,32 @@
 /**
  * DIALOG_REFERENCE_STYLE_TEXT: source-owned styles for the dialog mention editor.
  *
- * Purpose: turns the intent field into a lightweight tiptap-style contenteditable where the click-selected element is a
- * pinned, non-removable chip and supplementary `@code` references are inline atomic mentions that keep their position in
- * the typed text.
- * Boundary: this stylesheet must be appended after `STYLE_TEXT` inside the plugin shadow root; installing it elsewhere
- * has no effect, and installing it before the base rules lets the old textarea borders win.
+ * Purpose: turns the intent field into a borderless composer: the click-selected element is a pinned, non-removable
+ * context chip (dimmed directory, emphasized file name, line-range tag) and supplementary `@code` references are inline
+ * atomic mentions (file name + range only; the full path stays in the chip's title) that keep their position in the
+ * typed text.
+ * Boundary: this stylesheet must be appended after `STYLE_TEXT` inside the plugin shadow root, because it reads the
+ * design tokens and icon masks declared there; installing it elsewhere has no effect, and installing it alone leaves
+ * every `var()` unresolved. The `.cii-mention-*` part classes come from `createMentionElement` in `dialog-editor`.
  *
  * @type {string} CSS text appended to the plugin shadow root.
  */
 export const DIALOG_REFERENCE_STYLE_TEXT = `
 .cii-field {
-  overflow: hidden;
-  border: 1px solid var(--cii-color-textarea-border);
-  border-radius: 12px;
-  background: var(--cii-color-textarea-surface);
-  transition: border-color 120ms ease, box-shadow 120ms ease;
-}
-.cii-field:focus-within {
-  border-color: var(--cii-color-textarea-border-focus);
-  box-shadow: var(--cii-shadow-textarea-focus);
+  position: relative;
+  flex: 1 1 100%;
+  min-width: 0;
 }
 .cii-editor-pinned {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   max-height: 96px;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px 14px 2px;
+  padding-right: 60px;
   scrollbar-width: thin;
 }
 .cii-editor-pinned[hidden] {
@@ -36,129 +34,157 @@ export const DIALOG_REFERENCE_STYLE_TEXT = `
 }
 .cii-editor {
   position: relative;
-  min-height: 96px;
-  max-height: 220px;
+  min-height: 76px;
+  max-height: 240px;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px 16px;
-  color: var(--cii-color-textarea-text);
-  font: 15px/1.6 system-ui, sans-serif;
+  padding: 10px 2px 4px;
+  color: var(--cii-text);
+  caret-color: var(--cii-accent);
+  font: 15px/1.6 var(--cii-font);
   outline: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   scrollbar-width: thin;
+  scrollbar-color: var(--cii-line-strong) transparent;
 }
-.cii-editor-pinned:not([hidden]) + .cii-editor {
-  min-height: 76px;
-  padding-top: 8px;
+/* Without a context chip (a cold restore that lost its selection) the first line would run under the header controls. */
+.cii-editor-pinned[hidden] + .cii-editor {
+  padding-right: 64px;
 }
 .cii-editor.cii-editor-empty::before {
   content: attr(data-placeholder);
   position: absolute;
-  top: 12px;
-  left: 16px;
-  right: 16px;
-  color: var(--cii-color-textarea-placeholder);
+  top: 10px;
+  left: 2px;
+  right: 2px;
+  color: var(--cii-text-faint);
   pointer-events: none;
   white-space: pre-wrap;
 }
 .cii-editor-disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: default;
 }
+
 .cii-mention {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   max-width: 100%;
   margin: 0 1px;
-  padding: 1px 5px 1px 7px;
+  padding: 0 3px 0 5px;
   border-radius: 6px;
-  background: rgba(20, 121, 201, 0.10);
-  color: #1366aa;
-  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-  vertical-align: baseline;
+  background: var(--cii-accent-soft);
+  color: var(--cii-accent-text);
+  font: 500 13.5px/1.55 var(--cii-font);
+  vertical-align: bottom;
   white-space: nowrap;
   user-select: none;
   cursor: default;
 }
 .cii-mention-icon {
-  width: 11px;
+  flex: none;
+  width: 13px;
   height: 13px;
-  flex: 0 0 auto;
-  position: relative;
-  border: 1.5px solid currentColor;
-  border-radius: 2px;
-}
-.cii-mention-icon::after {
-  content: "";
-  position: absolute;
-  top: -1.5px;
-  right: -1.5px;
-  width: 4px;
-  height: 4px;
-  border-left: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  background: var(--cii-color-textarea-surface);
+  background: currentColor;
+  -webkit-mask: var(--cii-mask-code);
+  mask: var(--cii-mask-code);
 }
 .cii-mention-text {
+  display: inline-flex;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.cii-mention-dir {
+  display: none;
+}
+.cii-mention-file {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.cii-mention-range {
+  flex: none;
+  font: 500 11px/1 var(--cii-mono);
+  opacity: 0.75;
 }
 .cii-mention-remove {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 4px;
   background: transparent;
   color: currentColor;
+  font-size: 0;
   cursor: pointer;
-  font: 14px/1 system-ui, sans-serif;
-  opacity: 0.65;
+  opacity: 0.6;
+}
+.cii-mention-remove::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  -webkit-mask: var(--cii-mask-x);
+  mask: var(--cii-mask-x);
 }
 .cii-mention-remove:hover {
-  background: rgba(20, 121, 201, 0.18);
+  background: var(--cii-accent-soft);
   opacity: 1;
 }
-.cii-editor-pinned .cii-mention,
-.cii-mention-static {
-  width: 100%;
-  max-width: 100%;
+
+/* Context chip: the element this intent is about. The directory gives way first so the file name survives truncation. */
+.cii-editor-pinned .cii-mention {
+  height: 28px;
   margin: 0;
-  padding: 4px 6px;
-  border-radius: 6px;
-  background: transparent;
-  color: #1479c9;
-  font-size: 14px;
-  white-space: nowrap;
-  cursor: default;
-}
-.cii-editor-pinned .cii-mention:hover {
-  background: #f3f7fb;
+  padding: 0 5px 0 8px;
+  gap: 7px;
+  border-radius: 8px;
+  background: var(--cii-surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--cii-line);
+  color: var(--cii-text);
+  font: 500 12.5px/1 var(--cii-font);
 }
 .cii-editor-pinned .cii-mention-icon {
   width: 14px;
-  height: 17px;
-  border-radius: 3px;
+  height: 14px;
+  color: var(--cii-accent);
 }
-.cii-editor-pinned .cii-mention-text {
-  flex: 1 1 auto;
+.cii-editor-pinned .cii-mention-dir {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--cii-text-faint);
+  font-weight: 400;
+}
+/* The file name never shrinks (any shrink, even sub-pixel, would trigger its ellipsis) unless it alone is too wide. */
+.cii-editor-pinned .cii-mention-file {
+  flex: none;
+  max-width: 100%;
+}
+.cii-editor-pinned .cii-mention-range {
+  padding: 4px 5px;
+  border-radius: 5px;
+  background: var(--cii-fill);
+  color: var(--cii-text-muted);
+  opacity: 1;
 }
 `;
 
 /**
  * Install the dialog reference attachment stylesheet into a UI root.
  *
- * Purpose: applies the Codex-like source attachment treatment after the base shadow-root styles are installed.
+ * Purpose: applies the composer and mention treatment after the base shadow-root styles are installed.
  * Boundary: `root` must support `appendChild`; passing `null`, an ordinary object, or a detached value without that
- * method skips installation and the dialog falls back to the base textarea and chip styles.
+ * method skips installation and the dialog falls back to unstyled editor and chip markup.
  *
  * @param {ShadowRoot | Element | null | undefined} root UI root that receives the supplemental style element.
  * @returns {HTMLStyleElement | null} The appended style element, or `null` when `root` cannot receive children.
