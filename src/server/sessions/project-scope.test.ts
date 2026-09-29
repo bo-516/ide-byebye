@@ -29,10 +29,10 @@ test('project scope matches equal, child, and in-git ancestors, and rejects abov
 test('win32 scope comparison is case-insensitive', () => {
     const scope = buildProjectScope('C:\\Repo\\pkg', [], {
         platform: 'win32',
-        realpath: (input) => input,
+        realpath: (input: string) => input,
         gitRoot: 'C:\\Repo',
     });
-    const opts = { platform: 'win32', realpath: (input) => input };
+    const opts = { platform: 'win32', realpath: (input: string) => input };
     assert.equal(matchSessionCwd('c:\\repo\\pkg', scope, opts), true);
     assert.equal(matchSessionCwd('c:\\repo\\pkg\\src', scope, opts), true);
     assert.equal(matchSessionCwd('c:\\repo', scope, opts), true);

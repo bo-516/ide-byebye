@@ -10,7 +10,7 @@ import test from 'node:test';
 import { detectNextProjectDir, detectNextVersion, isInspectorHostProcess, usesStableTurbopackKey } from './next-project.js';
 
 test('detectNextProjectDir reads next.config.* frames in every format Next loads', () => {
-    const frame = (text) => `Error\n    at resolveRoot (file:///pkg/dist/server/next/with-next.js:60:5)\n${text}\n    at loadConfig (/app/node_modules/next/dist/server/config.js:900:1)`;
+    const frame = (text: string) => `Error\n    at resolveRoot (file:///pkg/dist/server/next/with-next.js:60:5)\n${text}\n    at loadConfig (/app/node_modules/next/dist/server/config.js:900:1)`;
     assert.equal(detectNextProjectDir(frame('    at file:///repo/apps/web/next.config.mjs:4:16')), '/repo/apps/web');
     assert.equal(detectNextProjectDir(frame('    at Object.<anonymous> (/repo/site/next.config.js:3:18)')), '/repo/site');
     assert.equal(detectNextProjectDir(frame('    at Object.<anonymous> (/repo/ts-app/next.config.ts:8:1)')), '/repo/ts-app');

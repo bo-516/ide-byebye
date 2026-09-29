@@ -51,7 +51,7 @@ test('chooseAntigravityIdeExtensionHost follows the language server for that fol
 
 test('deliverAntigravityIdePrompt resolves when the bridge acks without restarting a host', async () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-bridge-'));
-    const restarted = [];
+    const restarted: number[] = [];
     await deliverAntigravityIdePrompt({
         id: 'request-id-1',
         workspacePath: '/tmp/demo',
@@ -60,7 +60,7 @@ test('deliverAntigravityIdePrompt resolves when the bridge acks without restarti
         hooks: {
             listProcesses: () => [],
             listenerPids: () => [],
-            restart: (pid) => {
+            restart: (pid: number) => {
                 restarted.push(pid);
                 return true;
             },

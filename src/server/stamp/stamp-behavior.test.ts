@@ -27,7 +27,7 @@ function stamp(code: string, id: string, options = on, family: 'rollup' | 'webpa
 }
 
 test('sourceStamp false stamps nothing and warns nothing', () => {
-    const warnings = [];
+    const warnings: string[] = [];
     const options = resolveStampOptions({ sourceStamp: false }, (message) => warnings.push(message));
     assert.equal(warnings.length, 0);
     assert.equal(stamp(jsx, '/work/App.jsx', options), null);
@@ -35,7 +35,7 @@ test('sourceStamp false stamps nothing and warns nothing', () => {
 
 test('codeInspector maps exclude, warns once, and names ignored keys', () => {
     resetStampOptionWarnings();
-    const warnings = [];
+    const warnings: string[] = [];
     const options = resolveStampOptions({
         codeInspector: { exclude: [/legacy/], hotKeys: ['altKey'], behavior: { copy: true } },
     }, (message) => warnings.push(message));
@@ -97,13 +97,13 @@ test('a missing Vue compiler returns the source and warns once', () => {
     resetStampModuleWarnings();
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'no-vue-'));
     const file = path.join(dir, 'A.vue');
-    const warnings = [];
+    const warnings: string[] = [];
     const input = {
         code: '<template><p/></template>\n',
         id: file,
         family: 'rollup' as const,
         options: on,
-        warnOnce: (_key, message) => warnings.push(message),
+        warnOnce: (_key: string, message: string) => warnings.push(message),
     };
     try {
         assert.equal(stampModule(input), null);
@@ -118,14 +118,14 @@ test('a missing Vue compiler returns the source and warns once', () => {
 
 test('a bad include pattern fails open and warns once', () => {
     resetStampModuleWarnings();
-    const warnings = [];
+    const warnings: string[] = [];
     const options = { enabled: true, include: [], exclude: [1 as any], escapeTags: [] };
     const input = {
         code: jsx,
         id: '/work/App.jsx',
         family: 'rollup' as const,
         options,
-        warnOnce: (_key, message) => warnings.push(message),
+        warnOnce: (_key: string, message: string) => warnings.push(message),
     };
     assert.equal(stampModule(input), null);
     assert.equal(stampModule(input), null);
@@ -173,9 +173,10 @@ test('esbuild dev output contains data-insp-path and production output does not'
             jsx: 'transform',
             jsxFactory: 'h',
             jsxFragment: 'Fragment',
-            plugins: esbuildPlugins({}),
+            // esbuild() is PluginInstance[] (`object[]`) under a strict check; the values are esbuild plugins.
+            plugins: esbuildPlugins({}) as esbuild.Plugin[],
         });
-        const devText = dev.outputFiles[0].text;
+        const devText = dev.outputFiles![0].text;
         assert.match(devText, /data-insp-path/);
         assert.match(devText, new RegExp(file.replace(/\\/g, '/').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
         process.env.NODE_ENV = 'production';
@@ -188,9 +189,10 @@ test('esbuild dev output contains data-insp-path and production output does not'
             jsx: 'transform',
             jsxFactory: 'h',
             jsxFragment: 'Fragment',
-            plugins: esbuildPlugins({}),
+            // esbuild() is PluginInstance[] (`object[]`) under a strict check; the values are esbuild plugins.
+            plugins: esbuildPlugins({}) as esbuild.Plugin[],
         });
-        assert.equal(prod.outputFiles[0].text.includes('data-insp-path'), false);
+        assert.equal(prod.outputFiles![0].text.includes('data-insp-path'), false);
     }
     finally {
         if (previous === undefined)
@@ -211,7 +213,8 @@ test('esbuild include stamps a node_modules file and leaves other packages alone
     fs.writeFileSync(included, source);
     fs.writeFileSync(other, source);
     const previous = process.env.NODE_ENV;
-    const plugins = esbuildPlugins({ sourceStamp: { include: [/node_modules\/@acme\/ui\//] } });
+    // esbuild() is PluginInstance[] (`object[]`) under a strict check; the values are esbuild plugins.
+    const plugins = esbuildPlugins({ sourceStamp: { include: [/node_modules\/@acme\/ui\//] } }) as esbuild.Plugin[];
     async function build(entry: string) {
         const result = await esbuild.build({
             absWorkingDir: dir,
@@ -224,7 +227,7 @@ test('esbuild include stamps a node_modules file and leaves other packages alone
             jsxFragment: 'Fragment',
             plugins,
         });
-        return result.outputFiles[0].text;
+        return result.outputFiles![0].text;
     }
     try {
         delete process.env.NODE_ENV;
@@ -245,8 +248,9 @@ test('esbuild include stamps a node_modules file and leaves other packages alone
 
 test('Vite warns once when inspector() is registered after a framework plugin', () => {
     resetVitePluginOrderWarning();
-    const plugin = stampUnplugin.vite({});
-    const warnings = [];
+    // unplugin's vite() is Plugin | Plugin[] under a strict check; this factory object has configResolved.
+    const plugin = stampUnplugin.vite({}) as unknown as { configResolved: (config: { plugins: Array<{ name: string }> }) => void };
+    const warnings: string[] = [];
     const original = console.warn;
     console.warn = (message) => warnings.push(String(message));
     try {
@@ -271,13 +275,13 @@ test('a pug template with no pug install is unchanged and warns once', () => {
     const file = path.join(root, 'Card.vue');
     const code = '<template lang="pug">\nsection\n  p hi\n</template>\n';
     fs.writeFileSync(file, code);
-    const warnings = [];
+    const warnings: string[] = [];
     const input = {
         code,
         id: file,
-        family: 'rollup',
+        family: 'rollup' as const,
         options: on,
-        warnOnce: (_key, message) => warnings.push(message),
+        warnOnce: (_key: string, message: string) => warnings.push(message),
     };
     try {
         assert.equal(stampModule(input), null);
@@ -293,7 +297,7 @@ test('a pug template with no pug install is unchanged and warns once', () => {
 test('element table reads static and propagated stamps', () => {
     const code = 'export function App(){return <div/>}';
     const stamped = stamp(code, '/work/App.jsx');
-    const table = elementTable(stamped);
+    const table = elementTable(stamped!);
     assert.equal(table.size, 1);
     const entry = [...table.values()][0];
     assert.equal(entry.kind, 'propagated');

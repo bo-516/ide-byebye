@@ -16,7 +16,15 @@ import { buildCascadeSendBody, listAntigravitySessions, sendToAntigravityConvers
 const EXE = '/Applications/Antigravity IDE.app/Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm';
 const TOKEN = 'csrf-test-token';
 
-function line(pid, uid, extra) {
+/**
+ * One `ps` row for a language-server process.
+ *
+ * @param pid Process id.
+ * @param uid Owner uid. Discovery keeps only the test uid.
+ * @param extra Argument tail after the executable. A missing flag drops the row at parse time.
+ * @returns A padded ps line.
+ */
+function line(pid: number, uid: number, extra: string) {
     return `  ${pid} ${uid} ${EXE} ${extra}`;
 }
 
@@ -51,7 +59,8 @@ test('request builder pins the CA, sends the CSRF header, and never disables ver
     assert.equal(request.options.host, '127.0.0.1');
     assert.equal(request.options.servername, 'localhost');
     assert.equal(request.options.ca, 'CERTDATA');
-    assert.equal(request.options.rejectUnauthorized, undefined);
+    // Strict inference of the builder omits rejectUnauthorized; the check is that verification stays on.
+    assert.equal((request.options as { rejectUnauthorized?: boolean }).rejectUnauthorized, undefined);
     assert.equal(request.options.headers['Connect-Protocol-Version'], '1');
     assert.equal(request.options.headers['X-Codeium-Csrf-Token'], TOKEN);
     assert.equal(request.options.path, '/exa.language_server_pb.LanguageServerService/GetAllCascadeTrajectories');
@@ -68,7 +77,7 @@ test('request builder pins the CA, sends the CSRF header, and never disables ver
 });
 
 test('list maps status, drops killed rows, and send bodies differ for working and idle', async () => {
-    const calls = [];
+    const calls: Array<{ options: { headers: Record<string, string> } }> = [];
     const summaries = {
         'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1': {
             summary: 'running one',
@@ -100,7 +109,7 @@ test('list maps status, drops killed rows, and send bodies differ for working an
         readCert() {
             return 'CERTDATA';
         },
-        async exchange(request) {
+        async exchange(request: { options: { headers: Record<string, string> } }) {
             calls.push(request);
             return { status: 200, json: { trajectorySummaries: summaries } };
         },
@@ -123,12 +132,12 @@ test('list maps status, drops killed rows, and send bodies differ for working an
     assert.equal(workingBody.metadata, undefined);
     assert.equal(workingBody.api_key, undefined);
     assert.deepEqual(workingBody.items, [{ text: 'hello' }]);
-    const sent = [];
+    const sent: Array<{ deliveryStrategy?: string; metadata?: unknown; cascadeId?: string }> = [];
     const sendIo = {
         readCert() {
             return 'CERTDATA';
         },
-        async exchange(request) {
+        async exchange(request: { body: string; options: { path: string } }) {
             sent.push(JSON.parse(request.body));
             const method = request.options.path.split('/').pop();
             if (method === 'SendUserCascadeMessage')
@@ -177,7 +186,7 @@ test('dedupe prefers the project hash or slug even when that language server is 
         lastModifiedTime: '2026-09-27T00:00:00.000Z',
         workspaces: [{ workspaceFolderAbsoluteUri: pathToFileURL(project).href }],
     };
-    const list = async (secondId) => listAntigravitySessions({
+    const list = async (secondId: string) => listAntigravitySessions({
         projectRoot: project,
         config: { experimentalSessions: true },
         io: {

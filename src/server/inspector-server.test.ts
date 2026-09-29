@@ -9,7 +9,7 @@ const PAGE_ORIGIN = 'http://127.0.0.1:5300';
 function makeDeps(overrides = {}) {
     const registry = {
         names: () => ['claude-app'],
-        has: (name) => name === 'claude-app',
+        has: (name: string) => name === 'claude-app',
         listAvailable: async () => [{ name: 'claude-app', available: true }],
         get: () => ({ isAvailable: async () => ({ available: true }), send: async () => ({ ok: true, events: [] }) }),
     };

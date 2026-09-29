@@ -11,24 +11,41 @@ const TOKEN = 'session-test-token';
 const THREAD = '12121212-1212-4121-8121-121212121212';
 const GROK = '34343434-3434-4343-8343-343434343434';
 
-function recorder(logFile) {
+/**
+ * Write a recorder next to `logFile` and return the open command that appends each launch argument.
+ *
+ * @param logFile Absolute path the recorder appends to. A relative path would record outside the temp repo.
+ * @returns Command pair spread into the agent config.
+ */
+function recorder(logFile: string) {
     const script = path.join(path.dirname(logFile), 'record-open.mjs');
     fs.writeFileSync(script, `import fs from 'node:fs'; fs.appendFileSync(${JSON.stringify(logFile)}, (process.argv[2] ?? '') + '\\n');`);
     return { openCommand: process.execPath, openArgs: [script] };
 }
 
-function opened(logFile) {
+/**
+ * Lines the recorder appended. A missing file means nothing was opened, not a failed read.
+ *
+ * @param logFile Absolute path passed to {@link recorder}.
+ * @returns Non-empty lines, in order.
+ */
+function opened(logFile: string): string[] {
     if (!fs.existsSync(logFile))
         return [];
     return fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
 }
 
-function noLeak(value) {
+/**
+ * Assert a session payload exposes no cwd, route, or absolute path.
+ *
+ * @param value JSON body from a sessions or send response. A non-object throws inside the walk.
+ */
+function noLeak(value: object) {
     const text = JSON.stringify(value);
     assert.equal(Object.prototype.hasOwnProperty.call(value, 'cwd'), false);
     assert.equal(text.includes('"cwd"'), false);
     assert.equal(text.includes('"route"'), false);
-    const walk = (node) => {
+    const walk = (node: unknown) => {
         if (typeof node === 'string') {
             assert.equal(node.startsWith('/'), false, node);
             assert.equal(/^[A-Za-z]:[\\/]/.test(node), false, node);
@@ -41,7 +58,14 @@ function noLeak(value) {
     walk(value);
 }
 
-async function boot(root, registry) {
+/**
+ * Start the inspector HTTP server against one registry.
+ *
+ * @param root Project root. Paths outside it are rejected by the real handler.
+ * @param registry Agent registry under test. A registry without the agent makes `/sessions` report unsupported.
+ * @returns Listening server. The caller must `close` it.
+ */
+async function boot(root: string, registry: ReturnType<typeof buildRegistry>) {
     return createInspectorServer({
         options: { defaultAgent: 'codex-app', applyMode: 'agent-edit' },
         token: TOKEN,
@@ -54,7 +78,19 @@ async function boot(root, registry) {
     });
 }
 
-async function send(origin, body) {
+/**
+ * POST `/send` with the test token and parse the JSON body.
+ *
+ * @param origin Server origin from {@link boot}.
+ * @param body Send payload. Omitting `targetSessionId` is a different route case than the ones this helper covers.
+ * @returns Parsed response. The route's JSON shape varies by error code.
+ */
+async function send(origin: string, body: {
+    agent: string;
+    targetSessionId: string;
+    intent: string;
+    selection: { inspPath: string };
+}) {
     const res = await fetch(`${origin}/__intent-inspector/send?token=${TOKEN}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -107,14 +143,14 @@ test('GET /sessions and POST /send enforce token, id, and delivery on the real h
         assert.equal(singular.status, 404);
 
         const agents = await (await fetch(`${srv.origin}/__intent-inspector/agents?token=${TOKEN}`)).json();
-        assert.equal(agents.agents.find((agent) => agent.name === 'codex-app').sessions, true);
-        assert.equal(agents.agents.find((agent) => agent.name === 'grok-build').sessions, true);
+        assert.equal(agents.agents.find((agent: { name: string }) => agent.name === 'codex-app').sessions, true);
+        assert.equal(agents.agents.find((agent: { name: string }) => agent.name === 'grok-build').sessions, true);
 
         const first = await (await fetch(`${srv.origin}/__intent-inspector/sessions?agent=codex-app&token=${TOKEN}`)).json();
         const second = await (await fetch(`${srv.origin}/__intent-inspector/sessions?agent=codex-app&token=${TOKEN}`)).json();
         assert.equal(first.ok, true);
         assert.equal(first.delivery, 'prefill');
-        assert.deepEqual(first.sessions.map((session) => session.id), [THREAD]);
+        assert.deepEqual(first.sessions.map((session: { id: string }) => session.id), [THREAD]);
         assert.equal(first.sessions[0].title, 'Buttons');
         assert.equal(first.sessions[0].status, 'idle');
         assert.deepEqual(second.sessions, first.sessions);
@@ -145,11 +181,11 @@ test('GET /sessions and POST /send enforce token, id, and delivery on the real h
         assert.equal(codex.ok, true);
         assert.equal(codex.targetSessionId, THREAD);
         noLeak(codex);
-        const deeplink = opened(logFile).at(-1);
+        const deeplink = opened(logFile).at(-1)!;
         const url = new URL(deeplink);
         assert.equal(url.protocol, 'codex:');
         assert.equal(`${url.host}${url.pathname}`, `threads/${THREAD}`);
-        const prompt = url.searchParams.get('prompt');
+        const prompt = url.searchParams.get('prompt')!;
         assert.match(prompt, /\]\(packages\/app\/src\/App\.jsx/);
         assert.equal(/\]\(\//.test(prompt), false);
 
@@ -191,12 +227,12 @@ test('GET /sessions and POST /send enforce token, id, and delivery on the real h
         assert.equal(grok.targetSessionId, GROK);
         noLeak(grok);
         const launches = fs.readdirSync(path.join(project, '.intent-inspector', 'launches'));
-        const launcher = launches.find((name) => name.endsWith('.command') || name.endsWith('.cmd'));
+        const launcher = launches.find((name) => name.endsWith('.command') || name.endsWith('.cmd'))!;
         const script = fs.readFileSync(path.join(project, '.intent-inspector', 'launches', launcher), 'utf8');
         const sessionCwd = fs.realpathSync(repo);
         assert.match(script, new RegExp(shellSingleQuote(sessionCwd).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
         assert.match(script, new RegExp(`--resume '${GROK}'`));
-        const promptFile = launches.find((name) => name.endsWith('.prompt.txt'));
+        const promptFile = launches.find((name) => name.endsWith('.prompt.txt'))!;
         const promptText = fs.readFileSync(path.join(project, '.intent-inspector', 'launches', promptFile), 'utf8');
         assert.match(promptText, /@packages\/app\/src\/App\.jsx/);
 

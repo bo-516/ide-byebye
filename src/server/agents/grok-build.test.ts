@@ -286,7 +286,8 @@ test('resume launchers add --resume before permission mode in bash and PowerShel
         resumeSessionId: id,
     });
     const encoded = script.match(/-EncodedCommand\s+(\S+)/)?.[1];
-    const program = Buffer.from(encoded, 'base64').toString('utf16le');
+    // Optional match typing includes undefined; the capture is present on this launcher.
+    const program = Buffer.from(encoded!, 'base64').toString('utf16le');
     assert.match(program, /--cwd 'C:\\session' --resume '01a0d2e5-6e44-7b51-b736-be5fef078a2e' --permission-mode 'plan' --verbatim \$prompt/);
 });
 

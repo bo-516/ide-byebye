@@ -32,7 +32,7 @@ async function getSession(origin: string, headers: Record<string, string>) {
                 catch {
                     // plain-text fallthrough responses (404) stay as text
                 }
-                resolve({ status: res.statusCode, body, headers: res.headers });
+                resolve({ status: res.statusCode!, body, headers: res.headers });
             });
         });
         req.on('error', reject);
@@ -43,14 +43,14 @@ async function getSession(origin: string, headers: Record<string, string>) {
 test('angularProxy returns a proxy entry for the inspector routes; enabled:false starts nothing', async () => {
     assert.deepEqual(await angularProxy({ enabled: false }), {});
     const proxy = await angularProxy({ root: process.cwd() });
-    const entry = proxy['/__intent-inspector'];
+    const entry = proxy['/__intent-inspector']!;
     assert.match(entry.target, /^http:\/\/127\.0\.0\.1:\d+$/);
     assert.equal(entry.secure, false);
 });
 
 test('/session serves same-origin local pages only, as non-executable JSON with a relative client URL', async () => {
     const runtime = createInspectorRuntime({}, { exposeSession: true });
-    const { origin } = await runtime.ensureServer();
+    const origin = await startedOrigin(runtime);
     const ok = await getSession(origin, { host: 'localhost:4200', 'sec-fetch-site': 'same-origin' });
     assert.equal(ok.status, 200);
     assert.equal(ok.headers['x-content-type-options'], 'nosniff');
@@ -66,7 +66,7 @@ test('/session serves same-origin local pages only, as non-executable JSON with 
 
 test('/session does not exist on runtimes created by the bundler adapters', async () => {
     const runtime = createInspectorRuntime({});
-    const { origin } = await runtime.ensureServer();
+    const origin = await startedOrigin(runtime);
     const res = await getSession(origin, { host: 'localhost:4200', 'sec-fetch-site': 'same-origin' });
     assert.equal(res.status, 404);
 });
@@ -78,21 +78,37 @@ test('/session does not exist on runtimes created by the bundler adapters', asyn
  * @param {Record<string, unknown>} [windowProps] Initial window properties.
  * @returns {Promise<{ context: vm.Context, appended: string[], warnings: string[] }>} Sandbox state after it settles.
  */
-async function runBootstrap(fetchImpl, windowProps = {}) {
-    const appended = [];
-    const warnings = [];
-    const head = { appendChild: (node) => appended.push(node.src) };
+async function runBootstrap(fetchImpl: (url: string) => Promise<any>, windowProps: Record<string, unknown> = {}) {
+    const appended: string[] = [];
+    const warnings: string[] = [];
+    const head = { appendChild: (node: { src: string }) => appended.push(node.src) };
     const window: Record<string, unknown> = { ...windowProps };
     Object.assign(window, {
         window,
         fetch: fetchImpl,
         document: { head, documentElement: head, createElement: () => ({}) },
-        console: { warn: (msg) => warnings.push(msg) },
+        console: { warn: (msg: string) => warnings.push(msg) },
     });
     const context = vm.createContext(window);
     vm.runInContext(buildAngularBootstrapScript(), context);
     await new Promise((resolve) => setTimeout(resolve, 10));
     return { context, appended, warnings };
+}
+
+/**
+ * Loopback origin after the runtime has started its inspector server.
+ *
+ * Boundary: a strict check of `plugin-runtime` infers `ensureServer` as `Promise<null>` because `serverPromise` is
+ * initialized to `null` and never widened. The live value is `{ origin }`. A runtime that does not resolve throws
+ * when `origin` is read.
+ *
+ * @param {{ ensureServer: () => Promise<unknown> }} runtime Runtime from {@link createInspectorRuntime}.
+ * @returns {Promise<string>} `http://127.0.0.1:<port>`.
+ */
+async function startedOrigin(runtime: { ensureServer: () => Promise<unknown> }): Promise<string> {
+    // plugin-runtime's ensureServer collapses to null under strict checking; the server still has origin.
+    const info = (await runtime.ensureServer()) as { origin: string };
+    return info.origin;
 }
 
 /** Fake `fetch` response. */

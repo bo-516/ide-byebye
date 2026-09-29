@@ -25,7 +25,7 @@ function makeTempDir() {
  *
  * @param {string} dir Absolute path to remove.
  */
-function rimraf(dir) {
+function rimraf(dir: string) {
     fs.rmSync(dir, { recursive: true, force: true });
 }
 

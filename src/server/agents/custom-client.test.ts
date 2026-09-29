@@ -31,10 +31,23 @@ function makeRequest(overrides: any = {}) {
     };
 }
 
-/** Agent context with a captured event log, mirroring what the send route passes in. */
+/**
+ * Agent context with a captured event log, mirroring what the send route passes in.
+ *
+ * @param prompt Already-assembled prompt. An empty string is delivered as-is; tests that omit it use `PROMPT`.
+ * @returns Context whose `emit` appends each event so assertions can read `events`.
+ */
 function makeContext(prompt = 'PROMPT\n') {
-    const events = [];
-    return { prompt, events, projectRoot: '/repo', outputDir: '/repo/.intent-inspector', emit: (event) => events.push(event) };
+    const events: Array<{ type: string }> = [];
+    return {
+        prompt,
+        events,
+        projectRoot: '/repo',
+        outputDir: '/repo/.intent-inspector',
+        emit: (event: { type: string }) => {
+            events.push(event);
+        },
+    };
 }
 
 test('normalizeCustomAgents defaults to a postMessage client', () => {
@@ -159,7 +172,7 @@ test('postMessage client hands the delivery instruction back to the browser', as
     assert.equal(result.deliver.targetOrigin, 'http://localhost:1420');
     assert.equal(result.deliver.label, 'Grok Desktop');
     assert.equal(result.deliver.payload.prompt, 'PROMPT\n');
-    assert.deepEqual(result.events.map((event) => event.type), ['started', 'completed']);
+    assert.deepEqual(result.events.map((event: { type: string }) => event.type), ['started', 'completed']);
     assert.deepEqual(context.events.map((event: any) => event.type), ['started', 'completed']);
 });
 
@@ -170,8 +183,8 @@ test('http client posts the payload as JSON with the configured method and heade
         url: 'http://127.0.0.1:8787/api/inspector/prompt',
         headers: { Authorization: 'Bearer x' },
     }]);
-    const calls = [];
-    const fetchImpl = async (url, init) => {
+    const calls: Array<{ url: string; init: { method: string; headers: Record<string, string>; body: string } }> = [];
+    const fetchImpl = async (url: string, init: { method: string; headers: Record<string, string>; body: string }) => {
         calls.push({ url, init });
         return { ok: true, status: 202 };
     };
