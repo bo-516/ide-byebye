@@ -21,7 +21,7 @@ const MAX_COMP = DEFAULT_MAX_COMPONENT_LINES;
  * @param {number} column
  * @param {number} [maxComponentLines]
  */
-function extract(code, line, column, maxComponentLines = MAX_COMP) {
+function extract(code: string, line: number, column: number, maxComponentLines = MAX_COMP) {
     try {
         return extractJsxFromCode(code, line, column, MAX_CTX, maxComponentLines);
     }

@@ -1,8 +1,8 @@
 import { el, revealDropdownPanel } from '../dialog/dialog-utils.js';
 import { RecordingSession, recordingDurationMs, segmentsDuration, combineSegments } from './recorder.js';
-import { captureRecordingStill } from './recording-still.js';
+import { captureRecordingStill, type RecordingStillImage } from './recording-still.js';
 import { openRecordingViewer } from './recording-viewer.js';
-import { RECORDING_SCOPES, recordingScopeLabel, uniqueSelector, scopeTargetElement } from './recording-scope.js';
+import { RECORDING_SCOPES, recordingScopeLabel, uniqueSelector, scopeTargetElement, type RecordingScope } from './recording-scope.js';
 import { t } from '../lib/i18n.js';
 
 /**
@@ -10,8 +10,39 @@ import { t } from '../lib/i18n.js';
  * @param {number} ms Duration in milliseconds.
  * @returns {string} Short label.
  */
-function durationLabel(ms) {
+function durationLabel(ms: number): string {
     return `${(Math.max(0, ms) / 1000).toFixed(1)}s`;
+}
+
+/** One captured clip kept for the current dialog open. `still` stays null until rasterization finishes. */
+interface DialogRecording {
+    id: string;
+    events: Array<Record<string, unknown>>;
+    durationMs: number;
+    segments: Array<{ t0: number; t1: number }>;
+    stillAt: number;
+    still: RecordingStillImage | null;
+    capturing: boolean;
+    scope: RecordingScope;
+    scopeSelector: string | undefined;
+}
+
+/**
+ * Dialog callbacks this controller uses.
+ *
+ * Boundary: `config()` is the injected page config. It is `object` because the dialog types only `enabledAgents` and
+ * that interface has no string index signature; `recording` is read with a cast. `parent()` is a `ParentNode` (the
+ * shadow root) because the floating control is mounted with `append`, which `Node` does not have.
+ */
+interface DialogRecordingHost {
+    config: () => object;
+    backdrop: () => Element | null;
+    parent: () => ParentNode;
+    selectedElement: () => Element | null;
+    setDialogHidden: (hidden: boolean) => void;
+    reposition: () => void;
+    showError: (text: string) => void;
+    onChange?: () => void;
 }
 
 /**
@@ -24,36 +55,41 @@ function durationLabel(ms) {
  * Each recording is scoped (selected node / its parent / app mount root) so the still and viewer focus that subtree.
  */
 export class DialogRecordingController {
-    controlLabel: any;
-    pendingScopeSelector: any;
-    pendingScope: any;
-    host;
-    button = null;
-    menu = null;
-    scopeChoiceButtons = new Map();
-    previewEl = null;
-    control = null;
+    // Definite-assignment markers erase. These stay unset until a recording starts, instead of beginning as null.
+    controlLabel!: HTMLElement | null;
+    pendingScopeSelector!: string | undefined;
+    pendingScope!: RecordingScope | undefined;
+    host: DialogRecordingHost;
+    button: HTMLButtonElement | null = null;
+    menu: HTMLElement | null = null;
+    scopeChoiceButtons = new Map<RecordingScope, HTMLButtonElement>();
+    previewEl: HTMLElement | null = null;
+    control: HTMLElement | null = null;
     timerId = 0;
-    session = null;
-    recordings = [];
+    session: RecordingSession | null = null;
+    recordings: DialogRecording[] = [];
     seq = 0;
-    scope = 'selection';
+    scope: RecordingScope = 'selection';
 
     /**
-     * @param {{ config: () => Record<string, unknown>, backdrop: () => (Element|null), parent: () => Node, selectedElement: () => (Element|null), setDialogHidden: (hidden: boolean) => void, reposition: () => void, showError: (t: string) => void, onChange?: () => void }} host Dialog host callbacks.
+     * @param {DialogRecordingHost} host Dialog host callbacks. See {@link DialogRecordingHost}.
      */
-    constructor(host) {
+    constructor(host: DialogRecordingHost) {
         this.host = host;
     }
 
     /** Whether the recording feature is enabled by plugin config. @returns {boolean} */
-    isEnabled() {
-        return this.host.config()?.recording?.enabled === true;
+    isEnabled(): boolean {
+        // `recording` is on the injected config but not on the dialog's `enabledAgents`-only type.
+        // Optional chaining matches the previous `config()?.recording?.enabled` when `config()` is nullish.
+        const config = this.host.config() as { recording?: { enabled?: unknown } } | null | undefined;
+        return config?.recording?.enabled === true;
     }
 
     /** Privacy block-class for replay/still, from config. @returns {string} */
-    blockClass() {
-        const cls = this.host.config()?.recording?.mask?.blockClass;
+    blockClass(): string {
+        const config = this.host.config() as { recording?: { mask?: { blockClass?: unknown } } } | null | undefined;
+        const cls = config?.recording?.mask?.blockClass;
         return typeof cls === 'string' && cls ? cls : 'rr-block';
     }
 
@@ -83,7 +119,7 @@ export class DialogRecordingController {
      * @param {HTMLElement} previewEl Thumbnail container owned by the current dialog.
      * @returns {void}
      */
-    attachPreview(previewEl) {
+    attachPreview(previewEl: HTMLElement): void {
         this.previewEl = previewEl;
         if (this.previewEl)
             this.previewEl.hidden = true;
@@ -97,49 +133,53 @@ export class DialogRecordingController {
      * dialog opens.
      * @returns {HTMLElement | null} Tool wrapper (button + popover), or null when disabled.
      */
-    renderButton() {
+    renderButton(): HTMLElement | null {
         if (!this.isEnabled())
             return null;
-        const wrapper = el('div', 'cii-screenshot-picker cii-rec-picker');
-        this.button = el('button', 'cii-icon-btn cii-rec-toggle');
-        this.button.type = 'button';
-        this.button.dataset.ciiTip = t('recording.toggle.title');
-        this.button.setAttribute('aria-label', t('recording.toggle.title'));
-        this.button.setAttribute('aria-haspopup', 'menu');
-        this.button.append(el('span', 'cii-rec-icon'));
-        this.button.addEventListener('click', (event) => {
+        const wrapper = el('div', 'cii-screenshot-picker cii-rec-picker') as HTMLElement;
+        // `el` is untyped. Locals (not `this.button` / `this.menu`) stay non-null inside the click callbacks,
+        // which run later and would otherwise see the `HTMLElement | null` field type.
+        const button = el('button', 'cii-icon-btn cii-rec-toggle') as HTMLButtonElement;
+        this.button = button;
+        button.type = 'button';
+        button.dataset.ciiTip = t('recording.toggle.title');
+        button.setAttribute('aria-label', t('recording.toggle.title'));
+        button.setAttribute('aria-haspopup', 'menu');
+        button.append(el('span', 'cii-rec-icon'));
+        const menu = el('div', 'cii-screenshot-menu cii-rec-menu') as HTMLElement;
+        this.menu = menu;
+        button.addEventListener('click', (event) => {
             event.stopPropagation();
-            if (this.menu.hidden)
-                revealDropdownPanel(this.button, this.menu);
+            if (menu.hidden)
+                revealDropdownPanel(button, menu);
             else
-                this.menu.hidden = true;
+                menu.hidden = true;
         });
-        this.menu = el('div', 'cii-screenshot-menu cii-rec-menu');
-        this.menu.hidden = true;
-        this.menu.append(el('div', 'cii-menu-caption', t('recording.scope.title')));
+        menu.hidden = true;
+        menu.append(el('div', 'cii-menu-caption', t('recording.scope.title')));
         this.scopeChoiceButtons = new Map();
         for (const value of RECORDING_SCOPES)
-            this.menu.append(this.renderScopeChoice(value));
-        const start = el('button', 'cii-rec-start', t('recording.start'));
+            menu.append(this.renderScopeChoice(value));
+        const start = el('button', 'cii-rec-start', t('recording.start')) as HTMLButtonElement;
         start.type = 'button';
         start.addEventListener('click', (event) => {
             event.stopPropagation();
-            this.menu.hidden = true;
+            menu.hidden = true;
             void this.start();
         });
-        this.menu.append(start);
+        menu.append(start);
         this.updateScopeMarks();
-        wrapper.append(this.button, this.menu);
+        wrapper.append(button, menu);
         return wrapper;
     }
 
     /**
      * Render one scope choice row (label + check when active); picking a scope keeps the popover open for Start.
-     * @param {'selection'|'parent'|'root'} scope Scope value.
+     * @param {RecordingScope} scope Scope value.
      * @returns {HTMLButtonElement} Choice button.
      */
-    renderScopeChoice(scope) {
-        const button = el('button', 'cii-screenshot-choice');
+    renderScopeChoice(scope: RecordingScope): HTMLButtonElement {
+        const button = el('button', 'cii-screenshot-choice') as HTMLButtonElement;
         button.type = 'button';
         button.append(el('span', 'cii-choice-mark'), el('span', 'cii-choice-label', recordingScopeLabel(scope)));
         button.addEventListener('click', (event) => {
@@ -167,7 +207,7 @@ export class DialogRecordingController {
      * @param {EventTarget | null} target Event target from the dialog mousedown listener.
      * @returns {void}
      */
-    closeMenuFromOutside(target) {
+    closeMenuFromOutside(target: EventTarget | null): void {
         if (!this.menu || !this.button || this.menu.hidden)
             return;
         if (target instanceof Node && !this.button.contains(target) && !this.menu.contains(target)) {
@@ -176,7 +216,7 @@ export class DialogRecordingController {
     }
 
     /** Disable/enable the record tool during busy dialog states; disabling also closes its popover. @param {boolean} disabled @returns {void} */
-    setDisabled(disabled) {
+    setDisabled(disabled: boolean): void {
         if (this.button)
             this.button.disabled = disabled;
         if (disabled && this.menu)
@@ -233,7 +273,7 @@ export class DialogRecordingController {
             return;
         }
         this.seq += 1;
-        const recording = {
+        const recording: DialogRecording = {
             id: `rec-${this.seq}`,
             events,
             durationMs,
@@ -263,11 +303,11 @@ export class DialogRecordingController {
         const parent = this.host.parent?.();
         if (!parent)
             return;
-        const control = el('div', 'cii-rec-indicator');
+        const control = el('div', 'cii-rec-indicator') as HTMLElement;
         control.style.pointerEvents = 'auto';
         const dot = el('span', 'cii-rec-indicator-dot');
-        this.controlLabel = el('span', 'cii-rec-indicator-text', t('recording.indicator.recording', { time: durationLabel(0) }));
-        const stop = el('button', 'cii-rec-indicator-stop', t('recording.stop'));
+        this.controlLabel = el('span', 'cii-rec-indicator-text', t('recording.indicator.recording', { time: durationLabel(0) })) as HTMLElement;
+        const stop = el('button', 'cii-rec-indicator-stop', t('recording.stop')) as HTMLButtonElement;
         stop.type = 'button';
         stop.addEventListener('click', (event) => {
             event.preventDefault();
@@ -316,10 +356,10 @@ export class DialogRecordingController {
     /**
      * Capture (or refresh) the still frame for a recording at its current clip range and scope.
      * Boundary: capture failures mark the recording not-capturing and report the error; the segment is kept for retry.
-     * @param {Record<string, unknown>} recording Recording entry to refresh.
+     * @param {DialogRecording} recording Recording entry to refresh.
      * @returns {Promise<void>} Resolves after the still is captured or the attempt fails.
      */
-    async captureStill(recording) {
+    async captureStill(recording: DialogRecording): Promise<void> {
         recording.capturing = true;
         this.renderPreviews();
         try {
@@ -349,7 +389,7 @@ export class DialogRecordingController {
         this.previewEl.innerHTML = '';
         this.previewEl.hidden = this.recordings.length === 0;
         for (const recording of this.recordings) {
-            const item = el('div', 'cii-screenshot-thumb cii-recording-thumb');
+            const item = el('div', 'cii-screenshot-thumb cii-recording-thumb') as HTMLElement;
             item.tabIndex = 0;
             item.setAttribute('role', 'button');
             item.setAttribute('aria-label', t('recording.thumb.aria'));
@@ -381,11 +421,11 @@ export class DialogRecordingController {
 
     /**
      * Build the remove button for one recording thumbnail.
-     * @param {Record<string, unknown>} recording Recording entry to remove.
+     * @param {DialogRecording} recording Recording entry to remove.
      * @returns {HTMLButtonElement} Remove button.
      */
-    renderRemove(recording) {
-        const remove = el('button', 'cii-thumb-remove', '×');
+    renderRemove(recording: DialogRecording): HTMLButtonElement {
+        const remove = el('button', 'cii-thumb-remove', '×') as HTMLButtonElement;
         remove.type = 'button';
         remove.setAttribute('aria-label', t('recording.remove.aria'));
         remove.addEventListener('click', (event) => {
@@ -400,15 +440,17 @@ export class DialogRecordingController {
 
     /**
      * Open the clip/playback viewer for one recording, focused on the recorded scope.
-     * @param {Record<string, unknown>} recording Recording entry to view.
+     * @param {DialogRecording} recording Recording entry to view.
      * @returns {void}
      */
-    openViewer(recording) {
+    openViewer(recording: DialogRecording): void {
         if (!this.host.backdrop())
             return;
         // Attach the viewer to the shadow root (not the dialog backdrop): no scrim-level filter, transform, or containment
         // can then become the containing block of its `position:fixed` shell and collapse the full-screen viewer.
-        const parent = this.host.parent ? this.host.parent() : this.host.backdrop();
+        // `backdrop()` is `Element | null`; the early return above only proves a previous call was non-null. The cast
+        // keeps the viewer's `ParentNode` parameter without adding a runtime branch (a null parent still throws on append).
+        const parent = (this.host.parent ? this.host.parent() : this.host.backdrop()) as ParentNode;
         void openRecordingViewer({
             parent,
             config: this.host.config(),
@@ -433,7 +475,7 @@ export class DialogRecordingController {
     async buildPayloadRecordings() {
         if (!this.recordings.length)
             return undefined;
-        const entries = [];
+        const entries: Array<Record<string, unknown>> = [];
         for (const recording of this.recordings) {
             if (!recording.still)
                 await this.captureStill(recording);

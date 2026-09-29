@@ -1,5 +1,5 @@
 import { svgDataUri } from './icons.js';
-import { AGENT_MARKS } from './agent-marks.js';
+import { AGENT_MARKS, type AgentMark } from './agent-marks.js';
 
 /**
  * Brand mark for each built-in destination. The two Antigravity launchers get separate marks: they share Google's glyph
@@ -9,7 +9,7 @@ import { AGENT_MARKS } from './agent-marks.js';
  * destination missing here — every client from `agents.custom` — keeps the glyph for its kind.
  * @type {Record<string, string>} Brand key by agent id.
  */
-export const AGENT_MARK_BRANDS = {
+export const AGENT_MARK_BRANDS: Record<string, string> = {
     'codex-app': 'codex',
     'claude-app': 'claude',
     'cursor-app': 'cursor',
@@ -23,7 +23,7 @@ export const AGENT_MARK_BRANDS = {
  * @param {string} brand Brand key. @param {Record<string, string>} brands Brand key by agent id.
  * @returns {string} Selector list; empty when no destination uses the brand.
  */
-function slotSelector(brand, brands) {
+function slotSelector(brand: string, brands: Record<string, string>): string {
     return Object.keys(brands)
         .filter((agent) => brands[agent] === brand)
         .map((agent) => `.cii-agent-kind[data-agent="${agent}"]`)
@@ -42,16 +42,17 @@ function slotSelector(brand, brands) {
  * Boundary: pure; must be composed after DESTINATION_STYLE. Mark SVGs must be free of double quotes. Brands no
  * destination uses produce a property but no rule.
  *
- * @param {Record<string, { image?: string, mask?: string }>} marks Marks keyed by brand (normally `AGENT_MARKS`).
+ * @param {Record<string, { image: string, mask?: string } | { mask: string, image?: string }>} marks Marks keyed by brand (normally `AGENT_MARKS`).
  * @param {Record<string, string>} [brands] Brand key by agent id; defaults to `AGENT_MARK_BRANDS`.
  * @returns {string} CSS text.
  */
-export function agentIconsStyle(marks, brands = AGENT_MARK_BRANDS) {
-    const properties = [];
-    const rules = [];
-    const monochrome = [];
+export function agentIconsStyle(marks: Record<string, AgentMark>, brands: Record<string, string> = AGENT_MARK_BRANDS): string {
+    const properties: string[] = [];
+    const rules: string[] = [];
+    const monochrome: string[] = [];
     for (const [brand, mark] of Object.entries(marks)) {
-        properties.push(`--cii-mark-${brand}:${svgDataUri(mark.image ?? mark.mask)} center/contain no-repeat;`);
+        // The union always has `image` or `mask`. `??` does not narrow that, and `!` erases to the same read.
+        properties.push(`--cii-mark-${brand}:${svgDataUri(mark.image ?? mark.mask!)} center/contain no-repeat;`);
         const selector = slotSelector(brand, brands);
         if (!selector)
             continue;

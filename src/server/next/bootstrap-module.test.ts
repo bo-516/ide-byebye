@@ -37,7 +37,7 @@ test('placeholder and live modules are valid client components; only live ones c
 test('isBootstrapServerAlive accepts only a live loopback server with the right token', async () => {
     const runtime = createInspectorRuntime({});
     const statement = await runtime.bootstrapStatement();
-    const src = readBootstrapClientSrc(statement);
+    const src = readBootstrapClientSrc(statement)!;
     assert.equal(await isBootstrapServerAlive(src), true);
     assert.equal(await isBootstrapServerAlive(src.replace(/token=[^&]+/, 'token=wrong')), false);
     assert.equal(await isBootstrapServerAlive('http://example.com/__intent-inspector/client.js?token=t'), false);

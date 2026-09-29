@@ -15,9 +15,9 @@ import { isViteClientModule } from './vite-client.js';
  * @param {Record<string, unknown>} [windowProps] Initial window properties.
  * @returns {{ context: vm.Context, appended: Array<{ type: string, src: string }> }} Sandbox and script log.
  */
-function browser(windowProps = {}) {
-    const appended = [];
-    const head = { appendChild: (node) => appended.push({ type: node.type, src: node.src }) };
+function browser(windowProps: Record<string, unknown> = {}) {
+    const appended: Array<{ type: string, src: string }> = [];
+    const head = { appendChild: (node: { type: string, src: string }) => appended.push({ type: node.type, src: node.src }) };
     const window: Record<string, unknown> = { ...windowProps };
     const document = { head, documentElement: head, createElement: () => ({}) };
     window.window = window;
@@ -25,7 +25,7 @@ function browser(windowProps = {}) {
     return { context: vm.createContext(window), appended };
 }
 
-const statement = (token) => buildBootstrapStatement({
+const statement = (token: string) => buildBootstrapStatement({
     config: { token, apiOrigin: 'http://127.0.0.1:4000', locale: 'en' },
     clientSrc: `http://127.0.0.1:4000/__intent-inspector/client.js?token=${token}`,
 });
@@ -62,8 +62,8 @@ test('is inert on the server (no window / document)', () => {
 });
 
 test('console filter installs once, drops data-insp-path warnings, and keeps other warnings', () => {
-    const warnings = [];
-    const errors = [];
+    const warnings: string[] = [];
+    const errors: string[] = [];
     const origWarn = () => warnings.push('kept');
     const origError = () => errors.push('kept');
     const { context } = browser();

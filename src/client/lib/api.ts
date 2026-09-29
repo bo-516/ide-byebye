@@ -7,11 +7,11 @@ import { ENDPOINTS, TOKEN_HEADER } from '../../shared/constants.js';
  * are used as a compatibility fallback and will follow the current page domain. Passing an endpoint without a leading
  * slash can create an invalid URL and route requests away from the inspector server.
  *
- * @param {Record<string, unknown>} config Browser config injected by the Vite plugin.
+ * @param {{ apiOrigin?: string, token: string }} config Browser config injected by the Vite plugin.
  * @param {string} endpoint Inspector endpoint path.
  * @returns {string} Absolute or fallback relative URL for the inspector endpoint.
  */
-function resolveEndpointUrl(config, endpoint) {
+function resolveEndpointUrl(config: { apiOrigin?: string; token: string }, endpoint: string): string {
     if (typeof config.apiOrigin === 'string' && config.apiOrigin) {
         return `${config.apiOrigin}${endpoint}`;
     }
@@ -27,10 +27,12 @@ function resolveEndpointUrl(config, endpoint) {
  * captured), so a JS bootstrap that rotates them in place after an inspector-server restart keeps a running client
  * working. A wrong `apiOrigin` sends route resolution, agent discovery, and agent send requests to the wrong host.
  *
- * @param {Record<string, unknown>} config Browser config injected by the plugin (the live global object).
+ * @param {{ apiOrigin?: string, token: string }} config Browser config injected by the plugin (the live global object).
+ *   `token` is sent as-is; a missing token still reaches `encodeURIComponent` only if the property is actually absent.
  * @returns {{ resolve: Function, send: Function, agents: Function, sessions: Function }} Inspector API methods used by the picker dialog.
+ *   JSON bodies stay untyped (`Response.json` is `any`) so `resolve` / `send` / `agents` stay assignable to the dialog.
  */
-export function createApi(config) {
+export function createApi(config: { apiOrigin?: string; token: string }) {
     /**
      * Request headers for the current token.
      *
@@ -48,10 +50,10 @@ export function createApi(config) {
      * wrong tokens fail server-side; wrong endpoint paths make the request bypass the inspector router.
      *
      * @param {string} url Inspector endpoint path.
-     * @param {Record<string, unknown>} body JSON payload sent to the inspector server.
-     * @returns {Promise<Record<string, unknown>>} Parsed JSON response from the inspector server.
+     * @param {object} body JSON payload sent to the inspector server. `object` (not a string index) matches the dialog.
+     * @returns {Promise<any>} Parsed JSON. Left as `any` so it satisfies `ResolveResult` / `SendResult`.
      */
-    async function postJson(url, body) {
+    async function postJson(url: string, body: object) {
         const res = await fetch(`${resolveEndpointUrl(config, url)}?token=${encodeURIComponent(config.token)}`, {
             method: 'POST',
             headers: headers(),
@@ -62,8 +64,8 @@ export function createApi(config) {
     }
 
     return {
-        resolve: (payload) => postJson(ENDPOINTS.resolve, payload),
-        send: (payload) => postJson(ENDPOINTS.send, payload),
+        resolve: (payload: object) => postJson(ENDPOINTS.resolve, payload),
+        send: (payload: object) => postJson(ENDPOINTS.send, payload),
         async agents() {
             const res = await fetch(`${resolveEndpointUrl(config, ENDPOINTS.agents)}?token=${encodeURIComponent(config.token)}`, {
                 headers: headers(),
@@ -80,7 +82,7 @@ export function createApi(config) {
          * @param {string} agent Agent id (`codex-app`, `grok-build`, `antigravity-ide`).
          * @returns {Promise<Record<string, unknown>>} Catalog JSON (`ok`, `sessions`, `delivery`, optional `notice` / `code`).
          */
-        async sessions(agent) {
+        async sessions(agent: string) {
             const url = `${resolveEndpointUrl(config, ENDPOINTS.sessions)}?agent=${encodeURIComponent(agent)}&token=${encodeURIComponent(config.token)}`;
             const res = await fetch(url, {
                 headers: headers(),

@@ -63,7 +63,7 @@ async function waitFor(predicate: () => boolean) {
 const FAKE_INSPECTOR: any = {
     root: '/work/app',
     bootstrapFile: '/work/app/.intent-inspector/next/bootstrap.js',
-    bootstrapFileFor: (dir) => path.join(dir, '.intent-inspector/next/bootstrap.js'),
+    bootstrapFileFor: (dir: string) => path.join(dir, '.intent-inspector/next/bootstrap.js'),
 };
 
 test('outside next dev the config is returned untouched', () => {
@@ -74,7 +74,7 @@ test('outside next dev the config is returned untouched', () => {
 
 test('next dev: rules land under turbopack.rules, user config and rules are preserved', async () => {
     const root = tempRoot();
-    const userWebpack = (config) => ({ ...config, marker: 'user' });
+    const userWebpack = (config: Record<string, unknown>) => ({ ...config, marker: 'user' });
     const out: any = withNodeEnv('development', () => withIdeByebye({
         reactStrictMode: true,
         turbopack: { resolveAlias: { a: 'b' }, rules: { '*.svg': { loaders: ['@svgr/webpack'], as: '*.js' } } },

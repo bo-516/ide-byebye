@@ -27,7 +27,7 @@ export const LOCALES = ['zh', 'en'];
  *
  * @type {Record<string, { zh: string, en: string }>}
  */
-const STRINGS = {
+const STRINGS: Record<string, { zh: string; en: string }> = {
     // --- intent editor / dialog shell ---
     'intent.placeholder': {
         zh: '例如：把这个按钮改成主按钮，并加 loading 状态',
@@ -275,8 +275,8 @@ const STRINGS = {
     'session.notice.unsupportedFormat': { zh: '无法识别本机 {label} 的会话数据格式', en: 'This machine\'s {label} session data is not recognized' },
 };
 
-/** Active locale, lazily resolved on first use. @type {string | null} */
-let currentLocale = null;
+/** Active locale, lazily resolved on first use. `null` means "not resolved yet", not an unknown language. */
+let currentLocale: 'zh' | 'en' | null = null;
 
 /**
  * Detect the locale from the injected plugin config first, then the browser language, defaulting to Chinese.
@@ -286,8 +286,11 @@ let currentLocale = null;
  *
  * @returns {'zh' | 'en'} Resolved locale id.
  */
-function detectLocale() {
-    const config = typeof window !== 'undefined' ? window[CLIENT_CONFIG_GLOBAL] : null;
+function detectLocale(): 'zh' | 'en' {
+    // `CLIENT_CONFIG_GLOBAL` is a string, so it is not a key of `Window`. The cast erases.
+    const config = typeof window !== 'undefined'
+        ? (window as unknown as Record<string, { locale?: unknown } | undefined>)[CLIENT_CONFIG_GLOBAL]
+        : null;
     const fromConfig = normalizeLocale(config && typeof config === 'object' ? config.locale : null);
     if (fromConfig)
         return fromConfig;
@@ -300,7 +303,7 @@ function detectLocale() {
  *
  * @returns {'zh' | 'en'} Active locale id.
  */
-export function getLocale() {
+export function getLocale(): 'zh' | 'en' {
     if (!currentLocale)
         currentLocale = detectLocale();
     return currentLocale;
@@ -315,7 +318,7 @@ export function getLocale() {
  * @param {unknown} locale Desired locale id.
  * @returns {void}
  */
-export function setLocale(locale) {
+export function setLocale(locale: unknown): void {
     const normalized = normalizeLocale(locale);
     if (normalized)
         currentLocale = normalized;
@@ -325,10 +328,10 @@ export function setLocale(locale) {
  * Interpolate `{name}` tokens in a template string from a params object.
  *
  * @param {string} template Copy possibly containing `{name}` tokens.
- * @param {Record<string, unknown> | undefined} params Replacement values.
+ * @param {Record<string, unknown> | null | undefined} params Replacement values. Null and omitted both skip interpolation.
  * @returns {string} Interpolated string.
  */
-function interpolate(template, params) {
+function interpolate(template: string, params?: Record<string, unknown> | null): string {
     if (!params)
         return template;
     return template.replace(/\{(\w+)\}/g, (match, key) => (key in params ? String(params[key]) : match));
@@ -362,7 +365,7 @@ export function t(key: string, params?: Record<string, unknown> | null): string 
  * @param {'zh' | 'en'} locale Locale to check.
  * @returns {boolean} True when that locale has a non-empty string.
  */
-export function hasString(key, locale) {
+export function hasString(key: string, locale: 'zh' | 'en'): boolean {
     const entry = STRINGS[key];
     return Boolean(entry && typeof entry[locale] === 'string' && entry[locale]);
 }

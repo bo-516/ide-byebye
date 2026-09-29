@@ -103,12 +103,12 @@ export const DEFAULT_STYLE_KEYS = [
  * Boundary: keeps the caller-provided order so a persisted selection round-trips stably; unknown values (from an older
  * stored preference) are dropped instead of reaching the capture pipeline.
  *
- * @param {Iterable<string>} keys Candidate property names.
+ * @param {Iterable<string> | null | undefined} keys Candidate property names. Nullish input is an empty selection.
  * @returns {string[]} Valid property names in their incoming order.
  */
-export function validStyleKeys(keys) {
-    const out = [];
-    const seen = new Set();
+export function validStyleKeys(keys: Iterable<string> | null | undefined): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
     for (const key of keys ?? []) {
         if (STYLE_PROPERTY_SET.has(key) && !seen.has(key)) {
             seen.add(key);
@@ -124,7 +124,7 @@ export function validStyleKeys(keys) {
  * @param {Set<string> | Iterable<string>} selected Selected property names.
  * @returns {string[]} Selected names ordered by the catalog.
  */
-export function orderStyleKeys(selected) {
-    const set = selected instanceof Set ? selected : new Set(selected ?? []);
+export function orderStyleKeys(selected: Set<string> | Iterable<string>): string[] {
+    const set = selected instanceof Set ? selected : new Set<string>(selected ?? []);
     return STYLE_PROPERTY_KEYS.filter((key) => set.has(key));
 }

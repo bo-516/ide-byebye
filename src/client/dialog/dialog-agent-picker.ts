@@ -1,6 +1,36 @@
 import { agentLabel, revealDropdownPanel, visibleAgentActions } from './dialog-utils.js';
-import { agentMenuRows } from './dialog-agent-model.js';
+import { agentMenuRows, type AgentMenuRow } from './dialog-agent-model.js';
 import { createAgentPickerDom, fillAgentMenu, paintAgentTrigger } from './dialog-agent-menu.js';
+import { type DialogSessionController } from './dialog-session-picker.js';
+
+/**
+ * Dialog hooks. `sessions` is the session controller when the dialog has one; omitting it hides every session
+ * affordance. `config` only needs `enabledAgents` — the live config object has more keys and still fits.
+ */
+interface AgentPickerDeps {
+    config: () => { enabledAgents?: string[] };
+    sessions?: DialogSessionController | null;
+    getLastAgent: () => string;
+    rememberAgent: (name: string) => void;
+    onPicked?: () => void;
+}
+
+/** Nodes from {@link createAgentPickerDom}. Kept so refresh can repaint without querying the DOM. */
+interface AgentPickerDom {
+    root: HTMLElement;
+    trigger: HTMLButtonElement;
+    kind: HTMLElement;
+    label: HTMLElement;
+    session: HTMLElement;
+    menu: HTMLElement;
+}
+
+/** `GET /agents` fields this picker reads. Session support is owned by the session controller. */
+interface PickerAvailability {
+    name: string;
+    available?: boolean;
+    reason?: string;
+}
 
 /**
  * Destination picker: the compact trigger beside Send that shows where the prompt goes, and the menu that changes it.
@@ -12,53 +42,51 @@ import { createAgentPickerDom, fillAgentMenu, paintAgentTrigger } from './dialog
  * across dialog opens and `render()` rebuilds its DOM each time; methods called before the first render are no-ops.
  */
 export class DialogAgentPicker {
-    deps;
-    onKey;
-    dom = null;
-    rootEl = null;
-    triggerEl = null;
-    menuEl = null;
-    rows = [];
-    buttons = [];
+    deps: AgentPickerDeps;
+    onKey: (event: KeyboardEvent) => void;
+    dom: AgentPickerDom | null = null;
+    rootEl: HTMLElement | null = null;
+    triggerEl: HTMLButtonElement | null = null;
+    menuEl: HTMLElement | null = null;
+    rows: AgentMenuRow[] = [];
+    buttons: HTMLButtonElement[] = [];
     activeIndex = 0;
-    availability = [];
+    availability: PickerAvailability[] = [];
     disabled = false;
 
     /**
-     * @param {{ config: () => Record<string, unknown>, sessions: { targets: object, supports: Function,
-     * isMenuOpen: Function, closeMenu: Function, openMenu: Function }, getLastAgent: () => string,
-     * rememberAgent: (name: string) => void, onPicked?: () => void }} deps Dialog hooks; `onPicked` runs after a row
-     * is chosen (the dialog returns focus to the editor). Omitting `sessions` hides every session affordance.
+     * @param {AgentPickerDeps} deps Dialog hooks; `onPicked` runs after a row is chosen (the dialog returns focus to the
+     * editor). Omitting `sessions` hides every session affordance.
      */
-    constructor(deps) {
+    constructor(deps: AgentPickerDeps) {
         this.deps = deps;
-        this.onKey = (event) => this.onMenuKey(event);
+        this.onKey = (event: KeyboardEvent) => this.onMenuKey(event);
     }
 
     /** Build the trigger + menu for a fresh dialog. @returns {HTMLElement} Wrapper; hidden with no destination. */
-    render() {
+    render(): HTMLElement {
         this.close();
         this.dom = createAgentPickerDom(() => this.toggle());
         this.rootEl = this.dom.root;
         this.triggerEl = this.dom.trigger;
         this.menuEl = this.dom.menu;
         this.refresh();
-        return this.rootEl;
+        return this.rootEl as HTMLElement;
     }
 
-    /** Apply `GET /agents` availability (a non-array clears it). @param {Array<object>} agents List. @returns {void} */
-    setAvailability(agents) {
+    /** Apply `GET /agents` availability (a non-array clears it). @param {PickerAvailability[] | null | undefined} agents List. @returns {void} */
+    setAvailability(agents: PickerAvailability[] | null | undefined): void {
         this.availability = Array.isArray(agents) ? agents : [];
         this.refresh();
     }
 
-    /** The row for the current Enter target, or null. @returns {Record<string, any> | null} */
-    current() {
+    /** The row for the current Enter target, or null. @returns {AgentMenuRow | null} */
+    current(): AgentMenuRow | null {
         return this.rows.find((row) => row.selected) ?? null;
     }
 
     /** Whether any destination is offered on this page. @returns {boolean} */
-    hasDestinations() {
+    hasDestinations(): boolean {
         return this.rows.length > 0;
     }
 
@@ -67,7 +95,7 @@ export class DialogAgentPicker {
      * menu when open). Safe to call at any time.
      * @returns {void}
      */
-    refresh() {
+    refresh(): void {
         const config = this.deps.config() ?? {};
         const sessions = this.deps.sessions;
         const lastAgent = this.deps.getLastAgent();
@@ -76,18 +104,19 @@ export class DialogAgentPicker {
             enabledAgents: config.enabledAgents,
             availability: this.availability,
             targets: sessions?.targets,
-            supports: (name) => sessions?.supports(name) === true,
+            supports: (name: string) => sessions?.supports(name) === true,
         });
         if (!this.dom)
             return;
-        this.rootEl.hidden = this.rows.length === 0;
+        // render() sets rootEl with dom; this return already handled the pre-render call.
+        (this.rootEl as HTMLElement).hidden = this.rows.length === 0;
         paintAgentTrigger(this.dom, this.current(), agentLabel(lastAgent));
         if (this.isOpen())
             this.paint();
     }
 
     /** Open, or close whichever destination menu is showing. @returns {void} */
-    toggle() {
+    toggle(): void {
         if (this.disabled)
             return;
         if (this.isOpen())
@@ -99,7 +128,7 @@ export class DialogAgentPicker {
     }
 
     /** Show the menu with the Enter target highlighted. @returns {void} */
-    open() {
+    open(): void {
         if (!this.menuEl || this.disabled || !this.rows.length)
             return;
         this.activeIndex = Math.max(0, this.rows.findIndex((row) => row.selected));
@@ -109,20 +138,21 @@ export class DialogAgentPicker {
     }
 
     /** Hide the menu and stop listening for its keys; safe when already closed. @returns {void} */
-    close() {
+    close(): void {
         document.removeEventListener('keydown', this.onKey, true);
         if (this.menuEl)
             this.menuEl.hidden = true;
     }
 
     /** Whether the destination menu is showing. @returns {boolean} */
-    isOpen() {
+    isOpen(): boolean {
         return Boolean(this.menuEl && !this.menuEl.hidden);
     }
 
     /** Rebuild the menu rows. @returns {void} */
-    paint() {
-        this.buttons = fillAgentMenu(this.menuEl, this.rows, {
+    paint(): void {
+        // Callers open or refresh an existing menu; a missing element still throws inside fill, as before.
+        this.buttons = fillAgentMenu(this.menuEl as HTMLElement, this.rows, {
             onSelect: (row) => this.select(row),
             onSessions: (row) => this.openSessions(row),
         });
@@ -130,7 +160,7 @@ export class DialogAgentPicker {
     }
 
     /** Highlight the keyboard row. @returns {void} */
-    paintActive() {
+    paintActive(): void {
         this.buttons.forEach((button, index) => {
             button.parentElement?.classList.toggle('cii-agent-row-active', index === this.activeIndex);
         });
@@ -140,7 +170,7 @@ export class DialogAgentPicker {
      * While open: ArrowUp/ArrowDown move, Enter chooses, ArrowRight opens sessions; handled keys never reach the editor.
      * @param {KeyboardEvent} event Keydown in the capture phase. @returns {void}
      */
-    onMenuKey(event) {
+    onMenuKey(event: KeyboardEvent): void {
         if (!this.isOpen() || !this.rows.length)
             return;
         const row = this.rows[this.activeIndex];
@@ -159,21 +189,21 @@ export class DialogAgentPicker {
         event.stopPropagation();
     }
 
-    /** Make `row` the Enter target. @param {Record<string, any>} row Chosen row. @returns {void} */
-    select(row) {
+    /** Make `row` the Enter target. @param {AgentMenuRow} row Chosen row. @returns {void} */
+    select(row: AgentMenuRow): void {
         this.close();
         this.deps.rememberAgent(row.name);
         this.deps.onPicked?.();
     }
 
-    /** Swap to `row`'s session menu at the same trigger. @param {Record<string, any>} row Row. @returns {void} */
-    openSessions(row) {
+    /** Swap to `row`'s session menu at the same trigger. @param {AgentMenuRow} row Row. @returns {void} */
+    openSessions(row: AgentMenuRow): void {
         this.close();
         this.deps.sessions?.openMenu({ name: row.name, label: row.label }, this.triggerEl, () => this.open());
     }
 
     /** Lock the trigger while the dialog is busy. @param {boolean} disabled Busy state. @returns {void} */
-    setDisabled(disabled) {
+    setDisabled(disabled: boolean): void {
         this.disabled = disabled;
         if (this.triggerEl)
             this.triggerEl.disabled = disabled;
@@ -182,13 +212,14 @@ export class DialogAgentPicker {
     }
 
     /** Close when a press lands outside the picker. @param {EventTarget | null} target Press target. @returns {void} */
-    closeMenuFromOutside(target) {
-        if (this.isOpen() && target instanceof Node && !this.rootEl.contains(target))
+    closeMenuFromOutside(target: EventTarget | null): void {
+        // An open menu was rendered, so the wrapper exists; the field stays null only while closed.
+        if (this.isOpen() && target instanceof Node && !(this.rootEl as HTMLElement).contains(target))
             this.close();
     }
 
     /** Escape closes an open menu first. @returns {boolean} True when the menu was closed. */
-    consumeEscape() {
+    consumeEscape(): boolean {
         if (!this.isOpen())
             return false;
         this.close();

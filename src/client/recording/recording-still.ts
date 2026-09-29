@@ -6,6 +6,19 @@ import { t } from '../lib/i18n.js';
 /** rrweb `EventType.Meta` numeric tag; carries the recorded viewport size. */
 const RRWEB_META_EVENT = 4;
 
+/** Encoded still-frame image. `width`/`height` are the raster pixel size, not the CSS viewport. */
+export interface RecordingStillImage {
+    dataUrl: string;
+    width: number;
+    height: number;
+}
+
+/** Width and height carried on an rrweb Meta event. Other payload fields are ignored. */
+interface MetaViewportData {
+    width?: unknown;
+    height?: unknown;
+}
+
 /**
  * Read the recorded viewport size from an rrweb event stream.
  * Boundary: scans for the first Meta event (`type === 4`) with a positive width; recordings always emit one before the
@@ -13,9 +26,11 @@ const RRWEB_META_EVENT = 4;
  * @param {Array<Record<string, unknown>>} events rrweb event stream.
  * @returns {{ width: number, height: number } | null} Recorded viewport size, or null when not found.
  */
-function recordedViewport(events) {
+function recordedViewport(events: Array<Record<string, unknown>>): { width: number; height: number } | null {
     for (const event of events) {
-        const data = event && typeof event === 'object' ? event.data : null;
+        const raw = event && typeof event === 'object' ? event.data : null;
+        // Meta `data` is an untyped rrweb payload; only width/height are read.
+        const data = raw && typeof raw === 'object' ? raw as MetaViewportData : null;
         if (event?.type === RRWEB_META_EVENT && data && Number(data.width) > 0) {
             return { width: Math.ceil(Number(data.width)), height: Math.ceil(Number(data.height)) };
         }
@@ -25,7 +40,7 @@ function recordedViewport(events) {
 
 /** Wait ~two animation frames (with a hidden-tab `setTimeout` fallback) so the rebuilt DOM/layout settles. */
 function twoFrames() {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
         let settled = false;
         const finish = () => {
             if (settled)
@@ -44,7 +59,7 @@ function twoFrames() {
  * @param {Document} doc Replay iframe document.
  * @returns {string} Opaque CSS color.
  */
-function replayBackground(doc) {
+function replayBackground(doc: Document): string {
     const win = doc.defaultView;
     const value = win && doc.body ? win.getComputedStyle(doc.body).backgroundColor : '';
     if (!value || value === 'transparent' || value === 'rgba(0, 0, 0, 0)') {
@@ -61,7 +76,7 @@ function replayBackground(doc) {
  * @param {string | undefined} scopeSelector Selector locating the recorded scope's node.
  * @returns {Element} The scope node, or the document body.
  */
-function findScopeNode(doc, scopeSelector) {
+function findScopeNode(doc: Document, scopeSelector: string | undefined): Element {
     if (scopeSelector) {
         try {
             const found = doc.querySelector(scopeSelector);
@@ -90,14 +105,14 @@ function findScopeNode(doc, scopeSelector) {
  * @param {number} height Wrapper height in CSS pixels.
  * @returns {HTMLDivElement} XHTML-namespaced wrapper ready for `rasterizeNode`.
  */
-function buildReplayWrapper(doc, node, width, height) {
+function buildReplayWrapper(doc: Document, node: Element, width: number, height: number): HTMLDivElement {
     const wrapper = document.createElement('div');
     wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
     wrapper.style.cssText = `width:${width}px;height:${height}px;overflow:hidden;position:relative;`;
     for (const styleEl of doc.querySelectorAll('style')) {
         wrapper.append(styleEl.cloneNode(true));
     }
-    let content;
+    let content: HTMLElement;
     if (node === doc.body) {
         content = document.createElement('div');
         content.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
@@ -110,7 +125,8 @@ function buildReplayWrapper(doc, node, width, height) {
             content.append(bodyClone.firstChild);
     }
     else {
-        content = node.cloneNode(true);
+        // `cloneNode` is typed as Node; cloning an Element yields an Element at runtime.
+        content = node.cloneNode(true) as HTMLElement;
         if (content instanceof HTMLElement) {
             content.style.position = 'static';
             content.style.left = 'auto';
@@ -143,13 +159,15 @@ function buildReplayWrapper(doc, node, width, height) {
  * in the recording (blocked at record time). The offscreen host is always removed, even on failure. `tOffsetMs` is
  * clamped into the recording timeline.
  *
- * @param {Record<string, unknown>} config Browser config injected by the plugin (token/apiOrigin for lazy load).
+ * @param {object} config Browser config injected by the plugin (token/apiOrigin for lazy load).
+ *   `object` rather than `Record<string, unknown>` so the dialog's index-signature-free config stays assignable.
  * @param {Array<Record<string, unknown>>} events rrweb event stream for the (already clipped) segment.
  * @param {number} tOffsetMs Millisecond offset from the segment start to freeze and capture.
  * @param {{ blockClass?: string, scopeSelector?: string }} [options] Replay block class and the scope node selector.
- * @returns {Promise<{ dataUrl: string, width: number, height: number }>} Encoded still-frame image payload.
+ *   Omitted options use rrweb's block class and the whole replay document.
+ * @returns {Promise<RecordingStillImage>} Encoded still-frame image payload.
  */
-export async function captureRecordingStill(config, events, tOffsetMs, options: any = {}) {
+export async function captureRecordingStill(config: object, events: Array<Record<string, unknown>>, tOffsetMs: number, options: { blockClass?: string; scopeSelector?: string } = {}): Promise<RecordingStillImage> {
     if (!Array.isArray(events) || events.length === 0) {
         throw new Error(t('recording.still.empty'));
     }

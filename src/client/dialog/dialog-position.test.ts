@@ -12,8 +12,14 @@ const keepDialogInView = Dialog.prototype.keepDialogInView;
  * capture what the method writes back. The dialog's `style` coordinates equal viewport coordinates in the real UI
  * because the shadow host is a `position: fixed; inset: 0` box, so the mock uses one coordinate space throughout.
  */
-function makeDialog({ left = 100, top = 100, width = 400, height = 400 }) {
-    const style = {};
+function makeDialog({ left = 100, top = 100, width = 400, height = 400 }: {
+    left?: number;
+    top?: number;
+    width?: number;
+    height?: number;
+}) {
+    // Empty object, not seeded left/top. The cast only lets the test write those fields; missing ones stay undefined.
+    const style = {} as { left: string; top: string };
     return {
         style,
         getBoundingClientRect: () => ({ left, top, width, height, right: left + width, bottom: top + height }),
@@ -23,9 +29,10 @@ function makeDialog({ left = 100, top = 100, width = 400, height = 400 }) {
 }
 
 /** Run `fn` with a mocked viewport, restoring any prior global `window` afterward. */
-function withViewport(innerWidth, innerHeight, fn) {
+function withViewport(innerWidth: number, innerHeight: number, fn: () => void) {
     const prev = globalThis.window;
-    globalThis.window = { innerWidth, innerHeight };
+    // The helpers only read innerWidth/innerHeight. The cast keeps the rest of Window out of the stand-in.
+    globalThis.window = { innerWidth, innerHeight } as Window & typeof globalThis;
     try {
         fn();
     }

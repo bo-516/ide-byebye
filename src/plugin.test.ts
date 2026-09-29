@@ -17,7 +17,13 @@ import {
 import { STAMP_NAME } from './server/stamp/stamp-unplugin.js';
 
 test('vite() returns the stamp plugin then the inspector, enforce pre and apply serve', () => {
-    const plugins = vite({ agents: { claudeApp: true } });
+    // `VitePlugin` is only `{ name }` so it nests in Vite's `plugins`. The instance still has these hooks.
+    const plugins = vite({ agents: { claudeApp: true } }) as Array<{
+        name: string;
+        enforce?: string;
+        apply?: string;
+        transform?: { filter?: { id?: unknown } };
+    }>;
     assert.equal(plugins.length, 2);
     assert.equal(plugins[0].name, STAMP_NAME);
     assert.equal(plugins[0].enforce, 'pre');
@@ -27,8 +33,11 @@ test('vite() returns the stamp plugin then the inspector, enforce pre and apply 
 });
 
 test('webpack() and rspack() return appliable compiler plugins', () => {
-    assert.equal(typeof webpack({}).apply, 'function');
-    assert.equal(typeof rspack({}).apply, 'function');
+    // `PluginInstance` is `object`; webpack and rspack are applied through `apply`.
+    const webpackPlugin = webpack({}) as { apply?: unknown };
+    const rspackPlugin = rspack({}) as { apply?: unknown };
+    assert.equal(typeof webpackPlugin.apply, 'function');
+    assert.equal(typeof rspackPlugin.apply, 'function');
 });
 
 test('applying the webpack plugin does not change cache.version', () => {
@@ -43,18 +52,21 @@ test('applying the webpack plugin does not change cache.version', () => {
         webpack: { version: '5.0.0' },
         hooks: { thisCompilation: { tap() {} } },
     };
-    webpack({}).apply(compiler);
+    // Same `object` return as above; the cast only names `apply` for the call.
+    (webpack({}) as { apply: (compiler: unknown) => void }).apply(compiler);
     assert.equal(compiler.options.cache.version, 'v1');
 });
 
 test('rsbuild() returns a plugin with setup()', () => {
-    const plugin = rsbuild({});
+    // `PluginInstance` is `object`; the rsbuild instance exposes `name` and `setup`.
+    const plugin = rsbuild({}) as { name?: string; setup?: unknown };
     assert.equal(plugin.name, 'code-intent-inspector');
     assert.equal(typeof plugin.setup, 'function');
 });
 
 test('esbuild() returns the stamp plugin and the inspector, both with setup', () => {
-    const plugins = esbuild({ htmlFiles: ['./index.html'] });
+    // `PluginInstance` is `object`; both esbuild plugins expose `setup`.
+    const plugins = esbuild({ htmlFiles: ['./index.html'] }) as Array<{ setup?: unknown }>;
     assert.equal(plugins.length, 2);
     assert.equal(typeof plugins[0].setup, 'function');
     assert.equal(typeof plugins[1].setup, 'function');

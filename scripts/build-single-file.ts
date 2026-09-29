@@ -92,12 +92,13 @@ const NATIVE_MODULE_EXTERNALS = [
  * @param {string} file Absolute file path to remove.
  * @returns {Promise<void>} Resolves after the file is absent.
  */
-async function removeIfExists(file) {
+async function removeIfExists(file: string) {
     try {
         await fs.unlink(file);
     }
     catch (err) {
-        if (err?.code !== 'ENOENT') {
+        // Strict catch is `unknown`, so `err?.code` is not a property access. The cast is erased.
+        if ((err as { code?: string } | null)?.code !== 'ENOENT') {
             throw err;
         }
     }
@@ -139,7 +140,7 @@ async function buildClientBundle() {
  * @param {string} clientCode Bundled browser client JavaScript.
  * @returns {Promise<string>} Absolute path to the generated temporary entry file.
  */
-async function writeSingleFileEntry(clientCode) {
+async function writeSingleFileEntry(clientCode: string) {
     // Entry lives under dist/ next to tsc emit so relative imports resolve to compiled JS.
     const entry = [
         `import { EMBEDDED_CLIENT_CODE_GLOBAL } from './server/client-code.js';`,
@@ -165,7 +166,7 @@ async function writeSingleFileEntry(clientCode) {
  * @param {string} entry Absolute path to the temporary single-file entry.
  * @returns {Promise<void>} Resolves after `dist/code-intent-inspector.js` is written.
  */
-async function buildPluginBundle(entry) {
+async function buildPluginBundle(entry: string) {
     await build({
         input: entry,
         output: {

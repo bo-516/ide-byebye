@@ -20,7 +20,7 @@ const MAX = 300;
  * @param {number} [nth] Occurrence index (0-based).
  * @returns {{ line: number, column: number }} Position of the marker.
  */
-function positionOf(code, marker, nth = 0) {
+function positionOf(code: string, marker: string, nth = 0) {
     let index = -1;
     for (let i = 0; i <= nth; i += 1)
         index = code.indexOf(marker, index + 1);
@@ -55,7 +55,7 @@ const a = ref(1);
 `;
 
 /** Run the locator at the position of `marker`. */
-function at(code, marker, nth = 0) {
+function at(code: string, marker: string, nth = 0) {
     const { line, column } = positionOf(code, marker, nth);
     return extractVueFromCode(code, line, column, MAX, extractJsxFromCode);
 }

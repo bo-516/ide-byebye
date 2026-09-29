@@ -138,17 +138,18 @@ export function angularSelection(el: Element, ng: AngularDebugApi | null = angul
     const { owner, info } = found;
     let host: Element | null = null;
     try {
-        host = ng.getHostElement?.(owner) ?? null;
+        // `angularComponentOf` already returned null when `ng` is missing, so the debug API is present here.
+        host = ng!.getHostElement?.(owner) ?? null;
     }
     catch {
         host = null;
     }
     const chain: Element[] = [];
     for (let node: Element | null = el; node && node !== host && chain.length < ANGULAR_HINT_LIMITS.pathSteps; node = node.parentElement) {
-        if (ownerOf(ng, node) === owner)
+        if (ownerOf(ng!, node) === owner)
             chain.unshift(node);
     }
-    const path = chain.map((node) => describeStep(node, sameTagIndex(ng, node, owner)));
+    const path = chain.map((node) => describeStep(node, sameTagIndex(ng!, node, owner)));
     const fingerprint = path.map((step) => `${step.tag}${step.index}`).join('>');
     const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, ANGULAR_HINT_LIMITS.stringLength);
     const hint: Record<string, unknown> = { path };

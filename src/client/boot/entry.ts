@@ -12,6 +12,23 @@ import { matchHotkey, parseHotkey } from './hotkey.js';
 import { matchingClickModifier } from './click-modifier.js';
 import { installPickGestures } from './pick-gestures.js';
 import { logThemeHintAfterLoad } from './theme-hint.js';
+
+/**
+ * Injected page config this boot path reads. The live object has more keys; only these are indexed here.
+ * `enabledAgents` is required by the dialog, `token` by the API client. A missing global skips boot entirely.
+ */
+interface InjectedClientConfig {
+    enabledAgents: string[];
+    token: string;
+    apiOrigin?: string;
+    locale?: unknown;
+    theme?: unknown;
+    hotkey?: string;
+    clickModifier?: string | false | null;
+    customAgents?: unknown;
+    maxDomSnippetLength: number;
+}
+
 /**
  * Start the browser-side inspector runtime from the injected page config.
  * Purpose: creates the isolated UI root in the configured theme, installs supplemental dialog/dock styles, and wires
@@ -23,14 +40,16 @@ import { logThemeHintAfterLoad } from './theme-hint.js';
  * @returns {void}
  */
 function main() {
-    const config = window[CLIENT_CONFIG_GLOBAL];
+    // `globals.d.ts` is not part of this compilation, so the injected global and the install flag are read through a cast.
+    const bootWindow = window as Window & { __CII_INSTALLED__?: boolean };
+    const config = (window as unknown as Record<string, InjectedClientConfig | undefined>)[CLIENT_CONFIG_GLOBAL];
     if (!config) {
         console.warn('[code-intent-inspector] missing injected client config; not starting.');
         return;
     }
-    if (window.__CII_INSTALLED__)
+    if (bootWindow.__CII_INSTALLED__)
         return;
-    window.__CII_INSTALLED__ = true;
+    bootWindow.__CII_INSTALLED__ = true;
     // Resolve the UI locale before any dialog copy is built (falls back to navigator language when unset).
     setLocale(config.locale);
     // Custom prompt-delivery clients are config-defined, so they must be registered as destinations before the first
@@ -49,7 +68,8 @@ function main() {
         const hotkey = parseHotkey(String(config.hotkey ?? ''));
         // Platform is read once, but `'auto'` matching stays ⌘-or-Ctrl so DevTools PC ↔ mobile toggles keep working
         // even when the UA platform string flips to iPhone / Android on reload.
-        const platform = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
+        const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+        const platform = String((nav.userAgentData && nav.userAgentData.platform) || navigator.platform || '');
         const clickModifier = matchingClickModifier(config.clickModifier, platform);
         window.addEventListener('keydown', (e) => {
             if (matchHotkey(e, hotkey)) {
@@ -87,7 +107,7 @@ main();
  * @param {string | null | undefined} modifier Matching token from `matchingClickModifier`.
  * @returns {string} Leading-space hint, or `''` when modifier-picking is disabled.
  */
-function describeClickModifier(modifier) {
+function describeClickModifier(modifier: string | null | undefined): string {
     if (!modifier)
         return '';
     if (modifier === 'auto')

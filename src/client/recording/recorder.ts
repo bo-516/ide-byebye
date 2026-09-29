@@ -10,25 +10,44 @@ const RRWEB_META = 4;
 /** rrweb `EventType.FullSnapshot` numeric tag. */
 const RRWEB_FULL_SNAPSHOT = 2;
 
+/** One kept interval on a recording timeline, in milliseconds from the first event. */
+interface TimeSegment {
+    t0: number;
+    t1: number;
+}
+
+/** rrweb event as stored in the rolling buffer. `type` and `timestamp` are the only fields trim/clip read. */
+type RrwebEvent = Record<string, unknown>;
+
+/**
+ * Mask options under `config.recording.mask`. Values stay `unknown` because the page config is attacker-shaped until
+ * the `typeof` checks below.
+ */
+interface RecordingMask {
+    allInputs?: unknown;
+    blockClass?: unknown;
+    blockSelector?: unknown;
+}
+
 /**
  * Resolve the checkpoint index for a full snapshot: the Meta event right before it, or the snapshot itself.
  * Boundary: replay needs a Meta+FullSnapshot pair to start, so a clip/trim must begin at the Meta when one precedes the
  * snapshot. `fullIdx` must point at a FullSnapshot event in `events`.
- * @param {Array<Record<string, unknown>>} events rrweb event stream.
+ * @param {RrwebEvent[]} events rrweb event stream.
  * @param {number} fullIdx Index of a FullSnapshot event.
  * @returns {number} Index where a replayable segment can begin.
  */
-function checkpointIndex(events, fullIdx) {
+function checkpointIndex(events: RrwebEvent[], fullIdx: number): number {
     return fullIdx > 0 && events[fullIdx - 1] && events[fullIdx - 1].type === RRWEB_META ? fullIdx - 1 : fullIdx;
 }
 
 /**
  * Total wall-clock duration of an event stream in milliseconds.
  * Boundary: an empty or single-event stream has zero duration. Timestamps are rrweb absolute epoch millis.
- * @param {Array<Record<string, unknown>>} events rrweb event stream.
+ * @param {RrwebEvent[]} events rrweb event stream.
  * @returns {number} Duration from first to last event, in ms.
  */
-export function recordingDurationMs(events) {
+export function recordingDurationMs(events: RrwebEvent[]): number {
     if (!Array.isArray(events) || events.length === 0)
         return 0;
     return Math.max(0, Number(events[events.length - 1].timestamp) - Number(events[0].timestamp));
@@ -42,12 +61,12 @@ export function recordingDurationMs(events) {
  * between the base snapshot and `t0Ms` are retained because they are needed to reach the `t0` DOM state. Offsets outside
  * the recording are clamped. Returns a new array; the input is not mutated.
  *
- * @param {Array<Record<string, unknown>>} events rrweb event stream (rolling buffer).
+ * @param {RrwebEvent[]} events rrweb event stream (rolling buffer).
  * @param {number} t0Ms Clip start offset in ms from the first event.
  * @param {number} t1Ms Clip end offset in ms from the first event.
- * @returns {Array<Record<string, unknown>>} Clipped, replayable event slice.
+ * @returns {RrwebEvent[]} Clipped, replayable event slice.
  */
-export function clipEvents(events, t0Ms, t1Ms) {
+export function clipEvents(events: RrwebEvent[], t0Ms: number, t1Ms: number): RrwebEvent[] {
     if (!Array.isArray(events) || events.length === 0)
         return [];
     const startTs = Number(events[0].timestamp);
@@ -72,7 +91,7 @@ export function clipEvents(events, t0Ms, t1Ms) {
     }
     if (baseIdx === -1)
         baseIdx = 0;
-    const out = [];
+    const out: RrwebEvent[] = [];
     for (let i = baseIdx; i < events.length; i += 1) {
         if (Number(events[i].timestamp) <= t1Abs)
             out.push(events[i]);
@@ -85,16 +104,16 @@ export function clipEvents(events, t0Ms, t1Ms) {
  * touching ranges into a clean ascending list.
  * Boundary: an empty/invalid input collapses to a single full-duration segment so a recording is never left with zero
  * playable content. Returns a new array; inputs are not mutated.
- * @param {Array<{t0:number,t1:number}>} segments Raw keep-segments (offsets in ms).
+ * @param {TimeSegment[]} segments Raw keep-segments (offsets in ms).
  * @param {number} duration Total recording duration in ms.
- * @returns {Array<{t0:number,t1:number}>} Cleaned, merged, ascending segments.
+ * @returns {TimeSegment[]} Cleaned, merged, ascending segments.
  */
-export function normalizeSegments(segments, duration) {
+export function normalizeSegments(segments: TimeSegment[], duration: number): TimeSegment[] {
     const cleaned = (Array.isArray(segments) ? segments : [])
         .map((s) => ({ t0: Math.max(0, Math.min(Number(s.t0), Number(s.t1))), t1: Math.min(duration, Math.max(Number(s.t0), Number(s.t1))) }))
         .filter((s) => Number.isFinite(s.t0) && Number.isFinite(s.t1) && s.t1 - s.t0 >= 1)
         .sort((a, b) => a.t0 - b.t0);
-    const merged = [];
+    const merged: TimeSegment[] = [];
     for (const seg of cleaned) {
         const last = merged[merged.length - 1];
         if (last && seg.t0 <= last.t1 + 1)
@@ -110,15 +129,15 @@ export function normalizeSegments(segments, duration) {
  * Boundary: the cut range is intersected against each segment; non-overlapping segments pass through, overlapping ones
  * keep only their left and/or right remainder. The result is re-normalized (and never empty — collapses to full when a
  * cut would remove everything). Returns a new array; inputs are not mutated.
- * @param {Array<{t0:number,t1:number}>} segments Current keep-segments.
- * @param {{t0:number,t1:number}} cut Range to remove (offsets in ms).
+ * @param {TimeSegment[]} segments Current keep-segments.
+ * @param {TimeSegment} cut Range to remove (offsets in ms).
  * @param {number} duration Total recording duration in ms.
- * @returns {Array<{t0:number,t1:number}>} Segments with the cut range removed.
+ * @returns {TimeSegment[]} Segments with the cut range removed.
  */
-export function cutSegments(segments, cut, duration) {
+export function cutSegments(segments: TimeSegment[], cut: TimeSegment, duration: number): TimeSegment[] {
     const lo = Math.min(Number(cut.t0), Number(cut.t1));
     const hi = Math.max(Number(cut.t0), Number(cut.t1));
-    const out = [];
+    const out: TimeSegment[] = [];
     for (const seg of Array.isArray(segments) ? segments : []) {
         const c0 = Math.max(seg.t0, lo);
         const c1 = Math.min(seg.t1, hi);
@@ -136,10 +155,10 @@ export function cutSegments(segments, cut, duration) {
 
 /**
  * Sum the kept duration across segments.
- * @param {Array<{t0:number,t1:number}>} segments Keep-segments.
+ * @param {TimeSegment[]} segments Keep-segments.
  * @returns {number} Total kept duration in ms.
  */
-export function segmentsDuration(segments) {
+export function segmentsDuration(segments: TimeSegment[]): number {
     return (Array.isArray(segments) ? segments : []).reduce((sum, s) => sum + Math.max(0, s.t1 - s.t0), 0);
 }
 
@@ -153,16 +172,16 @@ export function segmentsDuration(segments) {
  * later segment's base snapshot fully re-establishes the DOM, dropping the in-between events does not desync replay.
  * Returns a new array; the input is not mutated.
  *
- * @param {Array<Record<string, unknown>>} events Source rrweb event stream.
- * @param {Array<{t0:number,t1:number}>} segments Normalized keep-segments (offsets in ms from the first event).
- * @returns {Array<Record<string, unknown>>} Combined, re-timestamped event stream.
+ * @param {RrwebEvent[]} events Source rrweb event stream.
+ * @param {TimeSegment[]} segments Normalized keep-segments (offsets in ms from the first event).
+ * @returns {RrwebEvent[]} Combined, re-timestamped event stream.
  */
-export function combineSegments(events, segments) {
+export function combineSegments(events: RrwebEvent[], segments: TimeSegment[]): RrwebEvent[] {
     if (!Array.isArray(events) || events.length === 0)
         return [];
     const list = Array.isArray(segments) && segments.length ? segments : [{ t0: 0, t1: recordingDurationMs(events) }];
     const GAP_FREEZE_MS = 200;
-    const out = [];
+    const out: RrwebEvent[] = [];
     let cursor = 0; // next output timestamp baseline (relative)
     for (const seg of list) {
         const slice = clipEvents(events, seg.t0, seg.t1);
@@ -186,22 +205,32 @@ export function combineSegments(events, segments) {
  * installed it rejects. `stop()` returns a snapshot copy of the buffered events.
  */
 export class RecordingSession {
-    mask: any;
-    config: any;
-    events = [];
-    stopFn = null;
+    /** Privacy mask copied from `config.recording.mask`; absent keys mean the rrweb defaults below. */
+    mask: RecordingMask;
+    /**
+     * Page config forwarded to the rrweb loader. Held as `object` because callers (the dialog) type only a few keys and
+     * have no string index signature, so `Record<string, unknown>` would reject them.
+     */
+    config: object;
+    events: RrwebEvent[] = [];
+    /** rrweb's stop handle. Null when no recording is in progress; `null` not `undefined` so `!= null` matches the old check. */
+    stopFn: (() => void) | null = null;
     startedAt = 0;
     maxDurationMs = DEFAULT_MAX_DURATION_MS;
 
     /**
-     * @param {Record<string, unknown>} config Browser config injected by the plugin (carries token/apiOrigin + recording options).
+     * @param {object} config Browser config injected by the plugin (carries token/apiOrigin + recording options).
+     *   Only `recording.maxDurationMs` and `recording.mask` are read. An index-signature type is intentionally not used:
+     *   the dialog's config interface would not be assignable to it.
      */
-    constructor(config) {
+    constructor(config: object) {
         this.config = config;
-        const recording = config?.recording ?? {};
-        const max = Number(recording.maxDurationMs);
+        // The dialog's config type names `enabledAgents` only; `recording` is still on the injected object.
+        // Optional chaining keeps a nullish config from throwing, matching the previous `config?.recording`.
+        const recording = (config as { recording?: { maxDurationMs?: unknown; mask?: RecordingMask } } | null | undefined)?.recording;
+        const max = Number(recording?.maxDurationMs);
         this.maxDurationMs = Number.isFinite(max) && max > 0 ? max : DEFAULT_MAX_DURATION_MS;
-        this.mask = recording.mask ?? {};
+        this.mask = recording?.mask ?? {};
     }
 
     /**
@@ -217,7 +246,7 @@ export class RecordingSession {
         this.events = [];
         this.startedAt = Date.now();
         this.stopFn = mod.record({
-            emit: (event) => this.push(event),
+            emit: (event: RrwebEvent) => this.push(event),
             inlineImages: true,
             inlineStylesheet: true,
             collectFonts: true,
@@ -235,10 +264,10 @@ export class RecordingSession {
      * Append one rrweb event and trim the rolling buffer.
      * Boundary: trimming only drops a leading prefix bounded by a full-snapshot checkpoint, so the buffer always stays
      * replayable. Internal; called by the rrweb `emit` callback.
-     * @param {Record<string, unknown>} event rrweb event.
+     * @param {RrwebEvent} event rrweb event.
      * @returns {void}
      */
-    push(event) {
+    push(event: RrwebEvent): void {
         this.events.push(event);
         this.trim();
     }

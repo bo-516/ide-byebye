@@ -1,6 +1,27 @@
 import { collectSelection, findInspectableElement, isPluginNode } from './dom.js';
 const SWALLOWED_EVENTS = ['mousedown', 'pointerdown', 'mouseup', 'pointerup', 'dblclick', 'contextmenu'];
 
+/** Page config this picker reads. The live object has more keys; only the snippet cap is indexed. */
+interface PickerConfig {
+    maxDomSnippetLength: number;
+}
+
+/** Highlight overlay. Methods stay bivariant so the real `Overlay` class satisfies this. */
+interface PickerOverlay {
+    hide(): void;
+    showFor(el: Element): void;
+    showNoMapping(el: Element): void;
+}
+
+/**
+ * Dialog surface the picker opens. Matches `Dialog.open` / `Dialog.isOpen` without importing that class, so a
+ * narrower selection type here cannot reject the dialog's index-signature selection.
+ */
+interface PickerDialog {
+    isOpen(): boolean;
+    open(selection: { inspPath?: string; [key: string]: unknown }, selectedElement?: Element | null, anchor?: { x: number; y: number } | null, screenshotElement?: Element | null): void;
+}
+
 /**
  * Resolve the live page element used as the screenshot anchor.
  *
@@ -8,11 +29,11 @@ const SWALLOWED_EVENTS = ['mousedown', 'pointerdown', 'mouseup', 'pointerup', 'd
  * resolution. Using the raw click target can crop to a nested text/icon node even though the selected DOM/source node is
  * a larger component.
  *
- * @param {EventTarget | null} target Original browser event target.
+ * @param {unknown} target Original browser event target. Plugin UI falls back to `inspectable`.
  * @param {Element} inspectable Nearest source-mapped element used for code resolution.
  * @returns {Element} Element that screenshot modes should measure from.
  */
-function resolveScreenshotTarget(target, inspectable) {
+function resolveScreenshotTarget(target: unknown, inspectable: Element): Element {
     if (target instanceof Element && isPluginNode(target))
         return inspectable;
     return inspectable;
@@ -27,12 +48,18 @@ function resolveScreenshotTarget(target, inspectable) {
  * `pointerdown` with preventDefault suppresses the synthesized `click`, so selection runs on `pointerup`.
  */
 export class PickerController {
-    config;
-    overlay;
-    dialog;
+    config: PickerConfig;
+    overlay: PickerOverlay;
+    dialog: PickerDialog;
     active = false;
-    hovered = null;
-    constructor(config, overlay, dialog) {
+    /** `null` is the initial value; a later hover stores the element. Left unannotated, the field would stay `null`. */
+    hovered: HTMLElement | null = null;
+    /**
+     * @param {PickerConfig} config Injected page config. Only `maxDomSnippetLength` is read.
+     * @param {PickerOverlay} overlay Hover highlight.
+     * @param {PickerDialog} dialog Intent dialog opened on a successful pick.
+     */
+    constructor(config: PickerConfig, overlay: PickerOverlay, dialog: PickerDialog) {
         this.config = config;
         this.overlay = overlay;
         this.dialog = dialog;
@@ -40,7 +67,11 @@ export class PickerController {
     isActive() {
         return this.active;
     }
-    previewTarget(target) {
+    /**
+     * @param {unknown} target Event target or test double.
+     * @returns {void}
+     */
+    previewTarget(target: unknown): void {
         if (this.active || this.dialog.isOpen())
             return;
         if (isPluginNode(target)) {
@@ -59,7 +90,12 @@ export class PickerController {
         else
             this.overlay.hide();
     }
-    selectTarget(target, point) {
+    /**
+     * @param {unknown} target Event target or test double.
+     * @param {{ x: number, y: number }} point Viewport point passed to the dialog.
+     * @returns {boolean} False when the dialog must stay closed.
+     */
+    selectTarget(target: unknown, point: { x: number; y: number }): boolean {
         if (this.active || this.dialog.isOpen())
             return false;
         if (isPluginNode(target))
@@ -126,14 +162,15 @@ export class PickerController {
         this.overlay.hide();
         this.hovered = null;
     }
-    swallow = (e) => {
-        if (isPluginNode(e.target))
+    swallow = (event: Event) => {
+        if (isPluginNode(event.target))
             return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
+        event.preventDefault();
+        event.stopImmediatePropagation();
     };
-    onMouseMove = (e) => {
-        const target = e.target;
+    /** `mousemove` and `pointermove` share this. `MouseEvent` accepts a `PointerEvent`. */
+    onMouseMove = (event: MouseEvent) => {
+        const target = event.target;
         if (isPluginNode(target)) {
             this.overlay.hide();
             return;
@@ -155,33 +192,34 @@ export class PickerController {
         if (this.hovered)
             this.overlay.showFor(this.hovered);
     };
-    onPointerUp = (e) => {
-        if (e.isPrimary === false)
+    onPointerUp = (event: PointerEvent) => {
+        if (event.isPrimary === false)
             return;
-        if (typeof e.button === 'number' && e.button !== 0)
+        if (typeof event.button === 'number' && event.button !== 0)
             return;
-        this.onClick(e);
+        this.onClick(event);
     };
-    onClick = (e) => {
-        if (isPluginNode(e.target))
+    /** `click` delivers a `MouseEvent`. `onPointerUp` forwards a `PointerEvent`, which extends it. */
+    onClick = (event: MouseEvent) => {
+        if (isPluginNode(event.target))
             return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        const inspectable = findInspectableElement(e.target);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const inspectable = findInspectableElement(event.target);
         if (!inspectable) {
-            if (e.target instanceof HTMLElement)
-                this.overlay.showNoMapping(e.target);
+            if (event.target instanceof HTMLElement)
+                this.overlay.showNoMapping(event.target);
             return;
         }
         const selection = collectSelection(inspectable, this.config.maxDomSnippetLength);
-        const screenshotTarget = resolveScreenshotTarget(e.target, inspectable);
+        const screenshotTarget = resolveScreenshotTarget(event.target, inspectable);
         this.exit();
-        this.dialog.open(selection, inspectable, { x: e.clientX, y: e.clientY }, screenshotTarget);
+        this.dialog.open(selection, inspectable, { x: event.clientX, y: event.clientY }, screenshotTarget);
     };
-    onKeyDown = (e) => {
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopImmediatePropagation();
+    onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
             this.exit();
         }
     };

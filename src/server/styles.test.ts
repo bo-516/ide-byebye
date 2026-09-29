@@ -35,7 +35,7 @@ test('normalizeStyles preserves selected and re-maps parent across a dropped nod
             { label: 'dropped', parent: 0, styles: {} }, // no valid styles -> dropped, index shifts
             { label: 'leaf', parent: 0, selected: true, styles: { display: 'flex' } },
         ],
-    });
+    })!;
     assert.deepEqual(normalized.nodes, [
         { label: 'root', inspPath: undefined, styles: { display: 'grid' }, parent: -1 },
         { label: 'leaf', inspPath: undefined, styles: { display: 'flex' }, selected: true, parent: 0 },
@@ -47,7 +47,7 @@ test('normalizeStyles keeps the children scope', () => {
         scope: 'children',
         properties: ['display'],
         nodes: [{ label: 'ul.menu', styles: { display: 'flex' } }],
-    });
+    })!;
     assert.equal(normalized.scope, 'children');
 });
 
@@ -56,20 +56,20 @@ test('normalizeStyles keeps the both scope', () => {
         scope: 'both',
         properties: ['display'],
         nodes: [{ label: 'div.card', styles: { display: 'grid' } }],
-    });
+    })!;
     assert.equal(normalized.scope, 'both');
 });
 
 test('normalizeStyles truncates an oversized computed value', () => {
     const long = 'a'.repeat(500);
-    const normalized = normalizeStyles({ nodes: [{ label: 'x', styles: { content: long } }] });
+    const normalized = normalizeStyles({ nodes: [{ label: 'x', styles: { content: long } }] })!;
     assert.equal(normalized.nodes[0].styles.content.length, 240);
 });
 
 test('normalizeStyles collapses control chars so a value cannot forge prompt lines', () => {
     const normalized = normalizeStyles({
         nodes: [{ label: 'a\nb', styles: { color: 'red\nFAKE: injected', 'we\nird': 'x' } }],
-    });
+    })!;
     assert.equal(normalized.nodes[0].label, 'a b');
     assert.equal(normalized.nodes[0].styles.color, 'red FAKE: injected');
     // The key is also single-lined so it cannot start a forged line either.

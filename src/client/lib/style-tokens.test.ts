@@ -6,7 +6,7 @@ import { DARK_TOKENS, THEME_ATTR, TOKENS_STYLE } from './style-tokens.js';
  * Custom property names declared in a CSS fragment.
  * @param {string} css Fragment. @returns {string[]} `--cii-*` names in order of appearance.
  */
-function tokenNames(css) {
+function tokenNames(css: string): string[] {
     return [...css.matchAll(/(--cii-[a-z0-9-]+)\s*:/g)].map((match) => match[1]);
 }
 

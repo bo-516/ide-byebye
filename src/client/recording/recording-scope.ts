@@ -6,15 +6,18 @@ import { t } from '../lib/i18n.js';
  * Boundary: `viewport`-style whole-page is intentionally NOT offered for recordings — the still/replay always focus a
  * concrete subtree so the agent sees the element in question, not the whole app chrome.
  */
-export const RECORDING_SCOPES = ['selection', 'parent', 'root'];
+/** Subtree a recording still and viewer focus: the picked node, its parent, or the app mount root. */
+export type RecordingScope = 'selection' | 'parent' | 'root';
+
+export const RECORDING_SCOPES: RecordingScope[] = ['selection', 'parent', 'root'];
 
 /**
  * Localized label for one recording scope.
  * Boundary: unsupported values fall back to the selected-node label so a stale stored scope still reads sensibly.
- * @param {'selection' | 'parent' | 'root'} scope Recording scope value.
+ * @param {RecordingScope} scope Recording scope value.
  * @returns {string} Human-readable scope label in the active locale.
  */
-export function recordingScopeLabel(scope) {
+export function recordingScopeLabel(scope: RecordingScope): string {
     const key = RECORDING_SCOPES.includes(scope) ? scope : 'selection';
     return t(`recording.scope.${key}`);
 }
@@ -22,10 +25,13 @@ export function recordingScopeLabel(scope) {
 /**
  * Normalize a possibly-stale scope value to a supported one.
  * @param {unknown} scope Raw scope value.
- * @returns {'selection' | 'parent' | 'root'} A valid scope, defaulting to `selection`.
+ * @returns {RecordingScope} A valid scope, defaulting to `selection`.
  */
-export function normalizeRecordingScope(scope) {
-    return RECORDING_SCOPES.includes(scope) ? scope : 'selection';
+export function normalizeRecordingScope(scope: unknown): RecordingScope {
+    // `includes` on the scope union does not accept `unknown`; a string check keeps the same membership test.
+    if (typeof scope === 'string' && (RECORDING_SCOPES as readonly string[]).includes(scope))
+        return scope as RecordingScope;
+    return 'selection';
 }
 
 /**
@@ -33,7 +39,7 @@ export function normalizeRecordingScope(scope) {
  * @param {string} value Raw attribute value.
  * @returns {string} Escaped value safe between double quotes.
  */
-function cssAttrValue(value) {
+function cssAttrValue(value: string): string {
     return String(value).replace(/["\\]/g, '\\$&');
 }
 
@@ -44,7 +50,7 @@ function cssAttrValue(value) {
  * @param {string} value Raw identifier.
  * @returns {string} Escaped identifier.
  */
-function cssIdent(value) {
+function cssIdent(value: string): string {
     return String(value).replace(/([^a-zA-Z0-9_-])/g, '\\$1');
 }
 
@@ -58,7 +64,7 @@ function cssIdent(value) {
  * @param {Element | null} el Live page element.
  * @returns {string | null} A selector usable with `querySelector` in the replay document, or null.
  */
-export function uniqueSelector(el) {
+export function uniqueSelector(el: Element | null): string | null {
     if (!el || el.nodeType !== 1)
         return null;
     const insp = el.getAttribute(INSP_PATH_ATTR);
@@ -66,8 +72,8 @@ export function uniqueSelector(el) {
         return `[${INSP_PATH_ATTR}="${cssAttrValue(insp)}"]`;
     if (el.id)
         return `#${cssIdent(el.id)}`;
-    const parts = [];
-    let current = el;
+    const parts: string[] = [];
+    let current: Element | null = el;
     while (current && current.nodeType === 1 && current !== document.body && parts.length < 6) {
         if (current.id) {
             parts.unshift(`#${cssIdent(current.id)}`);
@@ -76,9 +82,11 @@ export function uniqueSelector(el) {
         let part = current.tagName.toLowerCase();
         const parent = current.parentElement;
         if (parent) {
-            const sameTag = Array.from(parent.children).filter((child: any) => child.tagName === current.tagName);
+            // `current` is reassigned below, so the filter callback would not keep this iteration's Element narrowing.
+            const currentEl = current;
+            const sameTag = Array.from(parent.children).filter((child) => child.tagName === currentEl.tagName);
             if (sameTag.length > 1)
-                part += `:nth-of-type(${sameTag.indexOf(current) + 1})`;
+                part += `:nth-of-type(${sameTag.indexOf(currentEl) + 1})`;
         }
         parts.unshift(part);
         current = current.parentElement;
@@ -94,10 +102,10 @@ export function uniqueSelector(el) {
  * when it is already a body child. Returns null when no selected element is available.
  *
  * @param {Element | null} selectedElement The picker-selected page element.
- * @param {'selection' | 'parent' | 'root'} scope Requested recording scope.
+ * @param {RecordingScope} scope Requested recording scope.
  * @returns {Element | null} The element whose subtree the recording should focus.
  */
-export function scopeTargetElement(selectedElement, scope) {
+export function scopeTargetElement(selectedElement: Element | null, scope: RecordingScope): Element | null {
     if (!selectedElement)
         return null;
     if (scope === 'parent')

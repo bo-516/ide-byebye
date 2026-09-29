@@ -6,11 +6,11 @@ import { logThemeHintAfterLoad, themeHintArgs } from './theme-hint.js';
  * Minimal window stand-in: a document ready state plus a recorded `load` listener that the test fires by hand.
  * @param {DocumentReadyState} readyState State to report. @returns {{ win: any, fireLoad: () => void }} Fake window.
  */
-function fakeWindow(readyState) {
-    let onLoad = null;
+function fakeWindow(readyState: string) {
+    let onLoad: (() => void) | null = null;
     const win = {
         document: { readyState },
-        addEventListener(type, listener) {
+        addEventListener(type: string, listener: () => void) {
             if (type === 'load')
                 onLoad = listener;
         },

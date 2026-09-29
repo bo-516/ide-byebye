@@ -29,6 +29,7 @@ import {
     resolveNextVersion,
     run,
     runCapture,
+    type PublishOptions,
 } from './publish-lib.js';
 
 const ROOT_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -53,7 +54,7 @@ function readPackageJson() {
  *
  * @param {import('./publish-lib.js').PublishOptions} options Parsed CLI options.
  */
-function assertGitReady(options) {
+function assertGitReady(options: PublishOptions) {
     const inside = runCapture(ROOT_DIR, 'git', ['rev-parse', '--is-inside-work-tree']);
     if (inside !== 'true') {
         throw new Error('Not inside a git work tree');
@@ -82,7 +83,7 @@ function assertGitReady(options) {
  * @param {string} name Package name.
  * @param {string} nextVersion Version about to publish.
  */
-function assertNpmReady(name, nextVersion) {
+function assertNpmReady(name: string, nextVersion: string) {
     const whoami = run(ROOT_DIR, 'npm', ['whoami'], { allowFail: true });
     if (whoami.status !== 0) {
         throw new Error('Not logged in to npm. Run `npm login` first.');
@@ -114,7 +115,7 @@ function assertNpmReady(name, nextVersion) {
  *
  * @param {string} name Package name.
  */
-function cleanupPackArtifacts(name) {
+function cleanupPackArtifacts(name: string) {
     const prefix = `${name}-`;
     for (const entry of fs.readdirSync(ROOT_DIR)) {
         if (entry.startsWith(prefix) && entry.endsWith('.tgz')) {
@@ -141,7 +142,7 @@ function runBuildTestAndPackPreview() {
  * @param {boolean} noGit When true, skip git commit/tag (`--no-git-tag-version` on npm version).
  * @returns {string} Version from package.json after the bump (or unchanged for `current`).
  */
-function bumpVersion(bump, noGit) {
+function bumpVersion(bump: string, noGit: boolean) {
     if (bump === 'current') {
         return readPackageJson().version;
     }
@@ -162,7 +163,7 @@ function bumpVersion(bump, noGit) {
  *
  * @param {string} version Published version (without leading `v`).
  */
-function ensureVersionTag(version) {
+function ensureVersionTag(version: string) {
     const tag = `v${version}`;
     const existing = run(ROOT_DIR, 'git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
         allowFail: true,
@@ -178,7 +179,7 @@ function ensureVersionTag(version) {
  *
  * @param {import('./publish-lib.js').PublishOptions} options Parsed CLI options.
  */
-function publishToNpm(options) {
+function publishToNpm(options: PublishOptions) {
     const args = ['publish', '--access', 'public', '--tag', options.tag];
     if (options.otp) {
         args.push('--otp', options.otp);
@@ -193,7 +194,7 @@ function publishToNpm(options) {
  * @param {string} version Published version (without leading `v`).
  * @param {boolean} bumped Whether `npm version` created a release commit to push.
  */
-function pushGitRelease(version, bumped) {
+function pushGitRelease(version: string, bumped: boolean) {
     if (bumped) {
         run(ROOT_DIR, 'git', ['push']);
     }
@@ -205,7 +206,7 @@ function pushGitRelease(version, bumped) {
  *
  * @param {import('./publish-lib.js').PublishOptions} options Parsed CLI options.
  */
-function main(options) {
+function main(options: PublishOptions) {
     const pkg = readPackageJson();
     const nextVersion = resolveNextVersion(pkg.version, options.bump);
     const willBump = options.bump !== 'current';

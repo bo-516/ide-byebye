@@ -14,6 +14,35 @@ export const DEFAULT_NODE_LIMIT = 8;
 /** Max characters kept for a single computed value so an inherited `font`/`grid-template` cannot bloat the prompt. */
 const MAX_VALUE_LENGTH = 240;
 
+/** How much of the tree around the selected element to read. `self` ignores the node cap. */
+export type StyleScope = 'self' | 'children' | 'ancestors' | 'both';
+
+/** One node in a style capture: label, optional source path, resolved properties, and tree links. */
+export interface StyleCaptureNode {
+    label: string;
+    inspPath?: string;
+    styles: Record<string, string>;
+    parent: number;
+    selected?: boolean;
+}
+
+/**
+ * Serializable style payload posted with an intent.
+ * Boundary: `captureStyles` returns null instead of this when there is nothing to send.
+ */
+export interface StyleCapture {
+    scope: StyleScope;
+    properties: string[];
+    nodes: StyleCaptureNode[];
+}
+
+/** Computed values for one element before parent indexes are attached. */
+interface CapturedNodeCore {
+    label: string;
+    inspPath: string | undefined;
+    styles: Record<string, string>;
+}
+
 /**
  * Clamp an arbitrary node-limit value into the supported range, falling back to the default for non-finite input.
  *
@@ -24,7 +53,7 @@ const MAX_VALUE_LENGTH = 240;
  * @param {unknown} value Requested node limit.
  * @returns {number} Integer node limit in [{@link MIN_NODE_LIMIT}, {@link MAX_NODE_LIMIT}].
  */
-export function clampNodeLimit(value) {
+export function clampNodeLimit(value: unknown): number {
     const n = Math.floor(Number(value));
     if (!Number.isFinite(n))
         return DEFAULT_NODE_LIMIT;
@@ -39,7 +68,7 @@ export function clampNodeLimit(value) {
  * @param {Element} el Element to label.
  * @returns {string} Compact node label.
  */
-function nodeLabel(el) {
+function nodeLabel(el: Element): string {
     let label = el.tagName.toLowerCase();
     if (el.id)
         label += `#${el.id}`;
@@ -61,9 +90,9 @@ function nodeLabel(el) {
  * @param {string[]} properties Ordered computed-style property names.
  * @returns {{ label: string, inspPath: string | undefined, styles: Record<string, string> }} Captured node entry.
  */
-function captureNode(el, properties) {
+function captureNode(el: Element, properties: string[]): CapturedNodeCore {
     const computed = window.getComputedStyle(el);
-    const styles = {};
+    const styles: Record<string, string> = {};
     for (const property of properties) {
         const value = computed.getPropertyValue(property);
         const trimmed = typeof value === 'string' ? value.trim() : '';
@@ -89,9 +118,9 @@ function captureNode(el, properties) {
  * @param {number} max Node cap.
  * @returns {Element[]} Element then ancestors, nearest first.
  */
-function ancestorNodes(el, max) {
-    const nodes = [];
-    let current = el;
+function ancestorNodes(el: Element, max: number): Element[] {
+    const nodes: Element[] = [];
+    let current: Element | null = el;
     while (current && current.nodeType === 1 && current !== document.documentElement && nodes.length < max) {
         nodes.push(current);
         current = current.parentElement;
@@ -108,11 +137,12 @@ function ancestorNodes(el, max) {
  * @param {number} max Node cap.
  * @returns {Element[]} Element then descendants, level by level in document order.
  */
-function descendantNodes(el, max) {
-    const nodes = [];
-    const queue = [el];
+function descendantNodes(el: Element, max: number): Element[] {
+    const nodes: Element[] = [];
+    const queue: Element[] = [el];
     while (queue.length && nodes.length < max) {
-        const current = queue.shift();
+        // Length was checked above; shift() is undefined only if the queue was emptied elsewhere.
+        const current = queue.shift()!;
         nodes.push(current);
         for (const child of current.children)
             queue.push(child);
@@ -135,7 +165,7 @@ function descendantNodes(el, max) {
  * @param {number} maxNodes Node cap applied to the tree scopes.
  * @returns {Element[]} Ordered nodes to read (element first).
  */
-function scopeNodes(el, scope, maxNodes) {
+function scopeNodes(el: Element, scope: StyleScope, maxNodes: number): Element[] {
     if (scope === 'ancestors')
         return ancestorNodes(el, maxNodes);
     if (scope === 'children')
@@ -145,8 +175,8 @@ function scopeNodes(el, scope, maxNodes) {
         const down = maxNodes - up;
         // Both helpers are element-first, so the shared element appears twice; dedupe it while keeping order
         // (element, ancestors nearest-first, then descendants breadth-first).
-        const seen = new Set();
-        const nodes = [];
+        const seen = new Set<Element>();
+        const nodes: Element[] = [];
         for (const node of [...ancestorNodes(el, up + 1), ...descendantNodes(el, down + 1)]) {
             if (seen.has(node))
                 continue;
@@ -174,7 +204,11 @@ function scopeNodes(el, scope, maxNodes) {
  * @param {{ scope?: 'self' | 'children' | 'ancestors' | 'both', properties: Iterable<string>, maxNodes?: number }} options Capture options.
  * @returns {{ scope: 'self' | 'children' | 'ancestors' | 'both', properties: string[], nodes: Array<{ label: string, inspPath?: string, styles: Record<string, string>, parent: number, selected?: boolean }> } | null} Capture payload.
  */
-export function captureStyles(el, options) {
+export function captureStyles(el: Element | null | undefined, options: {
+    scope?: StyleScope;
+    properties: Iterable<string>;
+    maxNodes?: number;
+}): StyleCapture | null {
     if (!(el instanceof Element))
         return null;
     const scope = options?.scope === 'ancestors' || options?.scope === 'children' || options?.scope === 'both' ? options.scope : 'self';
@@ -184,7 +218,7 @@ export function captureStyles(el, options) {
     const maxNodes = clampNodeLimit(options?.maxNodes);
     // Read styles first, keeping each source element next to its capture so parent links can be rebuilt across any
     // element dropped for resolving no styles.
-    const kept = [];
+    const kept: Array<{ element: Element; captured: CapturedNodeCore }> = [];
     for (const element of scopeNodes(el, scope, maxNodes)) {
         const captured = captureNode(element, properties);
         if (Object.keys(captured.styles).length > 0)
@@ -194,7 +228,7 @@ export function captureStyles(el, options) {
         return null;
     const indexByElement = new Map(kept.map((entry, index) => [entry.element, index]));
     const nodes = kept.map(({ element, captured }) => {
-        const node = { ...captured, parent: nearestKeptAncestorIndex(element, indexByElement) };
+        const node: StyleCaptureNode = { ...captured, parent: nearestKeptAncestorIndex(element, indexByElement) };
         if (element === el)
             node.selected = true;
         return node;
@@ -213,7 +247,7 @@ export function captureStyles(el, options) {
  * @param {Map<Element, number>} indexByElement Captured elements mapped to their node index.
  * @returns {number} Parent node index, or -1 for a root.
  */
-function nearestKeptAncestorIndex(element, indexByElement) {
+function nearestKeptAncestorIndex(element: Element, indexByElement: Map<Element, number>): number {
     let current = element.parentElement;
     while (current) {
         const index = indexByElement.get(current);

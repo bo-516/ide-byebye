@@ -8,8 +8,8 @@ import { AGENT_MARKS } from './agent-marks.js';
  * Check that an SVG document's tags nest and close, since a broken mark renders as nothing without any error.
  * @param {string} svg Document. @returns {boolean} True when every opened tag is closed in order.
  */
-function tagsBalance(svg) {
-    const stack = [];
+function tagsBalance(svg: string): boolean {
+    const stack: string[] = [];
     for (const [, closing, name, selfClosing] of svg.matchAll(/<(\/?)([a-zA-Z]+)[^>]*?(\/?)>/g)) {
         if (selfClosing)
             continue;
@@ -33,6 +33,7 @@ test('every built-in destination has a brand mark', () => {
 test('marks are standalone SVG documents that can sit inside a double-quoted CSS url()', () => {
     for (const [brand, mark] of Object.entries(AGENT_MARKS)) {
         const svg = mark.image ?? mark.mask;
+        assert.ok(svg, brand);
         assert.match(svg, /^<svg xmlns='http:\/\/www\.w3\.org\/2000\/svg' viewBox='0 0 24 24'>/, brand);
         assert.ok(!svg.includes('"'), `${brand} contains a double quote`);
         assert.ok(tagsBalance(svg), `${brand} has unbalanced tags`);

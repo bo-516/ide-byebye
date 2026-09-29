@@ -27,12 +27,13 @@ test('Vite dev server: /@vite/client carries the JS bootstrap and index.html kee
     try {
         const client = await server.transformRequest('/@vite/client');
         assert.ok(client?.code.includes(`var key = "${CLIENT_CONFIG_GLOBAL}"`), 'bootstrap appended to @vite/client');
-        assert.match(client.code, /script\.src = "http:\/\/127\.0\.0\.1:\d+\/__intent-inspector\/client\.js\?token=/);
+        // `transformRequest` is `TransformResult | null`. The assert above already rejected null; `!` is erased.
+        assert.match(client!.code, /script\.src = "http:\/\/127\.0\.0\.1:\d+\/__intent-inspector\/client\.js\?token=/);
 
         const html = await server.transformIndexHtml('/', fs.readFileSync(path.join(root, 'index.html'), 'utf8'));
         assert.ok(html.includes(`window.${CLIENT_CONFIG_GLOBAL}=`), 'SPA still gets the inline config tag');
         const htmlToken = /"token":"([^"]+)"/.exec(html)?.[1];
-        const clientToken = /"token":"([^"]+)"/.exec(client.code)?.[1];
+        const clientToken = /"token":"([^"]+)"/.exec(client!.code)?.[1];
         assert.ok(htmlToken && htmlToken === clientToken, 'same token, so the JS path no-ops on SPA pages');
     }
     finally {

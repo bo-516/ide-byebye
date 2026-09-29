@@ -36,7 +36,7 @@ export const STYLE_TEXT = ICONS_STYLE + TOKENS_STYLE + SHELL_STYLE + PREVIEWS_ST
  * Omitted or any other value renders the light theme.
  * @returns {{ host: HTMLElement, root: ShadowRoot }} The page-level host and the shadow root that holds every UI node.
  */
-export function createUi(theme = DEFAULT_THEME) {
+export function createUi(theme: string = DEFAULT_THEME) {
     const host = document.createElement('div');
     host.setAttribute(PLUGIN_NODE_ATTR, '');
     host.setAttribute(THEME_ATTR, theme);
@@ -65,7 +65,13 @@ export function createUi(theme = DEFAULT_THEME) {
     return { host, root };
 }
 
-function showUiHost(host) {
+/**
+ * Try to show the host with the Popover API so it paints above page content in the top layer.
+ *
+ * @param {HTMLElement} host Plugin UI host. A missing `showPopover` means the browser has no Popover API.
+ * @returns {boolean} True when the host is actually in the `:popover-open` state.
+ */
+function showUiHost(host: HTMLElement): boolean {
     if (typeof host.showPopover !== 'function')
         return false;
     try {
@@ -79,7 +85,13 @@ function showUiHost(host) {
     }
 }
 
-function keepUiHostLast(host) {
+/**
+ * Keep the host as the last body child when the Popover API cannot raise it.
+ *
+ * @param {HTMLElement} host Plugin UI host already appended to `document.body`.
+ * @returns {void}
+ */
+function keepUiHostLast(host: HTMLElement): void {
     const ensureLast = () => {
         if (host.parentNode === document.body && document.body.lastElementChild !== host)
             document.body.appendChild(host);

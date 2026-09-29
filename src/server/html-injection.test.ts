@@ -29,7 +29,7 @@ test('readFarmDevBody accepts the Koa response shapes', () => {
 });
 
 test('installFarmDevInjection unshifts and rewrites an HTML body', async () => {
-    const app = { middleware: [async (_ctx, next) => { await next(); }] };
+    const app = { middleware: [async (_ctx: unknown, next: () => Promise<void>) => { await next(); }] };
     installFarmDevInjection(app, async () => '<script id="boot"></script>');
     assert.equal(app.middleware.length, 2);
     const ctx = { type: 'html', path: '/', body: '<head></head>' };

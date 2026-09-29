@@ -18,7 +18,7 @@ const BOOTSTRAP = path.join(PROJECT, '.intent-inspector/next/bootstrap.js');
  * @param {boolean} [customApp] Answer for `hasCustomApp`.
  * @returns {string | null} Injector output.
  */
-function inject(rel, source, customApp = false) {
+function inject(rel: string, source: string, customApp = false) {
     return injectNextBootstrap({
         source,
         resourcePath: path.join(PROJECT, rel),
@@ -50,7 +50,7 @@ test('root layouts render the bootstrap as the last <body> child and import it a
 });
 
 test('injection keeps every original line (and every data-insp-path position) in place', () => {
-    const out = inject('app/layout.tsx', LAYOUT);
+    const out = inject('app/layout.tsx', LAYOUT)!;
     const before = LAYOUT.split('\n');
     const after = out.split('\n');
     for (let i = 0; i < before.length; i += 1) {
@@ -63,14 +63,14 @@ test('injection keeps every original line (and every data-insp-path position) in
 
 test("directives stay first: 'use client' layouts are only touched at the end and before </body>", () => {
     const source = `'use client';\nexport default function L({ children }) {\n  return <html><body>{children}</body></html>;\n}\n`;
-    const out = inject('src/app/layout.jsx', source);
+    const out = inject('src/app/layout.jsx', source)!;
     assert.ok(out.startsWith(`'use client';\n`));
     assert.match(out, /from "\.\.\/\.\.\/\.intent-inspector\/next\/bootstrap\.js";/);
 });
 
 test('every rendered <body> (conditional roots) gets the bootstrap', () => {
     const source = `export default function L({ a, children }) {\n  return a ? <html><body>{children}</body></html> : <html><body className="b">{children}</body></html>;\n}\n`;
-    const out = inject('app/layout.js', source);
+    const out = inject('app/layout.js', source)!;
     assert.equal(out.split(`<${BOOTSTRAP_IDENTIFIER} />`).length - 1, 2);
 });
 
@@ -82,15 +82,15 @@ test('modules without a <body> element, TS-only modules and broken modules are l
 });
 
 test('injection is idempotent', () => {
-    const once = inject('app/layout.tsx', LAYOUT);
+    const once = inject('app/layout.tsx', LAYOUT)!;
     assert.equal(inject('app/layout.tsx', once), null);
 });
 
 test('Pages Router: _app gets a side-effect import; pages only when there is no custom _app', () => {
-    const app = inject('pages/_app.tsx', `export default function App({ Component, pageProps }) {\n  return <Component {...pageProps} />;\n}\n`, true);
+    const app = inject('pages/_app.tsx', `export default function App({ Component, pageProps }) {\n  return <Component {...pageProps} />;\n}\n`, true)!;
     assert.match(app, /\n;import "\.\.\/\.intent-inspector\/next\/bootstrap\.js";/);
     assert.equal(inject('pages/index.tsx', `export default function Home() {\n  return <p>hi</p>;\n}\n`, true), null);
-    const page = inject('src/pages/blog/[slug].js', `export default function Post() {\n  return <p>post</p>;\n}\n`, false);
+    const page = inject('src/pages/blog/[slug].js', `export default function Post() {\n  return <p>post</p>;\n}\n`, false)!;
     assert.match(page, /import "\.\.\/\.\.\/\.\.\/\.intent-inspector\/next\/bootstrap\.js";/);
 });
 

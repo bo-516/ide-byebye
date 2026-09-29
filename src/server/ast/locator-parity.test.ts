@@ -66,7 +66,7 @@ const JSX = `export function App() {
  * @param {string} source Fixture source.
  * @returns {Array<{ tag: string, selected: string | undefined }>} One entry per stamped element.
  */
-function stampAndResolve(name, source) {
+function stampAndResolve(name: string, source: string) {
     fs.mkdirSync(FIXTURE_ROOT, { recursive: true });
     const dir = fs.mkdtempSync(path.join(FIXTURE_ROOT, 'case-'));
     const file = path.join(dir, name);
@@ -91,7 +91,7 @@ function stampAndResolve(name, source) {
  *
  * @param {Array<{ tag: string, selected: string | undefined, error?: string }>} results From {@link stampAndResolve}.
  */
-function assertAllMatch(results) {
+function assertAllMatch(results: Array<{ tag?: string, selected?: string | null, error?: unknown }>) {
     for (const { tag, selected, error } of results) {
         assert.ok(selected, `no slice for <${tag}> (${error})`);
         assert.ok(selected.startsWith(`<${tag}`), `<${tag}> resolved to: ${selected.slice(0, 40)}`);

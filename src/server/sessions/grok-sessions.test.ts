@@ -13,7 +13,16 @@ const subId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const forkId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const headlessId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
-function writeSession(home, cwd, id, summary, events) {
+/**
+ * Write one Grok session directory: `summary.json` and an optional `events.jsonl`.
+ *
+ * @param home Grok home.
+ * @param cwd Session cwd; the directory name is its encoded form.
+ * @param id Session id.
+ * @param summary `summary.json` fields. A non-object is written as JSON and may fail the list parser.
+ * @param events `events.jsonl` text. Omit it to leave the file missing.
+ */
+function writeSession(home: string, cwd: string, id: string, summary: object, events?: string) {
     const dir = path.join(home, 'sessions', encodeURIComponent(cwd), id);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'summary.json'), JSON.stringify(summary));
@@ -80,7 +89,7 @@ test('an unreadable active_sessions.json is retried once and then marks every ro
         sleep: async () => {
             sleeps += 1;
         },
-        readFileSync(file, encoding) {
+        readFileSync(file: fs.PathOrFileDescriptor, encoding: BufferEncoding) {
             if (String(file).endsWith('active_sessions.json')) {
                 reads += 1;
                 if (reads === 1)
@@ -97,7 +106,7 @@ test('an unreadable active_sessions.json is retried once and then marks every ro
     const stuck = {
         ...fs,
         sleep: async () => {},
-        readFileSync(file, encoding) {
+        readFileSync(file: fs.PathOrFileDescriptor, encoding: BufferEncoding) {
             if (String(file).endsWith('active_sessions.json'))
                 return '{';
             return fs.readFileSync(file, encoding);

@@ -13,7 +13,16 @@ const subagent = '44444444-4444-4444-8444-444444444444';
 const other = '55555555-5555-4555-8555-555555555555';
 const archived = '66666666-6666-4666-8666-666666666666';
 
-function rollout(id, cwd, threadSource, event) {
+/**
+ * One Codex rollout jsonl: session meta plus an optional lifecycle event.
+ *
+ * @param id Thread id.
+ * @param cwd Session cwd stored in the meta payload.
+ * @param threadSource `user` is listed; anything else is dropped.
+ * @param event Lifecycle payload type. An empty string writes no event line, which stays idle.
+ * @returns jsonl text.
+ */
+function rollout(id: string, cwd: string, threadSource: string, event: string) {
     const head = JSON.stringify({
         type: 'session_meta',
         payload: { id, cwd, thread_source: threadSource },
@@ -24,7 +33,17 @@ function rollout(id, cwd, threadSource, event) {
     return `${head}\n${tail}`;
 }
 
-function writeRollout(home, id, body, { archivedFile = false, mtime = null } = {}) {
+/**
+ * Write a rollout under `sessions/` or `archived_sessions/`.
+ *
+ * @param home Codex home.
+ * @param id Thread id used in the filename.
+ * @param body jsonl contents.
+ * @param options `archivedFile` stores it outside the live tree. `mtime` older than the lookback window hides the file.
+ *   Omitting both keeps a fresh live rollout.
+ * @returns Absolute rollout path.
+ */
+function writeRollout(home: string, id: string, body: string, { archivedFile = false, mtime = null }: { archivedFile?: boolean; mtime?: Date | null } = {}) {
     const dir = path.join(home, archivedFile ? 'archived_sessions' : 'sessions', '2026', '09', '27');
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, `rollout-2026-09-27T00-00-00-${id}.jsonl`);
@@ -96,11 +115,11 @@ test('a lifecycle event outside the head and the 512KB tail is idle, and reads s
     let bytes = 0;
     const io = {
         ...fs,
-        readSync(handle, buffer, offset, length, position) {
+        readSync(handle: number, buffer: Buffer, offset: number, length: number, position: number | null) {
             bytes += length;
             return fs.readSync(handle, buffer, offset, length, position);
         },
-        readFileSync(target, encoding) {
+        readFileSync(target: fs.PathOrFileDescriptor, encoding: BufferEncoding) {
             if (String(target).includes('rollout-'))
                 throw new Error('full rollout read');
             return fs.readFileSync(target, encoding);

@@ -94,12 +94,12 @@ function withProject(fn: (root: string) => void) {
  * @param {object} rawHint Browser hint.
  * @returns {Record<string, any>} Source context.
  */
-function resolve(root, file, line, rawHint) {
+function resolve(root: string, file: string, line: number, rawHint: object) {
     const angular = normalizeAngularHint(rawHint);
     return extractSourceContext({ file: resolveAngularComponentFile(file, root), line, column: 1, angular, projectRoot: root });
 }
 
-const step = (tag, extra = {}) => ({ tag, index: 0, ...extra });
+const step = (tag: string, extra: Record<string, unknown> = {}) => ({ tag, index: 0, ...extra });
 
 test('external templates: the element range points into templateUrl', () => {
     withProject((root) => {
@@ -182,7 +182,7 @@ test('multi-project workspaces resolve debugInfo paths against angular.json proj
 test('normalizeAngularHint drops malformed steps and caps sizes', () => {
     assert.equal(normalizeAngularHint(null), null);
     assert.equal(normalizeAngularHint({ path: [{ tag: '<script>' }] }), null);
-    const hint = normalizeAngularHint({ path: [{ tag: 'DIV', classes: ['a', 7, 'b'], attrs: { type: 'x', onclick: 'y' }, index: -1 }], text: 'x'.repeat(500) });
+    const hint = normalizeAngularHint({ path: [{ tag: 'DIV', classes: ['a', 7, 'b'], attrs: { type: 'x', onclick: 'y' }, index: -1 }], text: 'x'.repeat(500) })!;
     assert.deepEqual(hint.path, [{ tag: 'div', classes: ['a', 'b'], attrs: { type: 'x' } }]);
-    assert.equal(hint.text.length, 160);
+    assert.equal(hint.text!.length, 160);
 });

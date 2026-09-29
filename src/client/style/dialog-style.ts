@@ -1,7 +1,16 @@
 import { el, loadStyleChoices, saveStyleChoices, loadStyleScope, saveStyleScope, loadStyleNodeLimit, saveStyleNodeLimit, STYLE_SCOPE_ORDER, revealDropdownPanel } from '../dialog/dialog-utils.js';
 import { STYLE_PROPERTY_KEYS, DEFAULT_STYLE_KEYS, orderStyleKeys } from './style-keys.js';
-import { captureStyles, clampNodeLimit, DEFAULT_NODE_LIMIT } from './style-capture.js';
+import { captureStyles, clampNodeLimit, DEFAULT_NODE_LIMIT, type StyleCapture, type StyleScope } from './style-capture.js';
 import { t } from '../lib/i18n.js';
+
+/**
+ * Callbacks the style footer needs from the open dialog.
+ * Boundary: `selectedElement` is read at preview and send time. Omitting `onChange` skips reposition.
+ */
+interface StyleDialogHost {
+    selectedElement: () => Element | null;
+    onChange?: () => void;
+}
 
 /**
  * Footer controller for attaching an element's rendered (computed) styles to the prompt context.
@@ -12,26 +21,26 @@ import { t } from '../lib/i18n.js';
  * reflects the latest DOM. Server-side prompt rendering stays authoritative for how the styles reach the agent.
  */
 export class DialogStyleController {
-    host;
-    button = null;
-    panel = null;
-    listEl = null;
-    searchEl = null;
-    countEl = null;
-    previewEl = null;
-    scopeButtons = new Map();
-    optionButtons = new Map();
-    nodeLimitRow = null;
-    nodeLimitValueEl = null;
-    choices = new Set();
-    scope = 'self';
-    nodeLimit = DEFAULT_NODE_LIMIT;
+    host: StyleDialogHost;
+    button: HTMLButtonElement | null = null;
+    panel: HTMLElement | null = null;
+    listEl: HTMLElement | null = null;
+    searchEl: HTMLInputElement | null = null;
+    countEl: HTMLElement | null = null;
+    previewEl: HTMLElement | null = null;
+    scopeButtons: Map<string, HTMLButtonElement> = new Map();
+    optionButtons: Map<string, HTMLButtonElement> = new Map();
+    nodeLimitRow: HTMLElement | null = null;
+    nodeLimitValueEl: HTMLElement | null = null;
+    choices: Set<string> = new Set();
+    scope: StyleScope = 'self';
+    nodeLimit: number = DEFAULT_NODE_LIMIT;
     filter = '';
 
     /**
      * @param {{ selectedElement: () => (Element | null), onChange?: () => void }} host Dialog host callbacks.
      */
-    constructor(host) {
+    constructor(host: StyleDialogHost) {
         this.host = host;
     }
 
@@ -41,9 +50,12 @@ export class DialogStyleController {
      * from a tidy footer.
      * @returns {void}
      */
-    reset() {
-        this.choices = loadStyleChoices();
-        this.scope = loadStyleScope();
+    reset(): void {
+        // The helper's empty-set branch is `Set<unknown>`; every kept value is a catalog property name.
+        this.choices = loadStyleChoices() as Set<string>;
+        // Storage reads are `string | null`, and `includes` rejects null, so the helper's return is widened.
+        // Every path still returns one of the four scopes (or `self`).
+        this.scope = loadStyleScope() as StyleScope;
         this.nodeLimit = loadStyleNodeLimit();
         this.filter = '';
         if (this.panel)
@@ -51,7 +63,7 @@ export class DialogStyleController {
     }
 
     /** Tear down style state on dialog close. @returns {void} */
-    clear() {
+    clear(): void {
         if (this.panel)
             this.panel.hidden = true;
     }
@@ -61,8 +73,9 @@ export class DialogStyleController {
      * @param {HTMLElement} previewEl Preview container owned by the current dialog.
      * @returns {void}
      */
-    attachPreview(previewEl) {
+    attachPreview(previewEl: HTMLElement): void {
         this.previewEl = previewEl;
+        // A missing node used to be ignored; the check keeps that no-op if a caller passes null through `el()`.
         if (this.previewEl)
             this.previewEl.hidden = true;
     }
@@ -73,24 +86,27 @@ export class DialogStyleController {
      * returned wrapper until the dialog closes.
      * @returns {HTMLElement} Style picker wrapper.
      */
-    renderButton() {
-        const wrapper = el('div', 'cii-screenshot-picker cii-style-picker');
-        this.button = el('button', 'cii-icon-btn');
-        this.button.type = 'button';
-        this.button.append(el('span', 'cii-style-icon'));
-        this.button.addEventListener('click', (event) => {
+    renderButton(): HTMLElement {
+        const wrapper: HTMLElement = el('div', 'cii-screenshot-picker cii-style-picker');
+        const button: HTMLButtonElement = el('button', 'cii-icon-btn');
+        this.button = button;
+        button.type = 'button';
+        button.append(el('span', 'cii-style-icon'));
+        button.addEventListener('click', (event) => {
             event.stopPropagation();
-            if (!this.panel)
+            const panel = this.panel;
+            if (!panel)
                 return;
             // Measure against the live viewport on open (gated so it paints only at the final spot) so a dialog sitting
             // high or near a side rail flips/clamps the panel into view instead of clipping it off-screen.
-            if (this.panel.hidden)
-                revealDropdownPanel(this.button, this.panel);
+            if (panel.hidden)
+                revealDropdownPanel(button, panel);
             else
-                this.panel.hidden = true;
+                panel.hidden = true;
         });
-        this.panel = this.renderPanel();
-        wrapper.append(this.button, this.panel);
+        const panel = this.renderPanel();
+        this.panel = panel;
+        wrapper.append(button, panel);
         this.updateButton();
         return wrapper;
     }
@@ -99,8 +115,8 @@ export class DialogStyleController {
      * Build the dropdown panel: scope toggle, search box, scrollable property checklist, and a footer count/clear row.
      * @returns {HTMLElement} Panel element.
      */
-    renderPanel() {
-        const panel = el('div', 'cii-screenshot-menu cii-style-panel');
+    renderPanel(): HTMLElement {
+        const panel: HTMLElement = el('div', 'cii-screenshot-menu cii-style-panel');
         panel.hidden = true;
 
         panel.append(el('div', 'cii-style-panel-title', t('styles.panel.title')));
@@ -110,11 +126,12 @@ export class DialogStyleController {
         const scopeRow = el('div', 'cii-style-scope');
         this.scopeButtons = new Map();
         for (const value of STYLE_SCOPE_ORDER) {
-            const btn = el('button', 'cii-style-scope-btn', t(`styles.scope.${value}`));
+            const btn: HTMLButtonElement = el('button', 'cii-style-scope-btn', t(`styles.scope.${value}`));
             btn.type = 'button';
             btn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                this.scope = value;
+                // `STYLE_SCOPE_ORDER` is a string list; every entry is a style scope.
+                this.scope = value as StyleScope;
                 saveStyleScope(value);
                 this.updateScope();
                 this.updatePreview();
@@ -129,26 +146,29 @@ export class DialogStyleController {
         panel.append(this.renderNodeLimit());
 
         // Search filter.
-        this.searchEl = el('input', 'cii-style-search');
-        this.searchEl.type = 'text';
-        this.searchEl.placeholder = t('styles.search.placeholder');
-        this.searchEl.spellcheck = false;
-        this.searchEl.addEventListener('input', () => {
-            this.filter = this.searchEl.value.trim().toLowerCase();
+        const searchEl: HTMLInputElement = el('input', 'cii-style-search');
+        this.searchEl = searchEl;
+        searchEl.type = 'text';
+        searchEl.placeholder = t('styles.search.placeholder');
+        searchEl.spellcheck = false;
+        searchEl.addEventListener('input', () => {
+            this.filter = searchEl.value.trim().toLowerCase();
             this.renderList();
         });
-        this.searchEl.addEventListener('keydown', (event) => event.stopPropagation());
-        panel.append(this.searchEl);
+        searchEl.addEventListener('keydown', (event) => event.stopPropagation());
+        panel.append(searchEl);
 
         // Property checklist.
-        this.listEl = el('div', 'cii-style-list');
-        panel.append(this.listEl);
+        const listEl: HTMLElement = el('div', 'cii-style-list');
+        this.listEl = listEl;
+        panel.append(listEl);
 
         // Footer: selected count + quick "common defaults" + clear.
         const foot = el('div', 'cii-style-foot');
-        this.countEl = el('span', 'cii-style-count');
-        const actions = el('div', 'cii-style-foot-actions');
-        const defaults = el('button', 'cii-style-action cii-style-defaults', t('styles.useDefaults'));
+        const countEl: HTMLElement = el('span', 'cii-style-count');
+        this.countEl = countEl;
+        const actions: HTMLElement = el('div', 'cii-style-foot-actions');
+        const defaults: HTMLButtonElement = el('button', 'cii-style-action cii-style-defaults', t('styles.useDefaults'));
         defaults.type = 'button';
         defaults.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -157,14 +177,14 @@ export class DialogStyleController {
                     this.choices.add(key);
             });
         });
-        const clear = el('button', 'cii-style-action cii-style-clear', t('styles.clear'));
+        const clear: HTMLButtonElement = el('button', 'cii-style-action cii-style-clear', t('styles.clear'));
         clear.type = 'button';
         clear.addEventListener('click', (event) => {
             event.stopPropagation();
             this.commitChoices(() => this.choices.clear());
         });
         actions.append(defaults, clear);
-        foot.append(this.countEl, actions);
+        foot.append(countEl, actions);
         panel.append(foot);
 
         this.updateScope();
@@ -179,24 +199,25 @@ export class DialogStyleController {
      * (the server backstop) so a larger request is never silently truncated.
      * @returns {HTMLElement} Node-limit row.
      */
-    renderNodeLimit() {
-        const row = el('div', 'cii-style-nodes');
+    renderNodeLimit(): HTMLElement {
+        const row: HTMLElement = el('div', 'cii-style-nodes');
         row.append(el('span', 'cii-style-nodes-label', t('styles.nodes.label')));
-        const stepper = el('div', 'cii-style-nodes-stepper');
-        const dec = el('button', 'cii-style-nodes-btn', '−');
+        const stepper: HTMLElement = el('div', 'cii-style-nodes-stepper');
+        const dec: HTMLButtonElement = el('button', 'cii-style-nodes-btn', '−');
         dec.type = 'button';
         dec.addEventListener('click', (event) => {
             event.stopPropagation();
             this.setNodeLimit(this.nodeLimit - 1);
         });
-        this.nodeLimitValueEl = el('span', 'cii-style-nodes-value', String(this.nodeLimit));
-        const inc = el('button', 'cii-style-nodes-btn', '+');
+        const nodeLimitValueEl: HTMLElement = el('span', 'cii-style-nodes-value', String(this.nodeLimit));
+        this.nodeLimitValueEl = nodeLimitValueEl;
+        const inc: HTMLButtonElement = el('button', 'cii-style-nodes-btn', '+');
         inc.type = 'button';
         inc.addEventListener('click', (event) => {
             event.stopPropagation();
             this.setNodeLimit(this.nodeLimit + 1);
         });
-        stepper.append(dec, this.nodeLimitValueEl, inc);
+        stepper.append(dec, nodeLimitValueEl, inc);
         row.append(stepper);
         this.nodeLimitRow = row;
         return row;
@@ -208,14 +229,15 @@ export class DialogStyleController {
      * @param {number} value Requested node cap.
      * @returns {void}
      */
-    setNodeLimit(value) {
+    setNodeLimit(value: number): void {
         const next = clampNodeLimit(value);
         if (next === this.nodeLimit)
             return;
         this.nodeLimit = next;
         saveStyleNodeLimit(next);
-        if (this.nodeLimitValueEl)
-            this.nodeLimitValueEl.textContent = String(next);
+        const nodeLimitValueEl = this.nodeLimitValueEl;
+        if (nodeLimitValueEl)
+            nodeLimitValueEl.textContent = String(next);
         this.updatePreview();
         this.host.onChange?.();
     }
@@ -228,7 +250,7 @@ export class DialogStyleController {
      * @param {() => void} mutate Callback that mutates `this.choices`.
      * @returns {void}
      */
-    commitChoices(mutate) {
+    commitChoices(mutate: () => void): void {
         mutate();
         saveStyleChoices(this.choices);
         this.renderList();
@@ -241,18 +263,19 @@ export class DialogStyleController {
      * Render (or re-render) the filtered property checklist.
      * @returns {void}
      */
-    renderList() {
-        if (!this.listEl)
+    renderList(): void {
+        const listEl = this.listEl;
+        if (!listEl)
             return;
-        this.listEl.innerHTML = '';
+        listEl.innerHTML = '';
         this.optionButtons = new Map();
         const matches = STYLE_PROPERTY_KEYS.filter((key) => !this.filter || key.includes(this.filter));
         if (!matches.length) {
-            this.listEl.append(el('div', 'cii-style-empty', t('styles.empty')));
+            listEl.append(el('div', 'cii-style-empty', t('styles.empty')));
         }
         else {
             for (const key of matches)
-                this.listEl.append(this.renderOption(key));
+                listEl.append(this.renderOption(key));
         }
         this.updateCount();
     }
@@ -262,8 +285,8 @@ export class DialogStyleController {
      * @param {string} key Computed-style property name.
      * @returns {HTMLButtonElement} Option button.
      */
-    renderOption(key) {
-        const button = el('button', 'cii-style-opt');
+    renderOption(key: string): HTMLButtonElement {
+        const button: HTMLButtonElement = el('button', 'cii-style-opt');
         button.type = 'button';
         button.append(el('span', 'cii-choice-mark'), el('span', 'cii-style-opt-label', key));
         button.addEventListener('click', (event) => {
@@ -285,14 +308,14 @@ export class DialogStyleController {
     }
 
     /** Toggle one option's active state in place. @param {string} key @returns {void} */
-    updateOption(key) {
+    updateOption(key: string): void {
         const button = this.optionButtons.get(key);
         if (button)
             this.applyOptionState(button, this.choices.has(key));
     }
 
     /** Apply the active mark/class to one option button. @param {HTMLElement} button @param {boolean} active @returns {void} */
-    applyOptionState(button, active) {
+    applyOptionState(button: HTMLElement, active: boolean): void {
         button.classList.toggle('cii-choice-active', active);
         const mark = button.querySelector('.cii-choice-mark');
         if (mark)
@@ -300,7 +323,7 @@ export class DialogStyleController {
     }
 
     /** Refresh the active scope toggle button and toggle the node-cap row (hidden for the single-node `self` scope). @returns {void} */
-    updateScope() {
+    updateScope(): void {
         for (const [value, button] of this.scopeButtons)
             button.classList.toggle('cii-style-scope-active', value === this.scope);
         if (this.nodeLimitRow)
@@ -308,23 +331,25 @@ export class DialogStyleController {
     }
 
     /** Refresh the selected-count label. @returns {void} */
-    updateCount() {
-        if (this.countEl)
-            this.countEl.textContent = t('styles.selectedCount', { n: this.choices.size });
+    updateCount(): void {
+        const countEl = this.countEl;
+        if (countEl)
+            countEl.textContent = t('styles.selectedCount', { n: this.choices.size });
     }
 
     /**
      * Refresh the footer button active state and tooltip.
      * @returns {void}
      */
-    updateButton() {
-        if (!this.button)
+    updateButton(): void {
+        const button = this.button;
+        if (!button)
             return;
         const active = this.choices.size > 0;
-        this.button.classList.toggle('cii-icon-btn-active', active);
+        button.classList.toggle('cii-icon-btn-active', active);
         const title = active ? t('styles.summary', { n: this.choices.size }) : t('styles.button.title');
-        this.button.dataset.ciiTip = title;
-        this.button.setAttribute('aria-label', t('styles.button.title'));
+        button.dataset.ciiTip = title;
+        button.setAttribute('aria-label', t('styles.button.title'));
     }
 
     /**
@@ -333,23 +358,24 @@ export class DialogStyleController {
      * missing element or empty selection hides the chip.
      * @returns {void}
      */
-    updatePreview() {
-        if (!this.previewEl)
+    updatePreview(): void {
+        const previewEl = this.previewEl;
+        if (!previewEl)
             return;
-        this.previewEl.innerHTML = '';
+        previewEl.innerHTML = '';
         const payload = this.buildPayloadStyles();
         if (!payload) {
-            this.previewEl.hidden = true;
+            previewEl.hidden = true;
             return;
         }
-        this.previewEl.hidden = false;
+        previewEl.hidden = false;
         const chip = el('div', 'cii-style-chip');
         chip.append(el('span', 'cii-style-chip-icon'));
         chip.append(el('span', 'cii-style-chip-text', t('styles.preview.summary', {
             props: payload.properties.length,
             nodes: payload.nodes.length,
         })));
-        const remove = el('button', 'cii-style-chip-remove', '×');
+        const remove: HTMLButtonElement = el('button', 'cii-style-chip-remove', '×');
         remove.type = 'button';
         remove.setAttribute('aria-label', t('styles.remove.aria'));
         remove.addEventListener('click', (event) => {
@@ -357,7 +383,7 @@ export class DialogStyleController {
             this.commitChoices(() => this.choices.clear());
         });
         chip.append(remove);
-        this.previewEl.append(chip);
+        previewEl.append(chip);
     }
 
     /**
@@ -365,18 +391,21 @@ export class DialogStyleController {
      * @param {EventTarget | null} target Event target from the dialog mousedown listener.
      * @returns {void}
      */
-    closeMenuFromOutside(target) {
-        if (!this.panel || !this.button || this.panel.hidden)
+    closeMenuFromOutside(target: EventTarget | null): void {
+        const panel = this.panel;
+        const button = this.button;
+        if (!panel || !button || panel.hidden)
             return;
-        if (target instanceof Node && !this.button.contains(target) && !this.panel.contains(target)) {
-            this.panel.hidden = true;
+        if (target instanceof Node && !button.contains(target) && !panel.contains(target)) {
+            panel.hidden = true;
         }
     }
 
     /** Disable or enable the style control during busy dialog states. @param {boolean} disabled @returns {void} */
-    setDisabled(disabled) {
-        if (this.button)
-            this.button.disabled = disabled;
+    setDisabled(disabled: boolean): void {
+        const button = this.button;
+        if (button)
+            button.disabled = disabled;
     }
 
     /**
@@ -387,9 +416,9 @@ export class DialogStyleController {
      * the preview chip claim styles that never reach the agent. The non-strict preview path keeps degrading quietly.
      * The capture is read fresh here, not cached, so it matches the element's current rendered styles.
      * @param {{ strict?: boolean }} [options] Pass `strict: true` on the send path to surface a missing element.
-     * @returns {Record<string, unknown> | undefined} Style capture payload, if any.
+     * @returns {StyleCapture | undefined} Style capture payload, if any.
      */
-    buildPayloadStyles(options: any = {}) {
+    buildPayloadStyles(options: { strict?: boolean } = {}): StyleCapture | undefined {
         if (!this.choices.size)
             return undefined;
         const element = this.host.selectedElement();

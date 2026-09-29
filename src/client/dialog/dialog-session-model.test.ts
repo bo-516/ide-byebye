@@ -14,14 +14,17 @@ import {
     sessionMenuRow,
     withSessionTarget,
     writeSessionTargets,
+    type SessionMenuState,
 } from './dialog-session-model.js';
 
+/** In-memory stand-in for the target map. Only the methods the model calls are implemented. */
 function memoryStore() {
-    const map = new Map();
+    const map = new Map<string, string>();
     return {
-        getItem: (key) => (map.has(key) ? map.get(key) : null),
-        setItem: (key, value) => map.set(key, String(value)),
-        removeItem: (key) => map.delete(key),
+        // `!` erases. A stored entry is returned as-is; `?? null` would turn a stored undefined into null.
+        getItem: (key: string) => (map.has(key) ? map.get(key)! : null),
+        setItem: (key: string, value: string) => { map.set(key, String(value)); },
+        removeItem: (key: string) => { map.delete(key); },
     };
 }
 
@@ -39,7 +42,7 @@ test('ArrowDown twice then Enter selects the second session; Escape closes the m
         { id: 'first', disabled: false },
         { id: 'second', disabled: false },
     ];
-    let state = { open: true, index: 0, sessions };
+    let state: SessionMenuState = { open: true, index: 0, sessions };
     state = applySessionMenuKey(state, 'ArrowDown');
     state = applySessionMenuKey(state, 'ArrowDown');
     state = applySessionMenuKey(state, 'Enter');

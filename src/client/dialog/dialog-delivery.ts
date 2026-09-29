@@ -15,11 +15,12 @@
  * `window.parent === window`, and posting there would silently deliver the prompt to the page that produced it. The
  * caller must surface that as a failure rather than reporting success.
  *
- * @param {string} windowTarget Requested window: `parent`, `top`, or `opener`.
+ * @param {string | null | undefined} windowTarget Requested window: `parent`, `top`, or `opener`. Any other value,
+ *        including nullish, addresses `parent` — the same branch the dialog uses when the server omits the field.
  * @param {Window} win Window the previewed page runs in.
  * @returns {Window | null} Target window, or null when nothing usable is embedded around the page.
  */
-export function resolveDeliveryWindow(windowTarget, win: any) {
+export function resolveDeliveryWindow(windowTarget: string | null | undefined, win: Window): Window | null {
     const target = windowTarget === 'top'
         ? win.top
         : (windowTarget === 'opener' ? win.opener : win.parent);
@@ -36,11 +37,15 @@ export function resolveDeliveryWindow(windowTarget, win: any) {
  * both return `ok: false` with a reason code instead of throwing, so the dialog can keep the user's intent on screen.
  * A successful post only proves the message left the page — the receiving client owns the rest.
  *
- * @param {{ windowTarget?: string, targetOrigin?: string, payload: Record<string, unknown> }} deliver Delivery instruction from the send result.
+ * @param {{ windowTarget?: string | null, targetOrigin?: string | null, payload?: unknown }} deliver Delivery instruction from the send result. `payload` is optional because a malformed result may omit it; `postMessage` then sends `undefined`.
  * @param {Window} [win] Window the previewed page runs in; defaults to the live one.
  * @returns {{ ok: true } | { ok: false, reason: 'no-window' | 'post-failed', error?: string }} Delivery outcome.
  */
-export function deliverPromptToClient(deliver: any, win: any = window) {
+export function deliverPromptToClient(deliver: {
+    windowTarget?: string | null;
+    targetOrigin?: string | null;
+    payload?: unknown;
+}, win: Window = window): { ok: true } | { ok: false; reason: 'no-window' | 'post-failed'; error?: string } {
     const target = resolveDeliveryWindow(deliver?.windowTarget, win);
     if (!target)
         return { ok: false, reason: 'no-window' };

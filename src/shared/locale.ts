@@ -11,7 +11,7 @@
  * @param {unknown} value Raw locale string from plugin config or `navigator.language`.
  * @returns {'zh' | 'en' | null} Supported locale id, or null when undetectable.
  */
-export function normalizeLocale(value) {
+export function normalizeLocale(value: unknown): 'zh' | 'en' | null {
     if (typeof value !== 'string' || !value.trim()) {
         return null;
     }
