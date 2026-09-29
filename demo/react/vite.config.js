@@ -24,6 +24,8 @@ export default defineConfig({
     // "Failed to fetch".
     host: true,
     port: Number(process.env.PORT) || 5300,
-    open: true,
+    strictPort: true,
+    // Unset DEMO_OPEN (human `pnpm dev:react`) still opens a browser. The matrix sets DEMO_OPEN=0.
+    open: process.env.DEMO_OPEN !== '0',
   },
 });

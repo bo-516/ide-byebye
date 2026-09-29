@@ -8,8 +8,11 @@ import { createMakoStampPlugin, stampUnplugin } from './server/stamp/stamp-unplu
 import {
     CLIENT_BOOTSTRAP_MARKER,
     injectHtmlSnippet,
+    installFarmDevInjection,
+    readFarmHtml,
     resolveEsbuildHtmlTargets,
     setupWebpackLikeCompiler,
+    writeFarmHtml,
 } from './server/html-injection.js';
 import { isViteClientModule } from './server/vite-client.js';
 import { resolvePackageRoot } from './server/workspace-root.js';
@@ -25,7 +28,8 @@ export { PLUGIN_NAME } from './server/plugin-runtime.js';
  * Purpose: one inspector instance per plugin usage. Bundler-specific surface is limited to HTML injection + when to
  * start the loopback server. Vite uses `transformIndexHtml` and, for SSR frameworks whose HTML never reaches that hook
  * (Nuxt, SvelteKit, SolidStart, Astro, …), appends an idempotent JS bootstrap to `/@vite/client`; webpack/rspack
- * rewrite emitted `.html` assets; rsbuild uses `modifyHTMLTags`; farm uses `transformHtml`; esbuild starts the server
+ * rewrite emitted `.html` assets; rsbuild uses `modifyHTMLTags`; farm uses `configureDevServer` in dev and
+ * `transformHtml` for builds; esbuild starts the server
  * and rewrites HTML files listed via `options.htmlFiles` (or any `*.html` next to `outdir`/`outfile` after the build).
  *
  * Boundary: Vite / farm / esbuild entry helpers register the stamp plugin themselves because those ecosystems need a
@@ -117,41 +121,38 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
         /**
          * Farm. HTML injection and server lifecycle live here. The {@link farm} export registers the stamp plugin
          * alongside this one.
+         *
+         * `configResolved` is a function because Farm 1.7 invokes `plugin.configResolved(config)` directly.
+         * The `{ executor }` object used by `transform` and `transformHtml` is not callable, and Farm exits
+         * before serving (`p.configResolved is not a function`).
+         *
+         * Dev `transformHtml` is handed an empty `bytes` array; Farm fills the document afterwards.
+         * {@link installFarmDevInjection} rewrites that response. `transformHtml` still covers
+         * `farm build`, where `bytes` already holds the document. Its `order` is `2` (post).
+         * Values outside `0 | 1 | 2` are ignored.
          */
         farm: {
             name: PLUGIN_NAME,
             priority: 1000,
-            configResolved: {
-                executor({ config }) {
-                    if (runtime.enabled) {
-                        runtime.initPaths(config?.root || process.cwd());
-                    }
-                },
+            async configResolved(config) {
+                if (runtime.enabled) {
+                    runtime.initPaths(config?.root || process.cwd());
+                }
+            },
+            configureDevServer(server) {
+                if (!runtime.enabled || typeof server?.app !== 'function')
+                    return;
+                installFarmDevInjection(server.app(), () => runtime.injectionHtml());
             },
             transformHtml: {
-                order: 100,
+                order: 2,
                 async executor({ htmlResource }) {
-                    if (!runtime.enabled || !htmlResource) {
+                    if (!runtime.enabled || !htmlResource)
                         return htmlResource;
-                    }
-                    const html = typeof htmlResource === 'string'
-                        ? htmlResource
-                        : (htmlResource.html || htmlResource.code || '');
-                    if (!html) {
+                    const html = readFarmHtml(htmlResource);
+                    if (!html)
                         return htmlResource;
-                    }
-                    const snippet = await runtime.injectionHtml();
-                    const next = injectHtmlSnippet(html, snippet);
-                    if (typeof htmlResource === 'string') {
-                        return next;
-                    }
-                    if ('html' in htmlResource) {
-                        return { ...htmlResource, html: next };
-                    }
-                    if ('code' in htmlResource) {
-                        return { ...htmlResource, code: next };
-                    }
-                    return htmlResource;
+                    return writeFarmHtml(htmlResource, injectHtmlSnippet(html, await runtime.injectionHtml()));
                 },
             },
         },
@@ -250,10 +251,16 @@ export function rsbuild(options: IdeByebyeOptions = {}): PluginInstance {
 }
 
 /**
- * Farm entry. Registers the stamp transform and injects the bootstrap through Farm's `transformHtml` hook.
+ * Farm entry. Registers the stamp transform and the inspector plugin.
+ * Dev HTML is rewritten in `configureDevServer` because Farm 1.7 hands `transformHtml` an empty
+ * `bytes` array and fills the document later. `transformHtml` still stamps `farm build`.
+ * The inspector's `configResolved` is a plain function because Farm 1.7 calls `plugin.configResolved(config)`.
+ * Passing `{ executor }` makes `farm` exit before it serves.
+ * The stamp transform returns `{ code }` for every bundler: unplugin 3.3's Farm adapter drops a string,
+ * and Vite, webpack, and rspack already accept the object.
  *
  * @param {Record<string, unknown>} [options] Plugin options.
- * @returns {object[]} `[stampPlugin, inspectorFarmPlugin]`.
+ * @returns {object[]} `[stampPlugin, inspectorFarmPlugin]`. Omitting options uses the runtime defaults.
  */
 export function farm(options: IdeByebyeOptions = {}): PluginInstance[] {
     return [

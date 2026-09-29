@@ -12,7 +12,11 @@ export default defineConfig({
     vue(),
   ],
   server: {
+    // Bind every interface so http://127.0.0.1 reaches the server (Vite's default can be [::1] only).
+    host: true,
     port: Number(process.env.PORT) || 5600,
-    open: true,
+    strictPort: true,
+    // Unset DEMO_OPEN (human `pnpm dev:vue`) still opens a browser. The matrix sets DEMO_OPEN=0.
+    open: process.env.DEMO_OPEN !== '0',
   },
 });

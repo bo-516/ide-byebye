@@ -28,6 +28,10 @@ pnpm-debug.log*
 .parcel-cache/
 .turbo/
 .vite/
+.next/
+.nuxt/
+.angular/
+.svelte-kit/
 .eslintcache
 
 # Temporary files

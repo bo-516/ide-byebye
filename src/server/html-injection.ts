@@ -20,6 +20,87 @@ export function injectHtmlSnippet(html, snippet) {
 }
 
 /**
+ * Read the document from a Farm `transformHtml` resource.
+ *
+ * Farm 1.7's Vite adapter round-trips `htmlResource.bytes` only (`number[]` of UTF-8 octets).
+ * A string or `{ html }` / `{ code }` is not a Farm resource; those return `''` so the hook
+ * leaves the value unchanged.
+ *
+ * @param {unknown} resource Farm `{ bytes }` resource.
+ * @returns {string} Decoded HTML. Empty when `bytes` is missing or empty.
+ */
+export function readFarmHtml(resource) {
+    const bytes = resource && typeof resource === 'object' ? resource.bytes : undefined;
+    if (bytes && typeof bytes.length === 'number' && bytes.length > 0)
+        return Buffer.from(bytes).toString('utf8');
+    return '';
+}
+
+/**
+ * Put `html` back on a Farm resource by replacing `bytes`, matching Farm's own Vite adapter
+ * (`htmlResource.bytes = [...Buffer.from(result)]`).
+ *
+ * A value without `bytes` is returned unchanged. Farm does not read a string return.
+ *
+ * @param {unknown} resource The resource {@link readFarmHtml} decoded.
+ * @param {string} html HTML after bootstrap injection.
+ * @returns {unknown} The same resource when `bytes` was written; otherwise `resource` as given.
+ */
+export function writeFarmHtml(resource, html) {
+    if (!resource || typeof resource !== 'object' || !resource.bytes)
+        return resource;
+    resource.bytes = [...Buffer.from(html)];
+    return resource;
+}
+
+/**
+ * Decode a Farm dev-server response body. Koa sets `ctx.body` to a string, a Buffer, or a Uint8Array.
+ * This is not the `transformHtml` resource shape.
+ *
+ * @param {unknown} body `ctx.body` after Farm's resource middleware.
+ * @returns {string} UTF-8 text, or `''` for any other body.
+ */
+export function readFarmDevBody(body) {
+    if (typeof body === 'string')
+        return body;
+    if (Buffer.isBuffer(body))
+        return body.toString('utf8');
+    if (body instanceof Uint8Array)
+        return Buffer.from(body).toString('utf8');
+    return '';
+}
+
+/**
+ * Outermost Farm dev middleware. Farm 1.7 calls `configureDevServer` after
+ * `http.createServer(app.callback())`. Koa composes `app.middleware` on each request, so
+ * `unshift` still runs first and sees `ctx.body` after the resource middleware assigns it.
+ * `app.use` appends and runs inside that middleware, before the body exists, so it cannot inject.
+ *
+ * Does nothing when `app.middleware` is not an array. This Koa app always exposes that array.
+ *
+ * @param {object} app Koa app from `server.app()`.
+ * @param {() => Promise<string>} injectionHtml Bootstrap snippet. Called only for an HTML body that lacks the marker.
+ * @returns {void}
+ */
+export function installFarmDevInjection(app, injectionHtml) {
+    if (!app || !Array.isArray(app.middleware))
+        return;
+    const inject = async (ctx, next) => {
+        await next();
+        const type = String(ctx?.type || '');
+        const pathName = String(ctx?.path || '');
+        const htmlResponse = type.includes('html') || pathName === '/' || pathName.endsWith('.html');
+        if (!htmlResponse || ctx.body == null)
+            return;
+        const html = readFarmDevBody(ctx.body);
+        if (!html.includes('<') || html.includes(CLIENT_BOOTSTRAP_MARKER))
+            return;
+        ctx.body = injectHtmlSnippet(html, await injectionHtml());
+    };
+    app.middleware.unshift(inject);
+}
+
+/**
  * webpack/rspack-style HTML injection via `processAssets` at REPORT stage.
  *
  * Boundary: skips production mode so the inspector never ships. Mutates every emitted `.html` asset.

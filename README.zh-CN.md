@@ -272,11 +272,11 @@ SSR 框架自己渲染 HTML，bootstrap 改由每个页面本来就加载的模�
 
 | 框架 | 接入方式 | 已验证 |
 | --- | --- | --- |
-| Next.js | [`ide-byebye/next`](#nextjs) | 14.2 / 15.2 / 16.3 — Turbopack 与 webpack、App 与 Pages Router |
-| Nuxt | `nuxt.config` 里 `vite: { plugins: [inspector()] }` | Nuxt 4.5 |
-| SvelteKit | `vite.config` 里 `plugins: [inspector(), sveltekit()]` | Kit 2 + Svelte 5 |
+| Next.js | [`ide-byebye/next`](#nextjs) | `pnpm dev:next`（5860）、`pnpm dev:next:webpack`（5870）+ 本机 `npm test`。Next 16.3.6 |
+| Nuxt | `nuxt.config` 里 `vite: { plugins: [inspector()] }` | `pnpm dev:nuxt`（5880）+ 本机 `npm test`。Nuxt 4.5.2 |
+| SvelteKit | `vite.config` 里 `plugins: [inspector(), sveltekit()]` | `pnpm dev:sveltekit`（5890）+ 本机 `npm test`。Kit 2.70.3 + Svelte 5.57.1 |
 | SolidStart / Astro / React Router / Vike / … | 照常使用 Vite 插件 | 同一机制，未逐个测试 |
-| Angular CLI | [`ide-byebye/angular`](#angular-cli) | Angular 22 |
+| Angular CLI | [`ide-byebye/angular`](#angular-cli) | `pnpm dev:angular`（5900）+ 本机 `npm test`。Angular CLI 22.2.0 |
 
 ```ts
 // nuxt.config.ts
@@ -292,18 +292,30 @@ Vite 系框架的 JS bootstrap 追加在 `/@vite/client` 上；SPA 页面仍注�
 
 ## 演示
 
-演示场在 [`demo/`](./demo)（React + Vue × Vite / webpack / rspack）：
+演示场在 [`demo/`](./demo)。跑 `npm test` 前先停掉 `pnpm dev:*`——`src/` 比 `dist/` 新时测试会重新构建。
 
 ```sh
 cd demo && pnpm install
-pnpm dev                 # react + vite
-pnpm dev:vue             # vue + vite
-pnpm dev:react:webpack
-pnpm dev:react:rspack
+pnpm dev                 # react + vite          5300
+pnpm dev:react           # react + vite          5300
+pnpm dev:react:webpack   # react + webpack       5400
+pnpm dev:react:rspack    # react + rspack        5500
+pnpm dev:vue             # vue + vite            5600
+pnpm dev:vue:webpack     # vue + webpack         5700
+pnpm dev:svelte          # svelte + vite         5800
+pnpm dev:solid           # solid + vite          5810
+pnpm dev:preact          # preact + vite         5820
+pnpm dev:rsbuild         # react + rsbuild       5830
+pnpm dev:esbuild         # react + esbuild       5840
+pnpm dev:farm            # react + farm          5850
+pnpm dev:next            # next + turbopack      5860
+pnpm dev:next:webpack    # next + webpack        5870
+pnpm dev:nuxt            # nuxt + vite           5880
+pnpm dev:sveltekit       # sveltekit + vite      5890
+pnpm dev:angular         # angular + cli         5900
 ```
 
-按住 ⌘ 点击任意元素即可打开意图弹窗。细节见
-[`demo/README.md`](./demo/README.md)。
+在包根目录执行 `npm test` 会在 lockfile 变化时安装 demo 依赖，在 `dist/` 缺失或旧于 `src/` 时先构建，再检查上表每一行的 bootstrap 注入和源码位置。按住 ⌘ 点击任意元素即可打开意图弹窗。细节见 [`demo/README.md`](./demo/README.md)。
 
 ## 环境要求
 
