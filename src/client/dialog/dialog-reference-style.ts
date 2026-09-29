@@ -1,72 +1,19 @@
+import { DIALOG_EDITOR_STYLE_TEXT } from './dialog-editor-style.js';
+
 /**
- * DIALOG_REFERENCE_STYLE_TEXT: source-owned styles for the dialog mention editor.
+ * DIALOG_REFERENCE_STYLE_TEXT: source-owned styles for the dialog's mention chips.
  *
- * Purpose: turns the intent field into a borderless composer: the click-selected element is a pinned, non-removable
- * context chip (dimmed directory, emphasized file name, line-range tag) and supplementary `@code` references are inline
- * atomic mentions (file name + range only; the full path stays in the chip's title) that keep their position in the
- * typed text.
- * Boundary: this stylesheet must be appended after `STYLE_TEXT` inside the plugin shadow root, because it reads the
- * design tokens and icon masks declared there; installing it elsewhere has no effect, and installing it alone leaves
- * every `var()` unresolved. The `.cii-mention-*` part classes come from `createMentionElement` in `dialog-editor`.
+ * Purpose: the click-selected element is a pinned, non-removable context chip (dimmed directory, emphasized file name,
+ * line-range tag) and supplementary `@code` references are inline atomic mentions (file name + range only; the full
+ * path stays in the chip's title) that keep their position in the typed text.
+ * Boundary: `installDialogReferenceStyle` appends this after `DIALOG_EDITOR_STYLE_TEXT`, inside the plugin shadow root
+ * after `STYLE_TEXT`, because it reads the design tokens and icon masks declared there; installing it elsewhere has no
+ * effect, and installing it alone leaves every `var()` unresolved. The `.cii-mention-*` part classes come from
+ * `createMentionElement` in `dialog-editor`.
  *
  * @type {string} CSS text appended to the plugin shadow root.
  */
 export const DIALOG_REFERENCE_STYLE_TEXT = `
-.cii-field {
-  position: relative;
-  flex: 1 1 100%;
-  min-width: 0;
-}
-.cii-editor-pinned {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-height: 96px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-right: 60px;
-  scrollbar-width: thin;
-}
-.cii-editor-pinned[hidden] {
-  display: none;
-}
-.cii-editor {
-  position: relative;
-  min-height: 76px;
-  max-height: 240px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 10px 2px 4px;
-  color: var(--cii-text);
-  caret-color: var(--cii-accent);
-  font: 15px/1.6 var(--cii-font);
-  outline: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  scrollbar-width: thin;
-  scrollbar-color: var(--cii-line-strong) transparent;
-}
-/* Without a context chip (a cold restore that lost its selection) the first line would run under the header controls. */
-.cii-editor-pinned[hidden] + .cii-editor {
-  padding-right: 64px;
-}
-.cii-editor.cii-editor-empty::before {
-  content: attr(data-placeholder);
-  position: absolute;
-  top: 10px;
-  left: 2px;
-  right: 2px;
-  color: var(--cii-text-faint);
-  pointer-events: none;
-  white-space: pre-wrap;
-}
-.cii-editor-disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
 .cii-mention {
   display: inline-flex;
   align-items: center;
@@ -179,11 +126,12 @@ export const DIALOG_REFERENCE_STYLE_TEXT = `
 `;
 
 /**
- * Install the dialog reference attachment stylesheet into a UI root.
+ * Install the dialog's intent-field stylesheet (editor layout, then mention chips) into a UI root.
  *
- * Purpose: applies the composer and mention treatment after the base shadow-root styles are installed.
- * Boundary: `root` must support `appendChild`; passing `null`, an ordinary object, or a detached value without that
- * method skips installation and the dialog falls back to unstyled editor and chip markup.
+ * Purpose: applies the editor and mention treatment after the base shadow-root styles are installed.
+ * Boundary: the editor rules go first and the mention rules second, in one style element. `root` must support
+ * `appendChild`; passing `null`, an ordinary object, or a detached value without that method skips installation and
+ * the dialog falls back to unstyled editor and chip markup.
  *
  * @param {ShadowRoot | Element | null | undefined} root UI root that receives the supplemental style element.
  * @returns {HTMLStyleElement | null} The appended style element, or `null` when `root` cannot receive children.
@@ -194,7 +142,7 @@ export function installDialogReferenceStyle(root: ShadowRoot | Element | null | 
     }
 
     const style = document.createElement('style');
-    style.textContent = DIALOG_REFERENCE_STYLE_TEXT;
+    style.textContent = DIALOG_EDITOR_STYLE_TEXT + DIALOG_REFERENCE_STYLE_TEXT;
     root.appendChild(style);
     return style;
 }

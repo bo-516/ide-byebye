@@ -44,6 +44,7 @@ const CLIENT_CSS_TEMPLATE_MODULES = [
     path.join(ROOT_DIR, 'src/client/lib/style-recording-editor.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-capture.ts'),
     path.join(ROOT_DIR, 'src/client/lib/style-session-picker.ts'),
+    path.join(ROOT_DIR, 'src/client/dialog/dialog-editor-style.ts'),
     path.join(ROOT_DIR, 'src/client/dialog/dialog-reference-style.ts'),
 ];
 
