@@ -4,9 +4,9 @@
  *
  * Purpose: gives the `.cii-field`, `.cii-editor-pinned`, and `.cii-editor` nodes built by `createDialogEditor` their
  * layout, placeholder, and disabled look. The editor is a visible input well: outlined in the light theme, sunken in
- * the dark one, with an accent edge and halo while focused. Without the well, the placeholder read as a caption under
- * the context chip and users missed that they could type there. The chips inside the field are styled by
- * `DIALOG_REFERENCE_STYLE_TEXT`.
+ * the dark one, with a firmer neutral edge and shadow while focused. Without the well, the placeholder read as a
+ * caption under the context chip and users missed that they could type there. The chips inside the field are styled
+ * by `DIALOG_REFERENCE_STYLE_TEXT`.
  * Boundary: `installDialogReferenceStyle` installs this text ahead of the mention rules, inside the plugin shadow root
  * after `STYLE_TEXT`, because it reads the design tokens declared there (the well colours are the `--cii-field*`
  * group); used alone every `var()` is unresolved.
@@ -63,11 +63,11 @@ export const DIALOG_EDITOR_STYLE_TEXT = `
 .cii-editor:not(.cii-editor-disabled):hover {
   border-color: var(--cii-field-line-hover);
 }
-/* Same focus look as the style-panel search box. Forced-colours mode drops the halo shadow and paints the otherwise
-   invisible transparent outline instead, so focus stays visible there. */
+/* Focus is neutral (firmer edge, light lift or dark inset); the accent is left to the caret. Forced-colours mode drops
+   the shadow and paints the otherwise invisible transparent outline instead, so focus stays visible there. */
 .cii-editor:not(.cii-editor-disabled):focus {
-  border-color: var(--cii-accent);
-  box-shadow: 0 0 0 3px var(--cii-accent-soft);
+  border-color: var(--cii-field-line-focus);
+  box-shadow: var(--cii-field-shadow-focus);
   outline: 2px solid transparent;
   outline-offset: 2px;
 }
