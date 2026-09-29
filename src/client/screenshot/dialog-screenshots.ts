@@ -1,6 +1,18 @@
-import { captureScreenshot } from './screenshot.js';
+import { captureScreenshot, type ScreenshotPayload, type ScreenshotScope } from './screenshot.js';
 import { el, loadScreenshotChoices, saveScreenshotChoices, SCREENSHOT_SCOPE_ORDER, screenshotScopeLabel, screenshotScopeTitleLabel, revealDropdownPanel, } from '../dialog/dialog-utils.js';
 import { t } from '../lib/i18n.js';
+
+/**
+ * Dialog callbacks for one screenshot picker.
+ * Boundary: `onChange` may be omitted; captures then skip the dialog refresh. `selectedElement` is read at capture time.
+ */
+interface ScreenshotDialogHost {
+    selectedElement: () => Element | null;
+    backdrop: () => HTMLElement | null;
+    reposition: () => void;
+    showError: (message: string) => void;
+    onChange?: () => void;
+}
 
 /**
  * Local screenshot controller for the intent dialog.
@@ -10,16 +22,22 @@ import { t } from '../lib/i18n.js';
  * real clicked element used for visual capture.
  */
 export class DialogScreenshotController {
-    host;
-    button;
-    menu;
-    previewEl;
-    choices = new Set();
-    choiceButtons = new Map();
-    captures = new Map();
-    capturePromises = new Map();
-    pending = new Set();
-    constructor(host) {
+    host: ScreenshotDialogHost;
+    /** Footer button. Unset until `renderPicker`; callers must not use the picker before that. */
+    button!: HTMLButtonElement;
+    /** Scope menu. Unset until `renderPicker`. */
+    menu!: HTMLElement;
+    /** Thumbnail strip. Absent until `attachPreview`. */
+    previewEl?: HTMLElement;
+    choices: Set<string> = new Set();
+    choiceButtons: Map<string, HTMLButtonElement> = new Map();
+    captures: Map<string, ScreenshotPayload> = new Map();
+    capturePromises: Map<string, Promise<ScreenshotPayload>> = new Map();
+    pending: Set<string> = new Set();
+    /**
+     * @param {ScreenshotDialogHost} host Dialog callbacks for the current open cycle.
+     */
+    constructor(host: ScreenshotDialogHost) {
         this.host = host;
     }
 
@@ -31,14 +49,14 @@ export class DialogScreenshotController {
      *
      * @returns {void}
      */
-    reset(loadPersistedChoices = true) {
+    reset(loadPersistedChoices = true): void {
         this.choices = loadPersistedChoices ? loadScreenshotChoices() : new Set();
         this.captures = new Map();
         this.capturePromises = new Map();
         this.pending = new Set();
     }
 
-    clearCaptures() {
+    clearCaptures(): void {
         this.captures.clear();
         this.capturePromises.clear();
         this.pending.clear();
@@ -51,7 +69,7 @@ export class DialogScreenshotController {
      *
      * @returns {void}
      */
-    clear() {
+    clear(): void {
         this.captures.clear();
         this.capturePromises.clear();
         this.pending.clear();
@@ -67,9 +85,9 @@ export class DialogScreenshotController {
      * @param {HTMLElement} previewEl Thumbnail container.
      * @returns {void}
      */
-    attachPreview(previewEl) {
+    attachPreview(previewEl: HTMLElement): void {
         this.previewEl = previewEl;
-        this.previewEl.hidden = true;
+        previewEl.hidden = true;
     }
 
     /**
@@ -80,25 +98,27 @@ export class DialogScreenshotController {
      *
      * @returns {HTMLElement} Screenshot picker wrapper.
      */
-    renderPicker() {
-        const wrapper = el('div', 'cii-screenshot-picker');
-        this.button = el('button', 'cii-icon-btn');
-        this.button.type = 'button';
-        this.button.dataset.ciiTip = t('screenshot.settings.title');
-        this.button.setAttribute('aria-label', t('screenshot.settings.title'));
-        this.button.append(el('span', 'cii-shot-icon'));
-        this.button.addEventListener('click', (event) => {
+    renderPicker(): HTMLElement {
+        const wrapper: HTMLElement = el('div', 'cii-screenshot-picker');
+        const button: HTMLButtonElement = el('button', 'cii-icon-btn');
+        this.button = button;
+        button.type = 'button';
+        button.dataset.ciiTip = t('screenshot.settings.title');
+        button.setAttribute('aria-label', t('screenshot.settings.title'));
+        button.append(el('span', 'cii-shot-icon'));
+        button.addEventListener('click', (event) => {
             event.stopPropagation();
             if (this.menu.hidden)
-                revealDropdownPanel(this.button, this.menu);
+                revealDropdownPanel(button, this.menu);
             else
                 this.menu.hidden = true;
         });
-        this.menu = el('div', 'cii-screenshot-menu');
-        this.menu.hidden = true;
+        const menu: HTMLElement = el('div', 'cii-screenshot-menu');
+        this.menu = menu;
+        menu.hidden = true;
         this.choiceButtons = new Map();
-        this.menu.append(this.renderChoice('none', t('screenshot.choice.none')), this.renderChoice('selection', t('screenshot.scope.selection')), this.renderChoice('parent', t('screenshot.scope.parent')), this.renderChoice('viewport', t('screenshot.scope.viewport')));
-        wrapper.append(this.button, this.menu);
+        menu.append(this.renderChoice('none', t('screenshot.choice.none')), this.renderChoice('selection', t('screenshot.scope.selection')), this.renderChoice('parent', t('screenshot.scope.parent')), this.renderChoice('viewport', t('screenshot.scope.viewport')));
+        wrapper.append(button, menu);
         this.updatePicker();
         return wrapper;
     }
@@ -112,7 +132,7 @@ export class DialogScreenshotController {
      * @param {EventTarget | null} target Event target from the dialog mousedown listener.
      * @returns {void}
      */
-    closeMenuFromOutside(target) {
+    closeMenuFromOutside(target: EventTarget | null): void {
         if (!this.menu || !this.button || this.menu.hidden)
             return;
         if (target instanceof Node && !this.button.contains(target) && !this.menu.contains(target)) {
@@ -129,7 +149,7 @@ export class DialogScreenshotController {
      * @param {boolean} disabled Whether controls should be disabled.
      * @returns {void}
      */
-    setDisabled(disabled) {
+    setDisabled(disabled: boolean): void {
         if (this.button)
             this.button.disabled = disabled;
     }
@@ -142,7 +162,7 @@ export class DialogScreenshotController {
      *
      * @returns {Promise<void>} Resolves after selected captures settle.
      */
-    async captureSelected() {
+    async captureSelected(): Promise<void> {
         const scopes = SCREENSHOT_SCOPE_ORDER.filter((scope) => this.choices.has(scope));
         if (!scopes.length)
             return;
@@ -160,9 +180,9 @@ export class DialogScreenshotController {
      * Boundary: if no screenshot scopes are selected, this returns undefined. A missing selected element rejects because
      * selection screenshots cannot be recaptured safely.
      *
-     * @returns {Promise<Array<Record<string, unknown>> | undefined>} Captured screenshot payloads, if any.
+     * @returns {Promise<ScreenshotPayload[] | undefined>} Captured screenshot payloads, if any.
      */
-    async buildPayloadScreenshots() {
+    async buildPayloadScreenshots(): Promise<ScreenshotPayload[] | undefined> {
         if (this.choices.size === 0)
             return undefined;
         if (!this.host.selectedElement())
@@ -182,8 +202,8 @@ export class DialogScreenshotController {
      * @param {string} label Visible menu label.
      * @returns {HTMLButtonElement} Menu button.
      */
-    renderChoice(choice, label) {
-        const button = el('button', 'cii-screenshot-choice');
+    renderChoice(choice: string, label: string): HTMLButtonElement {
+        const button: HTMLButtonElement = el('button', 'cii-screenshot-choice');
         button.type = 'button';
         button.append(el('span', 'cii-choice-mark'), el('span', 'cii-choice-label', label));
         button.addEventListener('click', (event) => {
@@ -204,7 +224,7 @@ export class DialogScreenshotController {
      *
      * @returns {void}
      */
-    updatePicker() {
+    updatePicker(): void {
         const hasScreenshots = this.choices.size > 0;
         this.button.classList.toggle('cii-icon-btn-active', hasScreenshots);
         this.button.dataset.ciiTip = hasScreenshots
@@ -233,7 +253,7 @@ export class DialogScreenshotController {
      * @param {string} choice Choice value from the menu.
      * @returns {Promise<void>} Resolves after any needed capture completes.
      */
-    async toggleChoice(choice) {
+    async toggleChoice(choice: string): Promise<void> {
         if (choice === 'none') {
             this.choices.clear();
             this.captures.clear();
@@ -277,7 +297,7 @@ export class DialogScreenshotController {
      *
      * @returns {void}
      */
-    persistChoices() {
+    persistChoices(): void {
         saveScreenshotChoices(this.choices);
     }
 
@@ -288,9 +308,9 @@ export class DialogScreenshotController {
      * selected when rendering finishes.
      *
      * @param {string} scope Screenshot scope to capture.
-     * @returns {Promise<Record<string, unknown>>} Screenshot payload.
+     * @returns {Promise<ScreenshotPayload>} Screenshot payload.
      */
-    ensureCapture(scope) {
+    ensureCapture(scope: string): Promise<ScreenshotPayload> {
         const existing = this.captures.get(scope);
         if (existing)
             return Promise.resolve(existing);
@@ -302,7 +322,8 @@ export class DialogScreenshotController {
             return Promise.reject(new Error(t('screenshot.error.elementGone')));
         this.pending.add(scope);
         this.renderPreviews();
-        const promise = captureScreenshot(selectedElement, scope)
+        // Persisted choices are filtered to SCREENSHOT_SCOPE_ORDER, which is exactly ScreenshotScope.
+        const promise = captureScreenshot(selectedElement, scope as ScreenshotScope)
             .then((payload) => {
             if (this.choices.has(scope))
                 this.captures.set(scope, payload);
@@ -326,16 +347,17 @@ export class DialogScreenshotController {
      *
      * @returns {void}
      */
-    renderPreviews() {
-        if (!this.previewEl)
+    renderPreviews(): void {
+        const previewEl = this.previewEl;
+        if (!previewEl)
             return;
-        this.previewEl.innerHTML = '';
+        previewEl.innerHTML = '';
         const selectedScopes = SCREENSHOT_SCOPE_ORDER.filter((scope) => this.choices.has(scope));
-        this.previewEl.hidden = selectedScopes.length === 0;
+        previewEl.hidden = selectedScopes.length === 0;
         if (!selectedScopes.length)
             return;
         for (const scope of selectedScopes) {
-            const item = el('div', 'cii-screenshot-thumb');
+            const item: HTMLElement = el('div', 'cii-screenshot-thumb');
             item.tabIndex = 0;
             item.setAttribute('role', 'button');
             item.setAttribute('aria-label', t('screenshot.preview.aria', { label: screenshotScopeLabel(scope) }));
@@ -343,7 +365,7 @@ export class DialogScreenshotController {
             const remove = this.renderRemoveButton(scope);
             item.append(media, remove);
             item.classList.toggle('cii-thumb-pending', this.pending.has(scope));
-            this.previewEl.append(item);
+            previewEl.append(item);
         }
     }
 
@@ -356,9 +378,9 @@ export class DialogScreenshotController {
      * @param {HTMLElement} item Thumbnail button wrapper receiving preview listeners.
      * @returns {HTMLElement} Thumbnail media container.
      */
-    renderPreviewMedia(scope, item) {
+    renderPreviewMedia(scope: string, item: HTMLElement): HTMLElement {
         const capture = this.captures.get(scope);
-        const media = el('div', 'cii-thumb-media');
+        const media: HTMLElement = el('div', 'cii-thumb-media');
         if (capture) {
             const img = document.createElement('img');
             img.src = capture.dataUrl;
@@ -386,8 +408,8 @@ export class DialogScreenshotController {
      * @param {string} scope Screenshot scope to remove.
      * @returns {HTMLButtonElement} Remove button.
      */
-    renderRemoveButton(scope) {
-        const remove = el('button', 'cii-thumb-remove', '×');
+    renderRemoveButton(scope: string): HTMLButtonElement {
+        const remove: HTMLButtonElement = el('button', 'cii-thumb-remove', '×');
         remove.type = 'button';
         remove.setAttribute('aria-label', t('screenshot.remove.aria', { label: screenshotScopeLabel(scope) }));
         remove.addEventListener('click', (event) => {
@@ -408,19 +430,19 @@ export class DialogScreenshotController {
      * Boundary: this requires the current dialog backdrop to exist. If the dialog was closed while a capture settled,
      * the preview request is ignored.
      *
-     * @param {Record<string, unknown>} capture Screenshot payload from `captureScreenshot`.
+     * @param {ScreenshotPayload} capture Screenshot payload from `captureScreenshot`.
      * @returns {void}
      */
-    openPreview(capture) {
+    openPreview(capture: ScreenshotPayload): void {
         const backdrop = this.host.backdrop();
         if (!backdrop)
             return;
-        const lightbox = el('div', 'cii-image-lightbox');
-        const frame = el('div', 'cii-image-frame');
+        const lightbox: HTMLElement = el('div', 'cii-image-lightbox');
+        const frame: HTMLElement = el('div', 'cii-image-frame');
         const img = document.createElement('img');
         img.src = capture.dataUrl;
         img.alt = screenshotScopeLabel(capture.scope);
-        const close = el('button', 'cii-image-close', '×');
+        const close: HTMLButtonElement = el('button', 'cii-image-close', '×');
         close.type = 'button';
         close.setAttribute('aria-label', t('screenshot.lightbox.close.aria'));
         const closePreview = () => lightbox.remove();

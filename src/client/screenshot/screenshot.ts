@@ -2,6 +2,27 @@ import { PLUGIN_NODE_ATTR } from '../../shared/constants.js';
 import { t } from '../lib/i18n.js';
 const MAX_RENDER_DIMENSION = 1400;
 
+/** Modes `captureScreenshot` renders. Any other runtime string still falls through to the viewport crop. */
+export type ScreenshotScope = 'selection' | 'parent' | 'viewport';
+
+/**
+ * In-flight image inlining for one capture, keyed by absolute URL.
+ * Boundary: a nullish value means the asset could not be inlined and callers must keep the original URL.
+ */
+type AssetCache = Map<string, Promise<string | null | undefined>>;
+
+/**
+ * Encoded screenshot returned to the dialog and the send payload.
+ * Boundary: `scope` echoes the requested mode even when rendering fell back to a viewport crop.
+ */
+export interface ScreenshotPayload {
+    scope: string;
+    dataUrl: string;
+    width: number;
+    height: number;
+    capturedAt: string;
+}
+
 /**
  * Scope value for the standalone parent-node screenshot path.
  * Boundary: this must stay in sync with `SCREENSHOT_SCOPE_ORDER`; a mismatch makes the picker persist a mode the
@@ -17,25 +38,25 @@ const ASSET_INLINE_TIMEOUT_MS = 2500;
  * Boundary: `requestAnimationFrame` is paused while the document is hidden (background tab) or fully offscreen, which
  * would otherwise hang capture forever; a short `setTimeout` fallback guarantees the promise still settles in that case.
  */
-function nextAnimationFrame() {
-    return new Promise<any>((resolve) => {
+function nextAnimationFrame(): Promise<void> {
+    return new Promise((resolve) => {
         let settled = false;
         const finish = () => {
             if (settled)
                 return;
             settled = true;
-            resolve(undefined);
+            resolve();
         };
         window.requestAnimationFrame(finish);
         window.setTimeout(finish, 100);
     });
 }
 
-function timeout(ms) {
-    return new Promise<any>((resolve) => window.setTimeout(resolve, ms));
+function timeout(ms: number): Promise<void> {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-async function withTimeout(promise, ms) {
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | void> {
     return Promise.race([promise, timeout(ms)]);
 }
 
@@ -47,7 +68,7 @@ async function withTimeout(promise, ms) {
  * @param {Node} node Source node whose computed styles will be read.
  * @returns {Window} The owning window, or the top window as a fallback.
  */
-function ownerWindow(node) {
+function ownerWindow(node: Node): Window {
     return (node && node.ownerDocument && node.ownerDocument.defaultView) || window;
 }
 
@@ -58,7 +79,7 @@ function ownerWindow(node) {
  * @param {string} value Computed CSS background color.
  * @returns {boolean} True when the value should not be considered an own background.
  */
-function isTransparentBackground(value) {
+function isTransparentBackground(value: string): boolean {
     return !value || value === 'transparent' || value === 'rgba(0, 0, 0, 0)';
 }
 
@@ -69,7 +90,7 @@ function isTransparentBackground(value) {
  * @param {Element} element Ancestor candidate from the clicked node's parent chain.
  * @returns {boolean} True when the ancestor should provide the clipped wrapper background.
  */
-function hasPaintedBackground(element) {
+function hasPaintedBackground(element: Element): boolean {
     const computed = ownerWindow(element).getComputedStyle(element);
     return !isTransparentBackground(computed.backgroundColor) || computed.backgroundImage !== 'none';
 }
@@ -81,7 +102,7 @@ function hasPaintedBackground(element) {
  * @param {Element | null} element Candidate element from the parent chain.
  * @returns {boolean} True when the candidate should not become the standalone screenshot root.
  */
-function isDocumentCaptureBoundary(element) {
+function isDocumentCaptureBoundary(element: Element | null): boolean {
     return !element || element === document.documentElement || element === document.body;
 }
 
@@ -92,7 +113,7 @@ function isDocumentCaptureBoundary(element) {
  * @param {Element} root Direct parent screenshot root.
  * @returns {Element | null} Closest ancestor with a painted background, if any.
  */
-function resolveParentBackgroundSource(root) {
+function resolveParentBackgroundSource(root: Element): Element | null {
     let current = root.parentElement;
     while (current) {
         if (hasPaintedBackground(current))
@@ -110,7 +131,7 @@ function resolveParentBackgroundSource(root) {
  * @param {HTMLElement} target Empty layer rendered behind the cloned parent subtree.
  * @returns {void}
  */
-function copyBackgroundStyles(source, target) {
+function copyBackgroundStyles(source: Element, target: HTMLElement): void {
     const computed = ownerWindow(source).getComputedStyle(source);
     for (const prop of [
         'background-color',
@@ -126,7 +147,7 @@ function copyBackgroundStyles(source, target) {
         target.style.setProperty(prop, computed.getPropertyValue(prop));
     }
 }
-function solidPageBackground() {
+function solidPageBackground(): string {
     const body = window.getComputedStyle(document.body).backgroundColor;
     if (!isTransparentBackground(body))
         return body;
@@ -136,7 +157,9 @@ function solidPageBackground() {
     return '#ffffff';
 }
 
-function absoluteAssetUrl(raw) {
+function absoluteAssetUrl(raw: string): string;
+function absoluteAssetUrl(raw: string | null | undefined): string | null | undefined;
+function absoluteAssetUrl(raw: string | null | undefined): string | null | undefined {
     if (!raw || raw.startsWith('data:') || raw.startsWith('#'))
         return raw;
     try {
@@ -147,8 +170,8 @@ function absoluteAssetUrl(raw) {
     }
 }
 
-function blobToDataUrl(blob) {
-    return new Promise<any>((resolve, reject) => {
+function blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result ?? ''));
         reader.onerror = () => reject(reader.error ?? new Error('Failed to read image asset'));
@@ -156,12 +179,13 @@ function blobToDataUrl(blob) {
     });
 }
 
-function inlineAssetDataUrl(url, assetCache) {
+function inlineAssetDataUrl(url: string | null | undefined, assetCache: AssetCache): Promise<string | null | undefined> {
     const absolute = absoluteAssetUrl(url);
     if (!absolute || absolute.startsWith('data:'))
         return Promise.resolve(absolute);
+    // `get` stays `T | undefined` after `has`. The assertion erases; a stored entry is returned even when falsy.
     if (assetCache.has(absolute))
-        return assetCache.get(absolute);
+        return assetCache.get(absolute)!;
     const promise = (async () => {
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const timer = controller ? window.setTimeout(() => controller.abort(), ASSET_INLINE_TIMEOUT_MS) : 0;
@@ -191,12 +215,12 @@ function inlineAssetDataUrl(url, assetCache) {
     return promise;
 }
 
-function cssUrl(value) {
+function cssUrl(value: string): string {
     const escaped = String(value).replace(/["\\\n\r\f]/g, '\\$&');
     return `url("${escaped}")`;
 }
 
-async function inlineCssImageUrls(css, assetCache) {
+async function inlineCssImageUrls(css: string, assetCache: AssetCache): Promise<string> {
     if (!css.includes('url('))
         return css;
     const pattern = /url\((['"]?)(.*?)\1\)/g;
@@ -204,7 +228,10 @@ async function inlineCssImageUrls(css, assetCache) {
     let lastIndex = 0;
     for (const match of css.matchAll(pattern)) {
         const raw = match[2]?.trim();
-        result += css.slice(lastIndex, match.index);
+        // Global matchAll always supplies index; the DOM lib marks it optional. Do not substitute `lastIndex`:
+        // `slice` treats a missing index as "through the end", and replacing it would drop the unmatched prefix.
+        const at = match.index as number;
+        result += css.slice(lastIndex, at);
         if (!raw || raw.startsWith('data:') || raw.startsWith('#')) {
             result += match[0];
         }
@@ -213,25 +240,25 @@ async function inlineCssImageUrls(css, assetCache) {
             const dataUrl = await inlineAssetDataUrl(absolute, assetCache);
             result += cssUrl(dataUrl || absolute);
         }
-        lastIndex = match.index + match[0].length;
+        lastIndex = at + match[0].length;
     }
     result += css.slice(lastIndex);
     return result;
 }
 
-function cssTextFromComputed(computed) {
+function cssTextFromComputed(computed: CSSStyleDeclaration): string {
     let css = '';
     for (const prop of Array.from(computed))
         css += `${prop}:${computed.getPropertyValue(prop)};`;
     return css;
 }
 
-function decodeCssString(value) {
+function decodeCssString(value: string): string | null {
     const trimmed = value.trim();
     if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
         return trimmed
             .slice(1, -1)
-            .replace(/\\([0-9a-fA-F]{1,6}\s?|.)/g, (_, escaped) => {
+            .replace(/\\([0-9a-fA-F]{1,6}\s?|.)/g, (_: string, escaped: string) => {
             const hex = escaped.trim();
             if (/^[0-9a-fA-F]+$/.test(hex))
                 return String.fromCodePoint(Number.parseInt(hex, 16));
@@ -241,14 +268,14 @@ function decodeCssString(value) {
     return null;
 }
 
-function pseudoContentText(content) {
+function pseudoContentText(content: string): string | null {
     if (!content || content === 'none' || content === 'normal')
         return null;
     const decoded = decodeCssString(content);
     return decoded && decoded.length ? decoded : null;
 }
 
-async function makePseudoClone(source, pseudo, assetCache) {
+async function makePseudoClone(source: Element, pseudo: string, assetCache: AssetCache): Promise<HTMLSpanElement | null> {
     if (!(source instanceof HTMLElement))
         return null;
     const computed = ownerWindow(source).getComputedStyle(source, pseudo);
@@ -264,7 +291,7 @@ async function makePseudoClone(source, pseudo, assetCache) {
     return node;
 }
 
-async function copyElementState(source, clone, assetCache) {
+async function copyElementState(source: Element, clone: Element, assetCache: AssetCache): Promise<boolean> {
     if (source instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
         clone.setAttribute('value', source.value);
         if (source.checked)
@@ -321,13 +348,15 @@ async function copyElementState(source, clone, assetCache) {
     return true;
 }
 
-async function waitForImageReady(img) {
+async function waitForImageReady(img: HTMLImageElement): Promise<void> {
     if (!img.currentSrc && !img.src)
         return;
     if (!img.complete) {
-        await withTimeout(new Promise<any>((resolve) => {
-            img.addEventListener('load', resolve, { once: true });
-            img.addEventListener('error', resolve, { once: true });
+        await withTimeout(new Promise<void>((resolve) => {
+            // The settled value is ignored; wrapping keeps the listener typed as Event.
+            const done = () => resolve();
+            img.addEventListener('load', done, { once: true });
+            img.addEventListener('error', done, { once: true });
         }), ASSET_WAIT_TIMEOUT_MS);
     }
     if (img.decode) {
@@ -335,7 +364,7 @@ async function waitForImageReady(img) {
     }
 }
 
-async function waitForRenderableAssets(root) {
+async function waitForRenderableAssets(root: Element): Promise<void> {
     const fontReady = document.fonts?.ready ? document.fonts.ready.catch(() => undefined) : Promise.resolve(undefined);
     const imageRoot = root === document.body ? document : root;
     const images = imageRoot instanceof Document
@@ -351,11 +380,12 @@ async function waitForRenderableAssets(root) {
  * @param {Map<string, Promise<string | null>>} assetCache Shared image asset data-url cache for one capture.
  * @returns {Promise<void>} Resolves after every reachable descendant has copied computed styles.
  */
-async function copyComputedStyles(source, clone, assetCache) {
-    const stack = [[source, clone]];
+async function copyComputedStyles(source: Element, clone: Element, assetCache: AssetCache): Promise<void> {
+    const stack: Array<[Element, Element]> = [[source, clone]];
     let processed = 0;
     while (stack.length) {
-        const [currentSource, currentClone] = stack.pop();
+        // Length was checked above; pop() is undefined only if the stack was emptied elsewhere.
+        const [currentSource, currentClone] = stack.pop()!;
         const computed = ownerWindow(currentSource).getComputedStyle(currentSource);
         const sourceChildren = Array.from(currentSource.children);
         const cloneChildren = Array.from(currentClone.children);
@@ -380,7 +410,7 @@ async function copyComputedStyles(source, clone, assetCache) {
             await nextAnimationFrame();
     }
 }
-function removePluginNodes(root) {
+function removePluginNodes(root: Element): void {
     if (root.hasAttribute(PLUGIN_NODE_ATTR))
         root.remove();
     root.querySelectorAll(`[${PLUGIN_NODE_ATTR}]`).forEach((node) => node.remove());
@@ -392,8 +422,8 @@ function removePluginNodes(root) {
  * @param {Element} root Cloned screenshot subtree.
  * @returns {Set<string>} Referenced SVG ids without leading `#`.
  */
-function collectSvgUseIds(root) {
-    const ids = new Set();
+function collectSvgUseIds(root: Element): Set<string> {
+    const ids = new Set<string>();
     root.querySelectorAll('use').forEach((node) => {
         const raw = node.getAttribute('href') ?? node.getAttribute('xlink:href') ?? node.getAttributeNS('http://www.w3.org/1999/xlink', 'href') ?? '';
         const hashIndex = raw.lastIndexOf('#');
@@ -408,9 +438,10 @@ function collectSvgUseIds(root) {
  * @param {Element} root Cloned screenshot subtree that may contain `<use>` nodes.
  * @returns {SVGSVGElement | null} Hidden sprite element, or null when no same-document symbols are needed.
  */
-function cloneSvgUseDefinitions(root) {
+function cloneSvgUseDefinitions(root: Element): SVGSVGElement | null {
     const ids = collectSvgUseIds(root);
-    const symbols = Array.from(ids).map((id: string) => document.getElementById(id)).filter(Boolean);
+    // `filter(Boolean)` does not drop null from the element type; this predicate keeps the same exclusion.
+    const symbols = Array.from(ids).map((id) => document.getElementById(id)).filter((symbol): symbol is HTMLElement => symbol != null);
     if (!symbols.length)
         return null;
     const sprite = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -421,10 +452,10 @@ function cloneSvgUseDefinitions(root) {
     return sprite;
 }
 
-function shouldSkipViewportChild(node) {
+function shouldSkipViewportChild(node: Element): boolean {
     return node.hasAttribute(PLUGIN_NODE_ATTR) || node.tagName.toLowerCase() === 'script';
 }
-function makeXhtmlWrapper(width, height) {
+function makeXhtmlWrapper(width: number, height: number): HTMLDivElement {
     const wrapper = document.createElement('div');
     wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
     wrapper.style.cssText = [
@@ -444,9 +475,10 @@ function makeXhtmlWrapper(width, height) {
  * @param {Element} target Screenshot anchor element from the user's click.
  * @returns {Element} Direct parent element, or the target itself when the parent is a document boundary.
  */
-function resolveParentCaptureRoot(target) {
+function resolveParentCaptureRoot(target: Element): Element {
     const parent = target.parentElement;
-    if (isDocumentCaptureBoundary(parent))
+    // Null is already a boundary; the extra check narrows `parent` for strict null checks.
+    if (!parent || isDocumentCaptureBoundary(parent))
         return target;
     return parent;
 }
@@ -458,7 +490,7 @@ function resolveParentCaptureRoot(target) {
  * @param {Element} root Element that will become the standalone screenshot root.
  * @returns {{ width: number, height: number }} Render dimensions in CSS pixels.
  */
-function resolveElementRenderSize(root) {
+function resolveElementRenderSize(root: Element): { width: number; height: number } {
     const rect = root.getBoundingClientRect();
     const layoutRoot = root instanceof HTMLElement ? root : null;
     const fallbackWidth = layoutRoot?.scrollWidth || layoutRoot?.clientWidth || rect.width || 1;
@@ -473,7 +505,7 @@ function resolveElementRenderSize(root) {
  * @param {Element} root Direct parent screenshot root.
  * @returns {HTMLDivElement | null} Background-only layer, or null when no ancestor paints a background.
  */
-function makeParentBackgroundLayer(root) {
+function makeParentBackgroundLayer(root: Element): HTMLDivElement | null {
     const backgroundSource = resolveParentBackgroundSource(root);
     if (!backgroundSource)
         return null;
@@ -499,7 +531,7 @@ function makeParentBackgroundLayer(root) {
  * @param {'selection' | 'viewport'} scope Requested screenshot mode.
  * @returns {{ left: number, top: number, width: number, height: number }} Crop rectangle; wrong scope falls back to viewport capture.
  */
-function resolveViewportCropRect(target, scope) {
+function resolveViewportCropRect(target: Element, scope: 'selection' | 'viewport'): { left: number; top: number; width: number; height: number } {
     if (scope !== 'selection') {
         return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
     }
@@ -520,7 +552,7 @@ function resolveViewportCropRect(target, scope) {
  * @param {Map<string, Promise<string | null>>} assetCache Shared image asset data-url cache for one capture.
  * @returns {HTMLDivElement} Serializable wrapper for the requested crop.
  */
-async function cloneViewport(width, height, cropLeft, cropTop, assetCache) {
+async function cloneViewport(width: number, height: number, cropLeft: number, cropTop: number, assetCache: AssetCache): Promise<HTMLDivElement> {
     const wrapper = makeXhtmlWrapper(width, height);
     const viewport = document.createElement('div');
     viewport.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
@@ -550,7 +582,8 @@ async function cloneViewport(width, height, cropLeft, cropTop, assetCache) {
     for (const child of Array.from(document.body.children)) {
         if (shouldSkipViewportChild(child))
             continue;
-        const childClone = child.cloneNode(true);
+        // cloneNode is typed as Node; cloning an Element yields an Element.
+        const childClone = child.cloneNode(true) as Element;
         await copyComputedStyles(child, childClone, assetCache);
         removePluginNodes(childClone);
         clone.append(childClone);
@@ -570,12 +603,13 @@ async function cloneViewport(width, height, cropLeft, cropTop, assetCache) {
  * @param {Map<string, Promise<string | null>>} assetCache Shared image asset data-url cache for one capture.
  * @returns {HTMLDivElement} Serializable wrapper containing the styled subtree.
  */
-async function cloneParentSubtree(root, width, height, assetCache) {
+async function cloneParentSubtree(root: Element, width: number, height: number, assetCache: AssetCache): Promise<HTMLDivElement> {
     const wrapper = makeXhtmlWrapper(width, height);
     const backgroundLayer = makeParentBackgroundLayer(root);
     if (backgroundLayer)
         wrapper.append(backgroundLayer);
-    const clone = root.cloneNode(true);
+    // cloneNode is typed as Node; the clone is the same HTML or SVG element and is styled below.
+    const clone = root.cloneNode(true) as HTMLElement | SVGElement;
     await nextAnimationFrame();
     await copyComputedStyles(root, clone, assetCache);
     removePluginNodes(clone);
@@ -598,11 +632,11 @@ async function cloneParentSubtree(root, width, height, assetCache) {
  * Boundary: parent-node screenshots render only the selected element's parent subtree; other modes keep the original
  * viewport clone-and-crop path. Unknown scopes continue to fall back to viewport capture through `resolveViewportCropRect`.
  * @param {Element} target Selected page element.
- * @param {string} scope Screenshot scope requested by the picker.
+ * @param {'selection' | 'parent' | 'viewport'} scope Screenshot scope requested by the picker.
  * @param {Map<string, Promise<string | null>>} assetCache Shared image asset data-url cache for one capture.
  * @returns {{ width: number, height: number, wrapper: HTMLDivElement }} Render input for SVG/canvas conversion.
  */
-async function resolveScreenshotRender(target, scope, assetCache) {
+async function resolveScreenshotRender(target: Element, scope: ScreenshotScope, assetCache: AssetCache): Promise<{ width: number; height: number; wrapper: HTMLDivElement }> {
     if (scope === PARENT_SCREENSHOT_SCOPE) {
         const root = resolveParentCaptureRoot(target);
         const { width, height } = resolveElementRenderSize(root);
@@ -613,7 +647,7 @@ async function resolveScreenshotRender(target, scope, assetCache) {
     const height = Math.max(1, Math.ceil(rect.height));
     return { width, height, wrapper: await cloneViewport(width, height, rect.left, rect.top, assetCache) };
 }
-function svgDataUrl(node, width, height) {
+function svgDataUrl(node: Node, width: number, height: number): string {
     const xhtml = new XMLSerializer().serializeToString(node);
     const svg = [
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
@@ -630,8 +664,8 @@ function svgDataUrl(node, width, height) {
  * @param {string} src Image source URL (typically an SVG data URL).
  * @returns {Promise<HTMLImageElement>} The decoded image.
  */
-function loadImage(src) {
-    return new Promise<any>((resolve, reject) => {
+function loadImage(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
         const img = new Image();
         const timer = window.setTimeout(() => reject(new Error(t('screenshot.error.renderTimeout'))), 10000);
         img.onload = () => {
@@ -645,18 +679,18 @@ function loadImage(src) {
         img.src = src;
     });
 }
-function renderScale(width, height) {
+function renderScale(width: number, height: number): number {
     const maxScale = Math.min(window.devicePixelRatio || 1, 2, MAX_RENDER_DIMENSION / Math.max(1, width), MAX_RENDER_DIMENSION / Math.max(1, height));
     return Math.max(0.25, maxScale);
 }
-function encodeCanvas(canvas) {
+function encodeCanvas(canvas: HTMLCanvasElement): string {
     const webp = canvas.toDataURL('image/webp', 0.86);
     if (webp.startsWith('data:image/webp'))
         return webp;
     return canvas.toDataURL('image/png');
 }
 
-function resolveAssetWaitRoot(target, scope) {
+function resolveAssetWaitRoot(target: Element, scope: string): Element {
     if (scope === 'viewport')
         return document.body;
     if (scope === PARENT_SCREENSHOT_SCOPE)
@@ -675,7 +709,7 @@ function resolveAssetWaitRoot(target, scope) {
  * @param {string} background Solid color painted behind the node so transparent regions become opaque.
  * @returns {Promise<{ dataUrl: string, width: number, height: number }>} Encoded image (WebP, PNG fallback) and pixel size.
  */
-export async function rasterizeNode(node, width, height, background) {
+export async function rasterizeNode(node: Element, width: number, height: number, background: string): Promise<{ dataUrl: string; width: number; height: number }> {
     const image = await loadImage(svgDataUrl(node, width, height));
     const scale = renderScale(width, height);
     const canvas = document.createElement('canvas');
@@ -700,11 +734,11 @@ export async function rasterizeNode(node, width, height, background) {
  * @param {'selection' | 'parent' | 'viewport'} scope Screenshot mode to render.
  * @returns {Promise<{ scope: string, dataUrl: string, width: number, height: number, capturedAt: string }>} Encoded image payload; throws if canvas rendering is unavailable.
  */
-export async function captureScreenshot(target, scope) {
+export async function captureScreenshot(target: Element, scope: ScreenshotScope): Promise<ScreenshotPayload> {
     await nextAnimationFrame();
     await waitForRenderableAssets(resolveAssetWaitRoot(target, scope));
     const background = solidPageBackground();
-    const assetCache = new Map();
+    const assetCache: AssetCache = new Map();
     const { width, height, wrapper } = await resolveScreenshotRender(target, scope, assetCache);
     await nextAnimationFrame();
     const raster = await rasterizeNode(wrapper, width, height, background);
