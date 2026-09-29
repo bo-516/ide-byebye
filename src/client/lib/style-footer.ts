@@ -30,9 +30,9 @@ export const FOOTER_STYLE = `
   min-width: 0;
   margin-left: auto;
 }
-.cii-send-group [data-cii-tip]::after { left: auto; right: 0; transform: translateY(3px); }
+.cii-send-group [data-cii-tip]::after { left: auto; right: 0; transform: translateY(0); }
 .cii-send-group [data-cii-tip]:hover::after,
-.cii-send-group [data-cii-tip]:focus-visible::after { transform: none; }
+.cii-send-group [data-cii-tip]:focus-visible::after { transform: translateY(0); }
 
 .cii-btn {
   display: inline-flex;
