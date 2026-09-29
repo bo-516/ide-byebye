@@ -9,6 +9,8 @@
  * `enabled: false` return the original source. Vite `apply: 'serve'` keeps production builds clean.
  * esbuild also skips `NODE_ENV=production`, and skips `node_modules` unless `include` matches.
  * The Vite order warning fires once when a framework plugin is registered before this one.
+ * unplugin 3.3's Farm adapter keeps a transform result only when `typeof result !== "string"`.
+ * Vite, webpack, and rspack already accept `{ code }`, so a stamped module always returns that object.
  */
 
 import fs from 'node:fs';
@@ -73,13 +75,17 @@ export const stampUnplugin = createUnplugin((options: IdeByebyeOptions = {}, met
             handler(code: string, id: string) {
                 if (options?.enabled === false || !resolved.enabled)
                     return null;
-                return stampModule({
+                const stamped = stampModule({
                     code,
                     id,
                     family: familyOf(framework),
                     options: resolved,
                     warnOnce: (_key, message) => console.warn(message),
                 });
+                // Farm's unplugin adapter drops a string. The other bundlers accept `{ code }` too.
+                if (typeof stamped === 'string')
+                    return { code: stamped };
+                return stamped;
             },
         },
         vite: {

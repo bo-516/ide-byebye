@@ -294,11 +294,11 @@ page already loads:
 
 | Framework | Setup | Verified |
 | --- | --- | --- |
-| Next.js | [`ide-byebye/next`](#nextjs) | 14.2 / 15.2 / 16.3 — Turbopack & webpack, App & Pages Router |
-| Nuxt | `vite: { plugins: [inspector()] }` in `nuxt.config` | Nuxt 4.5 |
-| SvelteKit | `plugins: [inspector(), sveltekit()]` in `vite.config` | Kit 2 + Svelte 5 |
+| Next.js | [`ide-byebye/next`](#nextjs) | `pnpm dev:next` (5860), `pnpm dev:next:webpack` (5870) + local `npm test`. Next 16.3.6 |
+| Nuxt | `vite: { plugins: [inspector()] }` in `nuxt.config` | `pnpm dev:nuxt` (5880) + local `npm test`. Nuxt 4.5.2 |
+| SvelteKit | `plugins: [inspector(), sveltekit()]` in `vite.config` | `pnpm dev:sveltekit` (5890) + local `npm test`. Kit 2.70.3 + Svelte 5.57.1 |
 | SolidStart / Astro / React Router / Vike / … | the Vite plugin, as usual | same mechanism, not individually tested |
-| Angular CLI | [`ide-byebye/angular`](#angular-cli) | Angular 22 |
+| Angular CLI | [`ide-byebye/angular`](#angular-cli) | `pnpm dev:angular` (5900) + local `npm test`. Angular CLI 22.2.0 |
 
 ```ts
 // nuxt.config.ts
@@ -316,18 +316,30 @@ plugin.
 
 ## Demo
 
-Playground under [`demo/`](./demo) (React + Vue × Vite / webpack / rspack):
+Playground under [`demo/`](./demo). Stop any `pnpm dev:*` before `npm test` — the suite rebuilds `dist/` when `src/` is newer.
 
 ```sh
 cd demo && pnpm install
-pnpm dev                 # react + vite
-pnpm dev:vue             # vue + vite
-pnpm dev:react:webpack
-pnpm dev:react:rspack
+pnpm dev                 # react + vite          5300
+pnpm dev:react           # react + vite          5300
+pnpm dev:react:webpack   # react + webpack       5400
+pnpm dev:react:rspack    # react + rspack        5500
+pnpm dev:vue             # vue + vite            5600
+pnpm dev:vue:webpack     # vue + webpack         5700
+pnpm dev:svelte          # svelte + vite         5800
+pnpm dev:solid           # solid + vite          5810
+pnpm dev:preact          # preact + vite         5820
+pnpm dev:rsbuild         # react + rsbuild       5830
+pnpm dev:esbuild         # react + esbuild       5840
+pnpm dev:farm            # react + farm          5850
+pnpm dev:next            # next + turbopack      5860
+pnpm dev:next:webpack    # next + webpack        5870
+pnpm dev:nuxt            # nuxt + vite           5880
+pnpm dev:sveltekit       # sveltekit + vite      5890
+pnpm dev:angular         # angular + cli         5900
 ```
 
-Hold ⌘ and click any element to open the intent dialog. Details:
-[`demo/README.md`](./demo/README.md).
+From the package root, `npm test` installs demo dependencies when the lockfile changed, builds `dist/` when it is missing or older than `src/`, then checks bootstrap injection and source location for every row above. Hold ⌘ and click any element to open the intent dialog. Details: [`demo/README.md`](./demo/README.md).
 
 ## Requirements
 

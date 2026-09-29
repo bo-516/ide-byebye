@@ -1,0 +1,25 @@
+allowBuilds:
+  '@parcel/watcher': true
+  core-js: true
+  esbuild: true
+  lmdb: true
+  msgpackr-extract: true
+minimumReleaseAgeExclude:
+  - '@rsbuild/core@2.2.11'
+  - '@rsbuild/plugin-react@2.1.1'
+  - '@rspack/binding-darwin-arm64@2.2.8'
+  - '@rspack/binding-darwin-x64@2.2.8'
+  - '@rspack/binding-linux-arm64-gnu@2.2.8'
+  - '@rspack/binding-linux-arm64-musl@2.2.8'
+  - '@rspack/binding-linux-ppc64-gnu@2.2.8'
+  - '@rspack/binding-linux-riscv64-gnu@2.2.8'
+  - '@rspack/binding-linux-riscv64-musl@2.2.8'
+  - '@rspack/binding-linux-s390x-gnu@2.2.8'
+  - '@rspack/binding-linux-x64-gnu@2.2.8'
+  - '@rspack/binding-linux-x64-musl@2.2.8'
+  - '@rspack/binding-wasm32-wasi@2.2.8'
+  - '@rspack/binding-win32-arm64-msvc@2.2.8'
+  - '@rspack/binding-win32-ia32-msvc@2.2.8'
+  - '@rspack/binding-win32-x64-msvc@2.2.8'
+  - '@rspack/binding@2.2.8'
+  - '@rspack/core@2.2.8'

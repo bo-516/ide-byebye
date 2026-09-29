@@ -132,13 +132,29 @@ test('a bad include pattern fails open and warns once', () => {
     assert.equal(warnings.length, 1);
 });
 
+test('Farm transform returns { code } so the stamp survives unplugin', async () => {
+    const plugin: any = stampUnplugin.farm({});
+    const result = await plugin.transform.executor({
+        resolvedPath: '/work/Ping.jsx',
+        query: [],
+        content: 'export function Ping(){return <button type="button">Ping</button>}',
+        moduleType: 'jsx',
+        moduleId: 'src/Ping.jsx',
+        meta: null,
+        sourceMapChain: [],
+    }, {});
+    assert.equal(typeof result?.content, 'string');
+    assert.match(result.content, /data-insp-path=/);
+    assert.match(result.content, /Ping\.jsx:/);
+});
+
 test('Vite SSR stamping matches the client transform', async () => {
     const plugin: any = stampUnplugin.vite({});
     const id = '/work/App.jsx';
     const client = await plugin.transform.handler(jsx, id);
     const server = await plugin.transform.handler(jsx, id, { ssr: true });
-    assert.equal(client, server);
-    assert.match(client, /data-insp-path/);
+    assert.deepEqual(client, server);
+    assert.match(client.code, /data-insp-path/);
 });
 
 test('esbuild dev output contains data-insp-path and production output does not', async () => {

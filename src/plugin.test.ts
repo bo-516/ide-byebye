@@ -60,11 +60,21 @@ test('esbuild() returns the stamp plugin and the inspector, both with setup', ()
     assert.equal(typeof plugins[1].setup, 'function');
 });
 
-test('farm() returns the stamp plugin and the farm inspector', () => {
-    const plugins = farm({});
+test('farm() returns the stamp plugin and a callable configResolved', () => {
+    const plugins = farm({}) as Array<{
+        name?: string;
+        configResolved?: unknown;
+        configureDevServer?: unknown;
+        transformHtml?: { executor?: unknown; order?: number };
+    }>;
     assert.equal(plugins.length, 2);
     assert.equal(plugins[0].name, STAMP_NAME);
     assert.equal(plugins[1].name, 'code-intent-inspector');
+    // Farm 1.7 calls this hook as a function. An `{ executor }` object makes the dev server exit.
+    assert.equal(typeof plugins[1].configResolved, 'function');
+    assert.equal(typeof plugins[1].configureDevServer, 'function');
+    assert.equal(typeof plugins[1].transformHtml?.executor, 'function');
+    assert.equal(plugins[1].transformHtml?.order, 2);
 });
 
 test('mako() keeps the { name, enforce, transform } shape and stamps in development', () => {

@@ -1,9 +1,9 @@
 /**
  * Recognize Vite's own browser client module so the inspector can ride on it.
  *
- * Purpose: every Vite dev page loads `/@vite/client` — SPAs through `index.html`, and SSR frameworks (Nuxt, SvelteKit,
- * SolidStart, Astro, React Router, Vike, Analog, …) through the HTML they render themselves, which never passes Vite's
- * `transformIndexHtml`. Appending the JS bootstrap to that module is the one injection point all of them share.
+ * Purpose: Vite's browser client is the injection point when HTML never passes `transformIndexHtml`
+ * (SvelteKit, SolidStart, Astro, React Router, Vike, Analog, …). Those pages request `/@vite/client`.
+ * Nuxt serves the same module at `/_nuxt/@vite/client`. The match is the file path, not that URL.
  *
  * Boundary: matches by resolved file path (`…vite/dist/client/client.mjs`, including forks published as
  * `rolldown-vite`, plus the full-bundle-mode `bundledDevClient.mjs`). Query strings and Windows separators are
