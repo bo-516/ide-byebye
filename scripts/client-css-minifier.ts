@@ -18,7 +18,7 @@ const CSS_TEMPLATE_EXPORT_RE = /export\s+const\s+([A-Z0-9_]+)\s*=\s*`([\s\S]*?)`
  * @param {string} css Raw CSS text from a source template literal.
  * @returns {string} CSS text without block comments.
  */
-function stripCssComments(css) {
+function stripCssComments(css: string) {
     let output = '';
     let quote = '';
 
@@ -67,7 +67,7 @@ function stripCssComments(css) {
  * @param {string} css CSS text without comments.
  * @returns {{ text: string, strings: string[] }} Placeholder text and the strings to restore in order.
  */
-function protectCssStrings(css) {
+function protectCssStrings(css: string) {
     const strings = [];
     let output = '';
 
@@ -107,8 +107,8 @@ function protectCssStrings(css) {
  * @param {string[]} strings Original quoted CSS strings.
  * @returns {string} CSS text with quoted strings restored.
  */
-function restoreCssStrings(text, strings) {
-    return text.replace(/\u0000CSS_STRING_(\d+)\u0000/g, (_, index) => strings[Number(index)] ?? '');
+function restoreCssStrings(text: string, strings: string[]) {
+    return text.replace(/\u0000CSS_STRING_(\d+)\u0000/g, (_: string, index: string) => strings[Number(index)] ?? '');
 }
 
 /**
@@ -120,7 +120,7 @@ function restoreCssStrings(text, strings) {
  * @param {string} css Raw CSS template body.
  * @returns {string} Compact CSS suitable for embedding back into a JavaScript template literal.
  */
-function minifyCssText(css) {
+function minifyCssText(css: string) {
     const { text, strings } = protectCssStrings(stripCssComments(css));
     const compact = text
         .replace(/\s+/g, ' ')
@@ -139,8 +139,8 @@ function minifyCssText(css) {
  * @param {string} code JavaScript module source.
  * @returns {string} JavaScript source with matched CSS template bodies minified.
  */
-function minifyCssTemplateExports(code) {
-    return code.replace(CSS_TEMPLATE_EXPORT_RE, (_, name, css) => {
+function minifyCssTemplateExports(code: string) {
+    return code.replace(CSS_TEMPLATE_EXPORT_RE, (_: string, name: string, css: string) => {
         const minified = minifyCssText(css).replace(/`/g, '\\`');
         return `export const ${name} = \`${minified}\`;`;
     });
@@ -155,11 +155,11 @@ function minifyCssTemplateExports(code) {
  * @param {string[]} moduleFiles Absolute source files whose CSS template exports should be minified.
  * @returns {{ name: string, transform(code: string, id: string): { code: string, map: null } | null }} Rolldown plugin.
  */
-export function createCssTemplateMinifyPlugin(moduleFiles) {
+export function createCssTemplateMinifyPlugin(moduleFiles: string[]) {
     const targets = new Set(moduleFiles);
     return {
         name: 'client-css-template-minify',
-        transform(code, id) {
+        transform(code: string, id: string) {
             const file = id.split('?')[0];
             if (!targets.has(file))
                 return null;

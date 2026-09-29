@@ -19,8 +19,19 @@ if (!logPath) {
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'launch-repo-'));
 const project = path.join(repo, 'packages', 'app');
 const thread = '12121212-1212-4121-8121-121212121212';
-const lines = [];
-function record(label, value) {
+const lines: string[] = [];
+
+/**
+ * Append one headed section to the launch log.
+ *
+ * Boundary: a string is pasted as-is; anything else goes through `JSON.stringify` unchanged.
+ * Callers pass response JSON or a string list. A value `JSON.stringify` cannot encode is written
+ * as that return value, not replaced.
+ *
+ * @param label Section heading. Empty still writes a `## ` line.
+ * @param value Already-formatted text, or a JSON-safe payload.
+ */
+function record(label: string, value: unknown) {
     lines.push(`## ${label}`);
     lines.push(typeof value === 'string' ? value : JSON.stringify(value, null, 2));
 }

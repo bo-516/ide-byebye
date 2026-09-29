@@ -13,15 +13,25 @@ export const BUMP_KINDS = new Set(['patch', 'minor', 'major', 'current']);
 /**
  * Parsed CLI options for one publish run.
  *
- * @typedef {object} PublishOptions
- * @property {string} bump Version bump kind (`patch` / `minor` / `major` / `current`) or exact semver.
- * @property {boolean} dryRun When true, never mutate git / registry / package.json version.
- * @property {boolean} noGit When true, skip commit / tag / push after a real publish.
- * @property {string} tag npm dist-tag applied on publish.
- * @property {string | null} otp npm 2FA OTP, or null when unused.
- * @property {boolean} allowDirty When true, dirty working tree is allowed.
- * @property {string} branch Required current branch name.
+ * Boundary: `parseArgs` always returns every field. Omitting one makes the publisher read `undefined`
+ * and skip a guard (`allowDirty`) or forward a bad npm flag (`tag`).
  */
+export interface PublishOptions {
+    /** `patch` / `minor` / `major` / `current`, or an exact semver. Anything else is rejected before publish. */
+    bump: string;
+    /** When true, never mutate git, the registry, or package.json. */
+    dryRun: boolean;
+    /** When true, skip commit / tag / push after a real publish. */
+    noGit: boolean;
+    /** npm dist-tag applied on publish. An empty tag is forwarded to npm and the publish fails. */
+    tag: string;
+    /** npm 2FA OTP, or null when unused. A string adds `--otp` to `npm publish`. */
+    otp: string | null;
+    /** When true, a dirty working tree is allowed. False aborts before any write. */
+    allowDirty: boolean;
+    /** Branch that must be checked out. A mismatch aborts before pack. */
+    branch: string;
+}
 
 /**
  * Print help to stdout.
@@ -58,9 +68,8 @@ Examples:
  * @param {string[]} argv Process argv slice after node + script path.
  * @returns {PublishOptions} Normalized options.
  */
-export function parseArgs(argv) {
-    /** @type {PublishOptions} */
-    const options = {
+export function parseArgs(argv: string[]): PublishOptions {
+    const options: PublishOptions = {
         bump: 'current',
         dryRun: false,
         noGit: false,
@@ -149,7 +158,7 @@ export function parseArgs(argv) {
  * @param {string} value Candidate version string.
  * @returns {boolean} True when the string is `major.minor.patch` with optional prerelease / build.
  */
-export function isSemver(value) {
+export function isSemver(value: string) {
     return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value);
 }
 
@@ -162,8 +171,8 @@ export function isSemver(value) {
  * @param {string} b Right version.
  * @returns {number} Negative if a < b, 0 if equal, positive if a > b.
  */
-export function compareSemver(a, b) {
-    const parse = (value) => value.split('-')[0].split('.').map((part) => Number(part));
+export function compareSemver(a: string, b: string) {
+    const parse = (value: string) => value.split('-')[0].split('.').map((part: string) => Number(part));
     const left = parse(a);
     const right = parse(b);
     for (let i = 0; i < 3; i += 1) {
@@ -184,7 +193,7 @@ export function compareSemver(a, b) {
  * @param {string} bump `patch` / `minor` / `major` / `current` / exact semver.
  * @returns {string} Next version without a leading `v`.
  */
-export function resolveNextVersion(current, bump) {
+export function resolveNextVersion(current: string, bump: string) {
     if (bump === 'current') {
         return current;
     }
@@ -196,8 +205,8 @@ export function resolveNextVersion(current, bump) {
         return bump;
     }
 
-    const parts = current.split('.').map((part) => Number(part));
-    if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n) || n < 0)) {
+    const parts = current.split('.').map((part: string) => Number(part));
+    if (parts.length !== 3 || parts.some((n: number) => !Number.isInteger(n) || n < 0)) {
         throw new Error(`Cannot bump non-plain version "${current}"; pass an exact semver instead`);
     }
 
@@ -222,7 +231,7 @@ export function resolveNextVersion(current, bump) {
  * @param {{ allowFail?: boolean }} [opts] When `allowFail`, return the result instead of throwing.
  * @returns {import('node:child_process').SpawnSyncReturns<string>} Command result.
  */
-export function run(cwd, command, args, opts: any = {}) {
+export function run(cwd: string, command: string, args: string[], opts: any = {}) {
     const result = spawnSync(command, args, {
         cwd,
         encoding: 'utf8',
@@ -249,7 +258,7 @@ export function run(cwd, command, args, opts: any = {}) {
  * @param {string[]} args Argument list.
  * @returns {string} Trimmed stdout.
  */
-export function runCapture(cwd, command, args) {
+export function runCapture(cwd: string, command: string, args: string[]) {
     const result = run(cwd, command, args, { allowFail: true });
     if (result.status !== 0) {
         const detail = (result.stderr || result.stdout || '').trim();
