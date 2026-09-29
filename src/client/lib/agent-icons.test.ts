@@ -54,9 +54,16 @@ test('agentIconsStyle paints full-colour marks as backgrounds and single-colour 
 });
 
 test('agentIconsStyle groups destinations that share a brand and omits the forced-colours block without masks', () => {
-    const css = agentIconsStyle({ antigravity: { image: '<svg/>' } });
-    assert.ok(css.includes('.cii-agent-kind[data-agent="antigravity-ide"],.cii-agent-kind[data-agent="antigravity"]{'));
+    const css = agentIconsStyle({ codex: { image: '<svg/>' } }, { 'codex-app': 'codex', 'codex-cli': 'codex' });
+    assert.ok(css.includes('.cii-agent-kind[data-agent="codex-app"],.cii-agent-kind[data-agent="codex-cli"]{'));
     assert.ok(!css.includes('forced-colors'));
+});
+
+test('the two Antigravity launchers show different marks, so their rows can be told apart', () => {
+    const ide = AGENT_MARK_BRANDS['antigravity-ide'];
+    const app = AGENT_MARK_BRANDS.antigravity;
+    assert.notEqual(ide, app);
+    assert.notEqual(AGENT_MARKS[ide].image, AGENT_MARKS[app].image);
 });
 
 test('the shipped stylesheet is built from the vendor marks', () => {

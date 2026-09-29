@@ -3,7 +3,9 @@
  *
  * Boundary: the menu reuses the dropdown shell from TOOLS_STYLE (`.cii-screenshot-menu`), so this must be composed
  * after it. Each row is a flex container of a main button (choose) and, for agents that list sessions, a trailing
- * button (open sessions); hover and keyboard highlight paint the whole row so the two read as one item. Destination
+ * button (open sessions); hover and keyboard highlight paint the whole row so the two read as one item. The trailing
+ * button keeps the full row height as its hit area but draws a small chip behind its chevron (`::before`, with the
+ * chevron in `::after`), so it still reads as a control of its own on a row that is not highlighted. Destination
  * kinds (`data-kind`) swap the generic glyph; brand marks per agent (`data-agent`) come from AGENT_ICONS_STYLE, composed
  * right after this. An unavailable destination's icon is desaturated rather than recoloured, because a logo cannot be
  * tinted. `[hidden]` rules must beat the flex displays here, or a page without destinations would still show an empty
@@ -113,6 +115,7 @@ export const DESTINATION_STYLE = `
   mask: var(--cii-mask-check);
 }
 .cii-agent-row-sessions {
+  position: relative;
   flex: none;
   width: 32px;
   display: inline-flex;
@@ -122,16 +125,29 @@ export const DESTINATION_STYLE = `
   border: 0;
   border-radius: 0 8px 8px 0;
   background: transparent;
-  color: var(--cii-text-faint);
+  color: var(--cii-text-muted);
   cursor: pointer;
 }
 .cii-agent-row-sessions::before {
   content: "";
-  width: 15px;
-  height: 15px;
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  right: 4px;
+  height: 24px;
+  margin-top: -12px;
+  border-radius: 7px;
+  background: var(--cii-fill);
+}
+.cii-agent-row-sessions::after {
+  content: "";
+  position: relative;
+  width: 14px;
+  height: 14px;
   background: currentColor;
   -webkit-mask: var(--cii-mask-chevron-right);
   mask: var(--cii-mask-chevron-right);
 }
-.cii-agent-row-sessions:hover { background: var(--cii-fill-strong); color: var(--cii-text); }
+.cii-agent-row-sessions:hover { color: var(--cii-text); }
+.cii-agent-row-sessions:hover::before { background: var(--cii-fill-strong); }
 `;
