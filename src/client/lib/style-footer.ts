@@ -5,9 +5,15 @@
  * to the text and the one action. Hover feedback is only a scale to 1.06 over 120ms; the fill stays the resting
  * gradient. Do not transition `background` onto a solid hover colour: that shorthand resets `background-color` through
  * transparent and flashes the surface. Both Copy labels share one grid cell and render as icons, so the confirmation only
- * swaps glyphs and never shifts the bar. With no destination offered the dialog hides Send and Copy is promoted to
+ * swaps glyphs and never shifts the bar. The rule is `button.cii-agent-clipboard` because `.cii-icon-btn` is composed
+ * later at the same class specificity and would set `display: inline-flex`, laying the hidden confirmation beside the
+ * glyph and shifting the icon left of the button and of its centered tip. With no destination offered the dialog hides
+ * Send and Copy is promoted to
  * the filled circle (`:has()`; without it Copy simply stays a ghost button). Tips in the send group align to the right
- * edge so they never leave a panel parked at the viewport's right margin. Requires the tokens and icon masks.
+ * edge so they never leave a panel parked at the viewport's right margin. Copy is the exception while a destination
+ * sits to its right: its tip is centered on the icon, because a right-edge tip on that narrow control hangs left over
+ * the composer. When Send is hidden, Copy is the rightmost control and keeps the right-edge tip. Requires the tokens
+ * and icon masks.
  * @type {string} CSS composed into STYLE_TEXT before session-control overrides.
  */
 export const FOOTER_STYLE = `
@@ -35,6 +41,15 @@ export const FOOTER_STYLE = `
 .cii-send-group [data-cii-tip]::after { left: auto; right: 0; transform: translateY(3px); }
 .cii-send-group [data-cii-tip]:hover::after,
 .cii-send-group [data-cii-tip]:focus-visible::after { transform: none; }
+/* Copy sits left of the destination pill. A right-edge tip on the 32px icon hangs over the composer, so center it.
+   The -50% has to live here: the rule above replaces the shared tooltip's translate(-50%). When Send is hidden, Copy
+   is the rightmost control and keeps the right-edge tip so the bubble stays inside the panel. */
+.cii-send-group .cii-agent-clipboard[data-cii-tip]::after { left: 50%; right: auto; transform: translate(-50%, 3px); }
+.cii-send-group .cii-agent-clipboard[data-cii-tip]:hover::after,
+.cii-send-group .cii-agent-clipboard[data-cii-tip]:focus-visible::after { transform: translate(-50%, 0); }
+.cii-footer:has(.cii-send-btn[hidden]) .cii-agent-clipboard[data-cii-tip]::after { left: auto; right: 0; transform: translateY(3px); }
+.cii-footer:has(.cii-send-btn[hidden]) .cii-agent-clipboard[data-cii-tip]:hover::after,
+.cii-footer:has(.cii-send-btn[hidden]) .cii-agent-clipboard[data-cii-tip]:focus-visible::after { transform: none; }
 
 .cii-btn {
   display: inline-flex;
@@ -60,7 +75,9 @@ export const FOOTER_STYLE = `
 .cii-btn-secondary { background: var(--cii-key); color: var(--cii-text); box-shadow: var(--cii-shadow-key); }
 .cii-btn-secondary:hover:not(:disabled) { box-shadow: var(--cii-shadow-key-hover); }
 
-.cii-agent-clipboard { display: inline-grid; place-items: center; }
+/* `.cii-icon-btn` later sets `display: inline-flex`. Without the element selector the idle and copied labels sit in a
+   row, the hidden one still takes 17px, and the visible glyph lands left of the button center. */
+button.cii-agent-clipboard { display: inline-grid; place-items: center; }
 .cii-copy-label { grid-area: 1 / 1; display: inline-flex; font-size: 0; }
 .cii-copy-label::before {
   content: "";
