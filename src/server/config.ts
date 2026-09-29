@@ -1,5 +1,6 @@
 import { DEFAULT_HOTKEY, DEFAULT_MAX_HTML_SNIPPET, DEFAULT_MAX_SOURCE_CONTEXT_LINES, DEFAULT_OUTPUT_DIR, } from '../shared/constants.js';
 import { normalizeLocale } from '../shared/locale.js';
+import { normalizeTheme } from '../shared/theme.js';
 
 /**
  * Normalizes an optional inspector API origin.
@@ -114,7 +115,8 @@ export function resolvePromptPathStyleOptions(options: any = {}) {
  * Boundary: callers may pass partial plugin options; invalid optional values are normalized to safe defaults. Passing
  * the wrong `apiOrigin` can point browser inspector requests at the wrong server, while leaving it empty auto-detects
  * the current Vite dev-server loopback origin. `pathStyle` / `artifactPathStyle` only affect plain `@` prompts
- * (clipboard / file / Grok Build); Codex/Claude markdown or deeplink attachments keep their own formats.
+ * (clipboard / file / Grok Build); Codex/Claude markdown or deeplink attachments keep their own formats. `theme` stays
+ * `null` when unset or invalid, so the browser can tell "not configured" apart from an explicit `'light'`.
  *
  * @param {Record<string, unknown>} options Raw plugin options supplied from Vite config.
  * @returns {Record<string, unknown>} Fully resolved inspector options used by server and browser config generation.
@@ -124,6 +126,8 @@ export function resolveOptions(options) {
     return {
         enabled: options.enabled ?? true,
         locale: normalizeLocale(options.locale),
+        // null = not configured: the browser falls back to DEFAULT_THEME and logs a hint naming the option.
+        theme: normalizeTheme(options.theme),
         hotkey: options.hotkey ?? DEFAULT_HOTKEY,
         // 'auto' resolves per-platform in the browser (⌘ on macOS, Ctrl elsewhere) so ⌘/Ctrl-click works with zero
         // config; pass an explicit modifier to override, or `false`/`null` to disable click-picking.

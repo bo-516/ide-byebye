@@ -216,6 +216,12 @@ const STRINGS = {
     // --- overlay ---
     'overlay.noMapping': { zh: '无源码映射', en: 'no source mapping' },
 
+    // --- browser console ---
+    'console.themeHint': {
+        zh: "未配置弹窗主题 theme，默认使用浅色（light）。可在插件配置中设置 theme: 'light' | 'auto' | 'dark'（auto 跟随系统深浅色），例如 ideByebye({ theme: 'auto' })。",
+        en: "The dialog theme is not set, so it defaults to light. Set theme: 'light' | 'auto' | 'dark' in the plugin options ('auto' follows the system), e.g. ideByebye({ theme: 'auto' }).",
+    },
+
     // --- style capture (supplementary element styles) ---
     'styles.button.title': { zh: '补充元素渲染样式', en: 'Attach rendered element styles' },
     'styles.panel.title': { zh: '采集渲染样式', en: 'Capture rendered styles' },

@@ -1,4 +1,5 @@
 import { CLIENT_CONFIG_GLOBAL } from '../../shared/constants.js';
+import { DEFAULT_THEME, normalizeTheme } from '../../shared/theme.js';
 import { setLocale } from '../lib/i18n.js';
 import { createUi } from '../lib/style.js';
 import { installDialogReferenceStyle } from '../dialog/dialog-reference-style.js';
@@ -10,10 +11,12 @@ import { PickerController } from '../inspect/picker.js';
 import { matchHotkey, parseHotkey } from './hotkey.js';
 import { matchingClickModifier } from './click-modifier.js';
 import { installPickGestures } from './pick-gestures.js';
+import { logThemeHintAfterLoad } from './theme-hint.js';
 /**
  * Start the browser-side inspector runtime from the injected page config.
- * Purpose: creates the isolated UI root, installs supplemental dialog/dock styles, and wires picker, dialog, dock,
- * hotkey, modifier-click/touch, and 4s long-press listeners for the current host page.
+ * Purpose: creates the isolated UI root in the configured theme, installs supplemental dialog/dock styles, and wires
+ * picker, dialog, dock, hotkey, modifier-click/touch, and 4s long-press listeners for the current host page. With no
+ * valid `theme` in the config, the UI uses the default theme and a console hint naming the option follows page load.
  * Boundary: requires a browser document with `CLIENT_CONFIG_GLOBAL` already injected; missing config logs and exits,
  * while repeated calls after installation are ignored to avoid duplicate event listeners.
  *
@@ -33,8 +36,10 @@ function main() {
     // Custom prompt-delivery clients are config-defined, so they must be registered as destinations before the first
     // dialog is built. Absent config leaves the built-in destinations untouched.
     setCustomAgentActions(config.customAgents);
+    // null = the option is unset or invalid: fall back to the default and say so in the console (see the end).
+    const theme = normalizeTheme(config.theme);
     const boot = () => {
-        const { root } = createUi();
+        const { root } = createUi(theme ?? DEFAULT_THEME);
         installDialogReferenceStyle(root);
         const api = createApi(config);
         const overlay = new Overlay(root);
@@ -68,6 +73,8 @@ function main() {
         boot();
     else
         window.addEventListener('DOMContentLoaded', boot, { once: true });
+    if (!theme)
+        logThemeHintAfterLoad();
 }
 main();
 /**

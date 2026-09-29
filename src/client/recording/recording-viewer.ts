@@ -89,9 +89,9 @@ function focusStage(stage, replayer, viewport, scopeSelector) {
 }
 
 /**
- * Open the recording editor: a lightbox (following the OS light/dark theme) that plays one recording, lets the user
- * keep **multiple time segments** (cut gaps are compressed to a single held frame on playback) and pick **any frame as
- * the still**.
+ * Open the recording editor: a lightbox (in the UI theme set by the `theme` option) that plays one recording, lets the
+ * user keep **multiple time segments** (cut gaps are compressed to a single held frame on playback) and pick **any frame
+ * as the still**.
  *
  * Boundary: requires `@rrweb/replay` (lazy-loaded). Mutates `recording.segments`, `recording.stillAt`, and
  * `recording.still` in place and calls `onUpdate(recording)` so the dialog refreshes thumbnail + payload. Tears down the
