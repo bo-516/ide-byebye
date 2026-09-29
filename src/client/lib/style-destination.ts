@@ -9,7 +9,9 @@
  * kinds (`data-kind`) swap the generic glyph; brand marks per agent (`data-agent`) come from AGENT_ICONS_STYLE, composed
  * right after this. An unavailable destination's icon is desaturated rather than recoloured, because a logo cannot be
  * tinted. `[hidden]` rules must beat the flex displays here, or a page without destinations would still show an empty
- * trigger.
+ * trigger. The trigger chevron is painted on `::after` so a hairline on the element is not clipped by the glyph mask.
+ * That stroke is inset from the pill's top and bottom and shows only while the trigger is hovered or its menu is open.
+ * A full-height stroke reads as a cut through the rounded chip. The fill stays unchanged.
  * @type {string} CSS fragment composed into the shadow-root stylesheet after TOOLS_STYLE.
  */
 export const DESTINATION_STYLE = `
@@ -45,13 +47,41 @@ export const DESTINATION_STYLE = `
 .cii-agent-pill-session::before { content: "/"; margin-right: 7px; opacity: 0.7; }
 .cii-agent-pill-session[hidden] { display: none; }
 .cii-agent-pill-caret {
+  position: relative;
   flex: none;
+  align-self: stretch;
+  width: 14px;
+  margin-left: 4px;
+}
+/* Glyph on ::after: a mask on this element would clip the divider into the chevron shape. */
+.cii-agent-pill-caret::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
   width: 14px;
   height: 14px;
+  margin-top: -7px;
   background: currentColor;
   opacity: 0.6;
   -webkit-mask: var(--cii-mask-chevron-down);
   mask: var(--cii-mask-chevron-down);
+}
+/* Inset so the seam stays inside the rounded pill. left is the middle of the gap in front of the caret. */
+.cii-agent-pill-caret::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -6px;
+  width: 1px;
+  background: var(--cii-line-bold);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.cii-agent-pill:hover:not(:disabled) .cii-agent-pill-caret::before,
+.cii-agent-picker:has(> .cii-agent-menu:not([hidden])) > .cii-agent-pill:not(:disabled) .cii-agent-pill-caret::before {
+  opacity: 1;
 }
 .cii-agent-pill-unavailable { color: var(--cii-text-faint); }
 .cii-agent-pill-unavailable .cii-agent-kind,

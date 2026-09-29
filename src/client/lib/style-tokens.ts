@@ -26,6 +26,7 @@ export const DARK_TOKENS = `
   --cii-fill-strong: rgba(255, 255, 255, 0.11);
   --cii-line: rgba(255, 255, 255, 0.08);
   --cii-line-strong: rgba(255, 255, 255, 0.15);
+  --cii-line-bold: rgba(255, 255, 255, 0.22);
 
   --cii-text: #ededf1;
   --cii-text-muted: #a5a5b1;
@@ -92,6 +93,7 @@ export const TOKENS_STYLE = `
   --cii-fill-strong: rgba(22, 22, 30, 0.09);
   --cii-line: rgba(22, 22, 30, 0.08);
   --cii-line-strong: rgba(22, 22, 30, 0.15);
+  --cii-line-bold: rgba(22, 22, 30, 0.22);
 
   --cii-text: #18181d;
   --cii-text-muted: #5c5c68;

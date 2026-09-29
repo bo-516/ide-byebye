@@ -109,7 +109,7 @@ button:focus-visible, [role="button"]:focus-visible {
    masked background; opt the icon slots out and paint them in the text colour instead. New icon slots belong here. */
 @media (forced-colors: active) {
   .cii-code-ref-icon, .cii-shot-icon, .cii-style-icon, .cii-style-chip-icon, .cii-mention-icon, .cii-pin-orb-icon,
-  .cii-rec-icon, .cii-agent-kind, .cii-agent-pill-caret, .cii-agent-row-selected .cii-agent-row-check,
+  .cii-rec-icon, .cii-agent-kind, .cii-agent-pill-caret::after, .cii-agent-row-selected .cii-agent-row-check,
   .cii-agent-row-sessions::after, .cii-agent-row-session::before, .cii-copy-label::before,
   .cii-choice-active .cii-choice-mark::before, .cii-session-new::before, .cii-session-refresh::before,
   .cii-session-back::before, .cii-mention-remove::before, .cii-thumb-remove::before, .cii-style-chip-remove::before,
