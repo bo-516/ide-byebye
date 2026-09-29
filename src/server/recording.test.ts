@@ -30,8 +30,8 @@ test('saveRecordingPayloads writes the event stream and still, returning correla
         },
     ], { projectRoot: root }, outputDir);
 
-    assert.equal(saved.length, 1);
-    const entry = saved[0];
+    assert.equal(saved!.length, 1);
+    const entry = saved![0];
     assert.ok(entry.eventsPath.endsWith('.rrweb.json'), 'event stream uses .rrweb.json');
     assert.ok(entry.stillFramePath && entry.stillFramePath.endsWith('.png'), 'still uses image extension');
     assert.ok(fs.existsSync(entry.eventsPath), 'event file written to disk');

@@ -1,6 +1,35 @@
 import fs from 'node:fs';
 
 /**
+ * Filesystem calls the session catalog actually makes.
+ *
+ * Boundary: tests spread `node:fs` and replace `readFileSync` or `readSync` with a narrower signature. A structural
+ * surface accepts those stand-ins and `node:fs` itself; `typeof fs` does not, because the overloads disagree.
+ * Paths passed here are server-derived, never page input.
+ */
+export interface SessionFs {
+    /** True when the path exists. A thrown error is the caller's problem; this method itself returns a boolean. */
+    existsSync(path: fs.PathLike): boolean;
+    /** Stat fields the catalog reads. Missing methods would make directory walks and tail windows fail to type-check. */
+    statSync(path: fs.PathLike): { size: number; mtimeMs: number; isDirectory(): boolean; isFile(): boolean };
+    /** Directory names as strings. A Buffer encoding would break the path joins that follow. */
+    readdirSync(path: fs.PathLike): string[];
+    /** UTF-8 file text. Callers pass `'utf8'`; a Buffer return would leak into JSON parsing. */
+    readFileSync(path: fs.PathOrFileDescriptor, encoding: BufferEncoding): string;
+    /** Open a file descriptor. `flags` is the same `OpenMode` `node:fs` requires, so `'r'` is accepted. */
+    openSync(path: fs.PathLike, flags: fs.OpenMode): number;
+    /**
+     * One positioned read. `position` is `number | null` (not bigint) so the Codex test double, which types its
+     * position as `number | null`, still assigns. The buffer is an ArrayBufferView because `fs.readSync` accepts one.
+     */
+    readSync(fd: number, buffer: NodeJS.ArrayBufferView, offset: number, length: number, position: number | null): number;
+    /** Close the descriptor opened by {@link openSync}. */
+    closeSync(fd: number): void;
+    /** `realpathSync.native` plus the callback form. Scope checks use both. */
+    realpathSync: typeof fs.realpathSync;
+}
+
+/**
  * Read at most `maxBytes` from the start of a file.
  *
  * Boundary: the file is never slurped. A shorter file returns its whole contents. `maxBytes` below 1 yields `''`.
@@ -8,10 +37,10 @@ import fs from 'node:fs';
  *
  * @param {string} file Absolute path chosen by the server, never by the page.
  * @param {number} maxBytes Maximum bytes to read (Codex heads use 4096).
- * @param {typeof fs} [io] Filesystem implementation; tests pass a wrapper, production uses `node:fs`.
+ * @param {SessionFs} [io] Filesystem implementation; tests pass a wrapper, production uses `node:fs`.
  * @returns {string} UTF-8 prefix. A multibyte character split by the cap may end with a replacement character.
  */
-export function readHead(file, maxBytes, io = fs) {
+export function readHead(file: string, maxBytes: number, io: SessionFs = fs) {
     return readWindow(file, maxBytes, 'head', io);
 }
 
@@ -23,10 +52,10 @@ export function readHead(file, maxBytes, io = fs) {
  *
  * @param {string} file Absolute path chosen by the server.
  * @param {number} maxBytes Maximum bytes to read (Codex tails start at 65536 and may retry at 524288).
- * @param {typeof fs} [io] Filesystem implementation.
+ * @param {SessionFs} [io] Filesystem implementation.
  * @returns {string} UTF-8 suffix.
  */
-export function readTail(file, maxBytes, io = fs) {
+export function readTail(file: string, maxBytes: number, io: SessionFs = fs) {
     return readWindow(file, maxBytes, 'tail', io);
 }
 
@@ -39,10 +68,10 @@ export function readTail(file, maxBytes, io = fs) {
  * @param {string} file Absolute file path.
  * @param {number} maxBytes Requested window.
  * @param {'head' | 'tail'} where Which end of the file to read.
- * @param {typeof fs} io Filesystem implementation.
+ * @param {SessionFs} io Filesystem implementation.
  * @returns {string} Decoded window.
  */
-function readWindow(file, maxBytes, where, io) {
+function readWindow(file: string, maxBytes: number, where: 'head' | 'tail', io: SessionFs) {
     const size = io.statSync(file).size;
     const length = Math.max(0, Math.min(size, Math.floor(Number(maxBytes) || 0)));
     if (length === 0)
@@ -66,10 +95,10 @@ function readWindow(file, maxBytes, where, io) {
  * cannot signal it). `ESRCH` and a non-positive or non-integer pid count as dead. This is the Grok "open in a
  * terminal" check and can false-positive if the pid was recycled.
  *
- * @param {unknown} pid Process id from `active_sessions.json`.
+ * @param {unknown} pid Process id from `active_sessions.json`. A non-number is dead.
  * @returns {boolean} True when the kernel still has that process.
  */
-export function pidAlive(pid) {
+export function pidAlive(pid: unknown) {
     const parsed = Number(pid);
     if (!Number.isInteger(parsed) || parsed <= 0)
         return false;
@@ -78,6 +107,7 @@ export function pidAlive(pid) {
         return true;
     }
     catch (err) {
-        return err?.code === 'EPERM';
+        // Strict catch is `unknown`, so `err?.code` is not a property access. The cast is erased.
+        return (err as { code?: string } | null)?.code === 'EPERM';
     }
 }

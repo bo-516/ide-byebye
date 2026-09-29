@@ -1,5 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+/** JSON object stored in sessions.json. Nested values are whatever the caller wrote. */
+type SessionData = Record<string, unknown>;
+
 const EMPTY = { version: 1 };
 /**
  * Tiny JSON-file backed key/value store for agent thread/session ids.
@@ -11,19 +14,19 @@ const EMPTY = { version: 1 };
  * Keys use dotted paths, e.g. `agent.lastThreadId`.
  */
 export class SessionStore {
-    dirAbs;
-    file;
-    cache = null;
-    constructor(dirAbs) {
+    dirAbs: string;
+    file: string;
+    cache: SessionData | null = null;
+    constructor(dirAbs: string) {
         this.dirAbs = dirAbs;
         this.file = path.join(dirAbs, 'sessions.json');
     }
-    load() {
+    load(): SessionData {
         if (this.cache)
             return this.cache;
         if (!fs.existsSync(this.file)) {
             this.cache = { ...EMPTY };
-            return this.cache;
+            return this.cache!;
         }
         try {
             const raw = fs.readFileSync(this.file, 'utf8');
@@ -34,7 +37,7 @@ export class SessionStore {
             this.backupCorrupt();
             this.cache = { ...EMPTY };
         }
-        return this.cache;
+        return this.cache!;
     }
     backupCorrupt() {
         try {
@@ -46,33 +49,33 @@ export class SessionStore {
             // best effort
         }
     }
-    persist(data) {
+    persist(data: SessionData) {
         fs.mkdirSync(this.dirAbs, { recursive: true });
         const tmp = path.join(this.dirAbs, `sessions.${process.pid}.${Date.now()}.tmp`);
         fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
         fs.renameSync(tmp, this.file);
     }
-    get(dottedKey) {
+    get(dottedKey: string): unknown {
         const data = this.load();
         const parts = dottedKey.split('.');
-        let node = data;
+        let node: SessionData = data;
         for (const part of parts) {
             if (node == null || typeof node !== 'object')
                 return undefined;
-            node = node[part];
+            node = node[part] as SessionData;
         }
         return node;
     }
-    set(dottedKey, value) {
+    set(dottedKey: string, value: unknown) {
         const data = this.load();
         const parts = dottedKey.split('.');
-        let node = data;
+        let node: SessionData = data;
         for (let i = 0; i < parts.length - 1; i += 1) {
             const part = parts[i];
             if (node[part] == null || typeof node[part] !== 'object') {
                 node[part] = {};
             }
-            node = node[part];
+            node = node[part] as SessionData;
         }
         node[parts[parts.length - 1]] = value;
         this.cache = data;

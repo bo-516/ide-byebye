@@ -5,9 +5,9 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
-    "strict": false,
-    "noImplicitAny": false,
-    "strictNullChecks": false,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -30,6 +30,9 @@
     "node_modules",
     "dist",
     "demo",
+    // Kept out of this emit project only. Tests are checked by tsconfig.test.json and the
+    // browser client (including its tests) by tsconfig.client.json. Including either here
+    // would publish dist/**/*.test.* and dist/client/** next to the Rolldown bundle.
     "**/*.test.ts",
     "src/client/**"
   ]

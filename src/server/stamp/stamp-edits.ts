@@ -36,6 +36,64 @@ export interface Insertion {
     end?: number;
 }
 
+/**
+ * Fields the JSX / Svelte stampers read off a parser node.
+ *
+ * Boundary: not an oxc or compiler-dom union. Optional fields cover every node kind the walk
+ * sees; a missing field is `undefined` and the caller already skips that kind. `callee` stays
+ * `unknown` so a walk callback typed with an unknown callee still assigns. Dynamic child keys
+ * are not on this type — the walk asserts a string index at the loop, because an index signature
+ * would reject the oxc `Program` passed in at the boundary.
+ */
+export interface StampNode {
+    type?: string;
+    /** Identifier or tag text. A JSX namespaced name's child identifier is asserted at the read. */
+    name?: string;
+    /** Literal text, or a child node on patterns and methods. */
+    value?: string | StampNode | null;
+    start: number;
+    end: number;
+    line?: number;
+    column?: number;
+    kind?: string;
+    computed?: boolean;
+    method?: boolean;
+    selfClosing?: boolean;
+    tag?: string;
+    id?: StampNode | null;
+    local?: StampNode | null;
+    key?: StampNode | null;
+    object?: StampNode | null;
+    property?: StampNode | null;
+    namespace?: StampNode | null;
+    left?: StampNode | null;
+    right?: StampNode | null;
+    argument?: StampNode | null;
+    expression?: StampNode | null;
+    consequent?: StampNode | null;
+    alternate?: StampNode | null;
+    callee?: unknown;
+    init?: StampNode | null;
+    /** Function / class body node. A class body's statement list is read with a separate assertion. */
+    body?: StampNode | null;
+    block?: StampNode | null;
+    openingElement?: StampNode | null;
+    param?: StampNode | null;
+    superClass?: StampNode | null;
+    params?: StampNode[];
+    specifiers?: StampNode[];
+    properties?: StampNode[];
+    elements?: StampNode[];
+    declarations?: StampNode[];
+    arguments?: StampNode[];
+    children?: StampNode[];
+    expressions?: StampNode[];
+    attributes?: StampNode[];
+    attrs?: StampNode[];
+    nodes?: StampNode[];
+    props?: StampNode[];
+}
+
 const IGNORE_DIRECTIVES = ['code-inspector-disable', 'code-inspector-ignore', 'ide-byebye-ignore'];
 
 /**

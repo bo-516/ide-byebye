@@ -30,10 +30,10 @@ export const SESSION_ID_PATTERNS = {
  * 119 characters plus an ellipsis so the stored value itself stays within the cap. A non-string becomes `''`
  * (the client shows "untitled").
  *
- * @param {unknown} value Raw title from an index, summary, or IDE trajectory.
+ * @param {unknown} value Raw title from an index, summary, or IDE trajectory. Objects are stringified.
  * @returns {string} Single-line title, possibly empty, never longer than 120 characters.
  */
-export function sessionTitle(value) {
+export function sessionTitle(value: unknown) {
     const first = String(value ?? '').split(/\r?\n/, 1)[0] ?? '';
     if (first.length <= SESSION_TITLE_MAX)
         return first;
@@ -46,10 +46,10 @@ export function sessionTitle(value) {
  * Boundary: used to keep catalog JSON free of filesystem paths. A title that is itself an absolute path is blanked;
  * a title that merely mentions a slash is kept.
  *
- * @param {unknown} value Candidate string.
+ * @param {unknown} value Candidate string. Non-strings are coerced before the prefix check.
  * @returns {boolean} True when the string starts with `/` or a drive prefix.
  */
-export function isAbsolutePathText(value) {
+export function isAbsolutePathText(value: unknown) {
     const text = String(value ?? '');
     return text.startsWith('/') || /^[A-Za-z]:[\\/]/.test(text);
 }
@@ -60,10 +60,21 @@ export function isAbsolutePathText(value) {
  * Boundary: `cwd`, `route`, pids, and tokens stay on the server object and are omitted here. A missing `reason`
  * is omitted rather than sent as null. An absolute title is replaced with `''` so the JSON body cannot carry a path.
  *
- * @param {Record<string, unknown>} session Server session, including private fields.
+ * @param {{ id?: unknown, title?: unknown, projectName?: unknown, location?: unknown, status?: unknown, live?: unknown, targetable?: unknown, updatedAt?: unknown, reason?: unknown } | null | undefined} session
+ *        Server session, including private fields. A missing object becomes an empty public row. Only these fields are read.
  * @returns {Record<string, unknown>} Catalog row.
  */
-export function toPublicSession(session) {
+export function toPublicSession(session: {
+    id?: unknown;
+    title?: unknown;
+    projectName?: unknown;
+    location?: unknown;
+    status?: unknown;
+    live?: unknown;
+    targetable?: unknown;
+    updatedAt?: unknown;
+    reason?: unknown;
+} | null | undefined) {
     const title = sessionTitle(session?.title);
     const row: Record<string, unknown> = {
         id: String(session?.id ?? ''),
@@ -89,7 +100,7 @@ export function toPublicSession(session) {
  * @param {string} code Session error code.
  * @returns {string} Stable English error.
  */
-export function sessionErrorText(code) {
+export function sessionErrorText(code: string) {
     switch (code) {
         case 'target-invalid':
             return 'Target session id is invalid';

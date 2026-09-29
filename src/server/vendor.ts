@@ -12,7 +12,7 @@ import { assertPathInsideRoot } from './security.js';
  *
  * @type {Record<string, string>} Route name -> npm package specifier.
  */
-export const VENDOR_PACKAGES = {
+export const VENDOR_PACKAGES: Record<string, string> = {
     record: '@rrweb/record',
     replay: '@rrweb/replay',
 };
@@ -25,10 +25,15 @@ export const VENDOR_PACKAGES = {
  * actually shipping browser ESM. Throws when no entry can be determined so the route fails loudly instead of serving
  * an empty body.
  *
- * @param {Record<string, unknown>} manifest Parsed package.json contents.
+ * @param {{ name?: unknown, exports?: { '.'?: { import?: string | { default?: unknown } } | string | null } | string | null, module?: unknown, main?: unknown }} manifest Parsed package.json contents. Only `exports['.'].import`, `module`, `main`, and `name` are read.
  * @returns {string} Package-root-relative path to the ESM entry file.
  */
-function pickEsmEntry(manifest) {
+function pickEsmEntry(manifest: {
+    name?: unknown;
+    exports?: { '.'?: { import?: string | { default?: unknown } } | string | null } | string | null;
+    module?: unknown;
+    main?: unknown;
+}) {
     const dot = manifest.exports && typeof manifest.exports === 'object' ? manifest.exports['.'] : undefined;
     const imp = dot && typeof dot === 'object' ? dot.import : undefined;
     if (typeof imp === 'string')
@@ -53,7 +58,7 @@ function pickEsmEntry(manifest) {
  * @param {string} projectRoot Absolute host Vite project root.
  * @returns {string} Absolute package-root directory containing the matching package.json.
  */
-function resolvePackageRoot(spec, projectRoot) {
+function resolvePackageRoot(spec: string, projectRoot: string) {
     const require = createRequire(path.join(projectRoot, 'noop.js'));
     const entry = require.resolve(spec);
     let dir = path.dirname(entry);
@@ -86,7 +91,7 @@ function resolvePackageRoot(spec, projectRoot) {
  * @param {string} projectRoot Absolute host Vite project root used for module resolution.
  * @returns {string} Absolute path to the ESM file to serve to the browser.
  */
-export function resolveVendorEsmPath(name, projectRoot) {
+export function resolveVendorEsmPath(name: string, projectRoot: string) {
     const spec = VENDOR_PACKAGES[name];
     if (!spec) {
         throw new Error(`Unknown vendor module "${name}"`);

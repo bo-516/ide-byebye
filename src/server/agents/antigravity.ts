@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
 import { openTarget } from './opener.js';
@@ -25,7 +26,7 @@ import {
  * @param {Date} date Date used to stamp the file name.
  * @returns {string} ISO-like timestamp with colon characters replaced.
  */
-function fileStamp(date) {
+function fileStamp(date: Date) {
     return date.toISOString().replace(/:/g, '-').replace(/\..+$/, '');
 }
 
@@ -39,16 +40,16 @@ function fileStamp(date) {
  * @param {number} [timeoutMs=5000] Kill timeout.
  * @returns {Promise<boolean>} True when `--version` exits 0.
  */
-function probeCommandVersion(command, timeoutMs = 5000) {
-    return new Promise((resolve) => {
+function probeCommandVersion(command: string, timeoutMs = 5000) {
+    return new Promise<boolean>((resolve) => {
         let settled = false;
-        const finish = (ok) => {
+        const finish = (ok: boolean) => {
             if (settled)
                 return;
             settled = true;
             resolve(ok);
         };
-        let child;
+        let child: ChildProcess;
         try {
             child = spawn(command, ['--version'], { stdio: 'ignore' });
         }
@@ -74,10 +75,10 @@ function probeCommandVersion(command, timeoutMs = 5000) {
 /**
  * First `agy` candidate whose `--version` succeeds.
  *
- * @param {Record<string, unknown>} config Antigravity adapter config.
+ * @param {{ command?: unknown }} config Antigravity adapter config.
  * @returns {Promise<string | null>} Command to embed in the launcher, or null.
  */
-async function resolveAntigravityCommand(config) {
+async function resolveAntigravityCommand(config: { command?: unknown }) {
     for (const candidate of resolveAntigravityCommandCandidates(config)) {
         if (await probeCommandVersion(candidate))
             return candidate;
@@ -90,16 +91,16 @@ async function resolveAntigravityCommand(config) {
  *
  * Boundary: the directory must stay inside the trusted project root. Outside paths throw before any file is created.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {{ id: string, createdAt: string | number | Date }} request Normalized intent request. The markdown renderer still expects the full handoff shape; the assertion at the call is erased.
  * @param {{ outputDir: string, projectRoot: string, prompt: string }} context Storage and the prompt to render.
  * @returns {string} Absolute path of the written markdown file.
  */
-function writePromptFile(request, context) {
+function writePromptFile(request: { id: string, createdAt: string | number | Date }, context: { outputDir: string, projectRoot: string, prompt: string }) {
     const requestsDir = path.join(context.outputDir, 'requests');
     assertPathInsideRoot(requestsDir, context.projectRoot);
     fs.mkdirSync(requestsDir, { recursive: true });
     const target = path.join(requestsDir, `${fileStamp(new Date(request.createdAt))}-${request.id}.md`);
-    fs.writeFileSync(target, renderRequestMarkdown(request, context.prompt), 'utf8');
+    fs.writeFileSync(target, renderRequestMarkdown(request as Parameters<typeof renderRequestMarkdown>[0], context.prompt), 'utf8');
     return target;
 }
 
@@ -109,10 +110,17 @@ function writePromptFile(request, context) {
  * Boundary: both files stay under `outputDir/launches` inside the project root. The prompt file is what
  * `agy --prompt-interactive` reads; the launcher never embeds that text.
  *
- * @param {{ request: Record<string, unknown>, context: { outputDir: string, projectRoot: string }, command: string, cwd: string, prompt: string, mode?: string }} input Write inputs.
+ * @param {{ request: { id: string, createdAt: string | number | Date }, context: { outputDir: string, projectRoot: string }, command: string, cwd: string, prompt: string, mode?: string }} input Write inputs.
  * @returns {{ launchPath: string, promptPath: string }} Absolute paths.
  */
-function writeLauncherFiles(input) {
+function writeLauncherFiles(input: {
+    request: { id: string, createdAt: string | number | Date },
+    context: { outputDir: string, projectRoot: string },
+    command: string,
+    cwd: string,
+    prompt: string,
+    mode?: string,
+}) {
     const launchesDir = path.join(input.context.outputDir, 'launches');
     assertPathInsideRoot(launchesDir, input.context.projectRoot);
     fs.mkdirSync(launchesDir, { recursive: true });
@@ -138,7 +146,7 @@ function writeLauncherFiles(input) {
  * @param {string} appPath App bundle or executable from {@link resolveAntigravityApp}.
  * @returns {Promise<void>} Resolves once the OS has been asked to open the app.
  */
-function launchAntigravityApp(appPath) {
+function launchAntigravityApp(appPath: string) {
     return new Promise((resolve, reject) => {
         if (process.platform === 'darwin') {
             const child = spawn('open', ['-a', appPath], { stdio: 'ignore' });
@@ -185,13 +193,18 @@ export function createAntigravityAdapter(config: any = {}) {
                 };
             return { available: true };
         },
-        async send(request, context) {
+        async send(request: Parameters<typeof buildAntigravityPrompt>[0] & { id: string, createdAt: string | number | Date }, context: {
+            emit: (event: { type: string, text?: string }) => void,
+            prompt: string,
+            outputDir: string,
+            projectRoot: string,
+        }) {
             const events = [{ type: 'started', text: 'Opening Antigravity' }];
             context.emit(events[0]);
             try {
                 const appPath = resolveAntigravityApp();
                 let prompt = buildAntigravityPrompt(request, config);
-                let writtenPromptPath;
+                let writtenPromptPath: string | undefined;
                 if (shouldWriteAntigravityPromptFile(config, prompt)) {
                     writtenPromptPath = writePromptFile(request, { ...context, prompt });
                     prompt = buildAntigravityFilePrompt(request, writtenPromptPath, config);

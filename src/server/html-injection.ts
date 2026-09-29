@@ -3,6 +3,52 @@ import path from 'node:path';
 import { CLIENT_CONFIG_GLOBAL } from '../shared/constants.js';
 import { PLUGIN_NAME } from './plugin-runtime.js';
 
+/** Runtime passed in by the plugin factory. The stamp hook expects a webpack or rspack compiler. */
+type InspectorRuntime = ReturnType<typeof import('./plugin-runtime.js').createInspectorRuntime>;
+
+/** Compiler accepted by {@link InspectorRuntime.registerStampOnCompiler}. */
+type StampCompiler = Parameters<InspectorRuntime['registerStampOnCompiler']>[0];
+
+/**
+ * webpack compilers have `webpack` only; rspack compilers also have `rspack`.
+ * The property is optional so both compilers assign. It is only read when `webpack` is missing.
+ */
+type CompilerWithRspack = StampCompiler & { rspack?: object };
+
+/**
+ * Farm `transformHtml` resource, plus the string / `{ html }` / `{ code }` stand-ins tests pass.
+ * Boundary: only `bytes` is read or written. The other fields exist so Farm's `Resource` and the test objects assign.
+ */
+type FarmHtmlResource = {
+    bytes?: number[] | null;
+    name?: unknown;
+    emitted?: unknown;
+    html?: unknown;
+    code?: unknown;
+    resourceType?: unknown;
+    origin?: unknown;
+    info?: unknown;
+};
+
+/** Fields the Farm dev middleware reads off the Koa context. */
+type FarmDevContext = {
+    type?: unknown;
+    path?: unknown;
+    body?: unknown;
+};
+
+/** One Farm dev middleware. `next` resolves so `await next()` is valid. */
+type FarmDevMiddleware = (ctx: FarmDevContext, next: () => Promise<void>) => Promise<void> | void;
+
+/**
+ * Minimal Koa app. `use` is accepted so a test double with `middleware: null` still assigns;
+ * this hook only unshifts `middleware`.
+ */
+type FarmDevApp = {
+    middleware?: FarmDevMiddleware[] | null;
+    use?: () => void;
+};
+
 /** Marker so HTML rewrites stay idempotent across rebuilds (the config global is only ever set by our snippet). */
 export const CLIENT_BOOTSTRAP_MARKER = `window.${CLIENT_CONFIG_GLOBAL}`;
 
@@ -13,7 +59,7 @@ export const CLIENT_BOOTSTRAP_MARKER = `window.${CLIENT_CONFIG_GLOBAL}`;
  * @param {string} snippet Script tags to inject.
  * @returns {string} HTML with the inspector bootstrap injected.
  */
-export function injectHtmlSnippet(html, snippet) {
+export function injectHtmlSnippet(html: string, snippet: string) {
     return html.includes('</head>')
         ? html.replace('</head>', `${snippet}</head>`)
         : snippet + html;
@@ -26,10 +72,10 @@ export function injectHtmlSnippet(html, snippet) {
  * A string or `{ html }` / `{ code }` is not a Farm resource; those return `''` so the hook
  * leaves the value unchanged.
  *
- * @param {unknown} resource Farm `{ bytes }` resource.
+ * @param {string | FarmHtmlResource | null | undefined} resource Farm `{ bytes }` resource, or a non-Farm stand-in.
  * @returns {string} Decoded HTML. Empty when `bytes` is missing or empty.
  */
-export function readFarmHtml(resource) {
+export function readFarmHtml(resource: string | FarmHtmlResource | null | undefined) {
     const bytes = resource && typeof resource === 'object' ? resource.bytes : undefined;
     if (bytes && typeof bytes.length === 'number' && bytes.length > 0)
         return Buffer.from(bytes).toString('utf8');
@@ -42,15 +88,15 @@ export function readFarmHtml(resource) {
  *
  * A value without `bytes` is returned unchanged. Farm does not read a string return.
  *
- * @param {unknown} resource The resource {@link readFarmHtml} decoded.
+ * @param {T} resource The resource {@link readFarmHtml} decoded. The same value is returned so Farm's `Resource` type is preserved.
  * @param {string} html HTML after bootstrap injection.
- * @returns {unknown} The same resource when `bytes` was written; otherwise `resource` as given.
+ * @returns {T} The same resource when `bytes` was written; otherwise `resource` as given.
  */
-export function writeFarmHtml(resource, html) {
+export function writeFarmHtml<T extends string | FarmHtmlResource | null | undefined>(resource: T, html: string): T {
     if (!resource || typeof resource !== 'object' || !resource.bytes)
         return resource;
     resource.bytes = [...Buffer.from(html)];
-    return resource;
+    return resource as T;
 }
 
 /**
@@ -60,7 +106,7 @@ export function writeFarmHtml(resource, html) {
  * @param {unknown} body `ctx.body` after Farm's resource middleware.
  * @returns {string} UTF-8 text, or `''` for any other body.
  */
-export function readFarmDevBody(body) {
+export function readFarmDevBody(body: unknown) {
     if (typeof body === 'string')
         return body;
     if (Buffer.isBuffer(body))
@@ -78,14 +124,14 @@ export function readFarmDevBody(body) {
  *
  * Does nothing when `app.middleware` is not an array. This Koa app always exposes that array.
  *
- * @param {object} app Koa app from `server.app()`.
+ * @param {FarmDevApp | null | undefined} app Koa app from `server.app()`. A missing `middleware` array is a no-op.
  * @param {() => Promise<string>} injectionHtml Bootstrap snippet. Called only for an HTML body that lacks the marker.
  * @returns {void}
  */
-export function installFarmDevInjection(app, injectionHtml) {
+export function installFarmDevInjection(app: FarmDevApp | null | undefined, injectionHtml: () => Promise<string>) {
     if (!app || !Array.isArray(app.middleware))
         return;
-    const inject = async (ctx, next) => {
+    const inject: FarmDevMiddleware = async (ctx, next) => {
         await next();
         const type = String(ctx?.type || '');
         const pathName = String(ctx?.path || '');
@@ -105,12 +151,12 @@ export function installFarmDevInjection(app, injectionHtml) {
  *
  * Boundary: skips production mode so the inspector never ships. Mutates every emitted `.html` asset.
  *
- * @param {object} compiler webpack/rspack compiler.
- * @param {ReturnType<typeof import('./plugin-runtime.js').createInspectorRuntime>} runtime Shared inspector runtime.
+ * @param {CompilerWithRspack} compiler webpack/rspack compiler. `rspack` is absent on a webpack compiler.
+ * @param {InspectorRuntime} runtime Shared inspector runtime.
  * @param {'webpack' | 'rspack'} bundler Which stamp adapter to register. Production mode is left untouched,
  *   including `cache.version`.
  */
-export function setupWebpackLikeCompiler(compiler, runtime, bundler) {
+export function setupWebpackLikeCompiler(compiler: CompilerWithRspack, runtime: InspectorRuntime, bundler: 'webpack' | 'rspack') {
     if (!runtime.enabled) {
         return;
     }
@@ -120,7 +166,14 @@ export function setupWebpackLikeCompiler(compiler, runtime, bundler) {
     runtime.initPaths(compiler?.context || process.cwd());
     runtime.registerStampOnCompiler(compiler, bundler);
 
-    const wp = compiler.webpack || compiler.rspack;
+    // `rspack` is only on rspack compilers. Both namespaces expose `Compilation` and `sources` at runtime.
+    const wp: {
+        Compilation: { PROCESS_ASSETS_STAGE_REPORT: number };
+        sources: { RawSource: new (value: string) => object };
+    } = compiler.webpack || compiler.rspack as {
+        Compilation: { PROCESS_ASSETS_STAGE_REPORT: number };
+        sources: { RawSource: new (value: string) => object };
+    };
     compiler.hooks.thisCompilation.tap(PLUGIN_NAME, (compilation) => {
         compilation.hooks.processAssets.tapPromise({
             name: PLUGIN_NAME,
@@ -132,7 +185,7 @@ export function setupWebpackLikeCompiler(compiler, runtime, bundler) {
                     continue;
                 }
                 const original = assets[name].source().toString();
-                compilation.updateAsset(name, new wp.sources.RawSource(injectHtmlSnippet(original, snippet)));
+                compilation.updateAsset(name, new wp.sources.RawSource(injectHtmlSnippet(original, snippet)) as Parameters<typeof compilation.updateAsset>[1]);
             }
         });
     });
@@ -141,13 +194,14 @@ export function setupWebpackLikeCompiler(compiler, runtime, bundler) {
 /**
  * Resolve which HTML files the esbuild adapter should rewrite after a build.
  *
- * @param {Record<string, unknown>} options Plugin options; may include `htmlFiles: string[]`.
- * @param {Record<string, unknown>} initialOptions esbuild `BuildOptions`.
+ * @param {{ htmlFiles?: readonly string[] | null }} options Plugin options; may include `htmlFiles`.
+ * @param {{ outdir?: string | null, outfile?: string | null }} initialOptions esbuild `BuildOptions` fields this resolver reads.
  * @param {string} absWorkingDir Absolute working directory for relative paths.
  * @returns {string[]} Absolute HTML file paths (may be empty).
  */
-export function resolveEsbuildHtmlTargets(options, initialOptions, absWorkingDir) {
-    const listed = Array.isArray(options.htmlFiles) ? options.htmlFiles : [];
+export function resolveEsbuildHtmlTargets(options: { htmlFiles?: readonly string[] | null }, initialOptions: { outdir?: string | null, outfile?: string | null }, absWorkingDir: string) {
+    // `Array.isArray` widens the element type; these entries are path strings.
+    const listed: readonly string[] = Array.isArray(options.htmlFiles) ? options.htmlFiles : [];
     if (listed.length > 0) {
         return listed.map((f) => path.isAbsolute(f) ? f : path.resolve(absWorkingDir, f));
     }

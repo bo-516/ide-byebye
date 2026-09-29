@@ -11,7 +11,7 @@
  */
 
 import { requireFromProject } from '../ast/project-module.js';
-import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion } from './stamp-edits.js';
+import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion, type StampNode } from './stamp-edits.js';
 import { buildLineStartOffsets, lineColumnFromOffset } from '../ast/line-offsets.js';
 
 const SVELTE_WARN = '[code-intent-inspector] Svelte stamping needs the project\'s svelte package (svelte/compiler).';
@@ -39,7 +39,7 @@ export function stampSvelte(input: StampSvelteInput): Insertion[] | null {
         return null;
     }
     const masked = input.code.replace(SCRIPT_RE, (match) => ' '.repeat(match.length)).replace(STYLE_RE, (match) => ' '.repeat(match.length));
-    let ast;
+    let ast: { html?: StampNode | null };
     try {
         ast = parse(masked);
     }
@@ -77,9 +77,9 @@ function loadSvelteParse(file: string) {
     return typeof parse === 'function' ? parse : null;
 }
 
-function walk(node, visit: (node) => void) {
+function walk(node: StampNode | null | undefined, visit: (node: StampNode) => void) {
     const seen = new Set<object>();
-    const stack = [node];
+    const stack: Array<StampNode | null | undefined> = [node];
     while (stack.length) {
         const current = stack.pop();
         if (!current || typeof current !== 'object' || seen.has(current))
@@ -90,13 +90,13 @@ function walk(node, visit: (node) => void) {
         for (const key of Object.keys(current)) {
             if (key === 'parent')
                 continue;
-            const child = current[key];
+            const child = current[key as keyof typeof current];
             if (Array.isArray(child)) {
                 for (let i = child.length - 1; i >= 0; i--)
                     stack.push(child[i]);
             }
             else if (child && typeof child === 'object')
-                stack.push(child);
+                stack.push(child as StampNode);
         }
     }
 }

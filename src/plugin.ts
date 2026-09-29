@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { createUnplugin } from 'unplugin';
+import type { UnpluginOptions } from 'unplugin';
 import {
     PLUGIN_NAME,
     createInspectorRuntime,
@@ -40,10 +41,10 @@ export { PLUGIN_NAME } from './server/plugin-runtime.js';
  * @param {{ framework?: string }} meta unplugin meta (`vite` / `webpack` / `rspack` / `rsbuild` / `farm` / `esbuild` / …).
  * @returns {import('unplugin').UnpluginOptions} unplugin definition with per-framework hooks.
  */
-function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}) {
+function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}): UnpluginOptions {
     const runtime = createInspectorRuntime(options);
 
-    function setupCompiler(compiler) {
+    function setupCompiler(compiler: Parameters<ReturnType<typeof stampUnplugin.webpack>['apply']>[0] | Parameters<ReturnType<typeof stampUnplugin.rspack>['apply']>[0]) {
         const bundler = meta.framework === 'rspack' ? 'rspack' : 'webpack';
         setupWebpackLikeCompiler(compiler, runtime, bundler);
     }

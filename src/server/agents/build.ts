@@ -24,7 +24,7 @@ import { createCustomAgentAdapters } from './custom-client.js';
  * @param {Record<string, unknown>} agents Resolved `agents` option map from plugin config.
  * @returns {AgentRegistry} Registry containing every enabled adapter.
  */
-export function buildRegistry(agents) {
+export function buildRegistry(agents: Record<string, unknown>) {
     const registry = new AgentRegistry();
     if (agents.clipboard !== false)
         registry.register(clipboardAdapter);

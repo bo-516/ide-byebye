@@ -23,11 +23,51 @@ const FN_TYPES = new Set([
 ]);
 
 /**
+ * Fields the walker and its callers read. `callee` is only set on call expressions (JSX stamps read it).
+ *
+ * Boundary: structural so an oxc `Program` fits without importing oxc's node union.
+ */
+interface JsxWalkNode {
+    type: string;
+    start: number;
+    end: number;
+    callee?: unknown;
+}
+
+/**
+ * Indexed view of {@link JsxWalkNode} so the walk can follow child properties.
+ *
+ * Boundary: oxc's `Program` has no string index, so only the walk root is asserted to this shape.
+ * Values are child nodes, arrays of them, or scalars the walk ignores.
+ */
+type JsxAstValue = JsxIndexedNode | JsxIndexedNode[] | string | number | boolean | null | undefined;
+
+interface JsxIndexedNode {
+    type: string;
+    start: number;
+    end: number;
+    [key: string]: JsxAstValue;
+}
+
+/** One JSX element/fragment hit plus the parent chain from the root (not including the hit). */
+interface JsxHit {
+    node: JsxWalkNode;
+    ancestors: readonly JsxWalkNode[];
+}
+
+/** Top-level statement fields needed to slice a contiguous import block. */
+interface JsxImportNode {
+    type?: string;
+    start: number;
+    end: number;
+}
+
+/**
  * Span length in UTF-16 units (smaller = tighter hit).
  * @param {{ start?: number|null, end?: number|null }} node
  * @returns {number}
  */
-function spanLength(node) {
+function spanLength(node: { start?: number|null, end?: number|null }) {
     if (node.start == null || node.end == null)
         return Number.MAX_SAFE_INTEGER;
     return node.end - node.start;
@@ -38,7 +78,7 @@ function spanLength(node) {
  * @param {{ start?: number|null, end?: number|null }} node
  * @param {number} offset
  */
-function nodeContainsOffset(node, offset) {
+function nodeContainsOffset(node: { start?: number|null, end?: number|null }, offset: number) {
     if (node.start == null || node.end == null)
         return false;
     return node.start <= offset && offset <= node.end;
@@ -50,7 +90,7 @@ function nodeContainsOffset(node, offset) {
  * @param {number} line
  * @param {(offset: number) => { line: number }} offsetToLine
  */
-function nodeSpansLine(node, line, offsetToLine) {
+function nodeSpansLine(node: { start?: number|null, end?: number|null }, line: number, offsetToLine: (offset: number) => { line: number }) {
     if (node.start == null || node.end == null)
         return false;
     const startLine = offsetToLine(node.start).line;
@@ -65,13 +105,15 @@ function nodeSpansLine(node, line, offsetToLine) {
  * Boundary: only follows object / array properties whose items carry a string `type`, so position metadata and
  * literal values are never visited. Shared by the JSX locator and the Next.js entry injector.
  *
- * @param {object} root
- * @param {(node: object, ancestors: object[]) => void} visit
+ * @param {{ type: string, start: number, end: number, callee?: unknown } | null | undefined} root Node to walk.
+ *   Omitting it (null/undefined) visits nothing.
+ * @param {(node: { type: string, start: number, end: number, callee?: unknown }, ancestors: readonly { type: string, start: number, end: number, callee?: unknown }[]) => void} visit
+ *   Called with the node and its parent chain. `ancestors` is not mutated.
  */
-export function walkAst(root, visit) {
-    const stack = [];
+export function walkAst(root: JsxWalkNode | null | undefined, visit: (node: JsxWalkNode, ancestors: readonly JsxWalkNode[]) => void) {
+    const stack: JsxIndexedNode[] = [];
 
-    function walk(node) {
+    function walk(node: JsxIndexedNode | null | undefined) {
         if (!node || typeof node !== 'object')
             return;
         visit(node, stack);
@@ -96,7 +138,8 @@ export function walkAst(root, visit) {
         stack.pop();
     }
 
-    walk(root);
+    // Erased assertion: Program has no string index, but every followed child is an object with `type`.
+    walk(root as JsxIndexedNode);
 }
 
 /**
@@ -110,10 +153,10 @@ export function walkAst(root, visit) {
  * required so we promote to `ClassDeclaration` / `ClassExpression` instead of
  * returning only `render()`. Omitting the skip regresses class-component slices.
  *
- * @param {object[]} ancestors Ancestor stack from root to parent of the hit (not including hit).
- * @returns {object|undefined} Component AST node to slice.
+ * @param {readonly { type: string, start: number, end: number, callee?: unknown }[]} ancestors Ancestor stack from root to parent of the hit (not including hit).
+ * @returns {{ type: string, start: number, end: number, callee?: unknown } | undefined} Component AST node to slice.
  */
-function findComponentNode(ancestors) {
+function findComponentNode(ancestors: readonly JsxWalkNode[]): JsxWalkNode | undefined {
     // Scan from hit's parent toward root (stack is root→parent, so walk reverse).
     let fnIndex = -1;
     for (let i = ancestors.length - 1; i >= 0; i--) {
@@ -162,11 +205,11 @@ function findComponentNode(ancestors) {
 
 /**
  * Collect ImportDeclaration nodes in source order.
- * @param {object} program
- * @returns {object[]}
+ * @param {{ body?: readonly { type?: string, start: number, end: number }[] | null }} program Parsed program; only `body` is read.
+ * @returns {{ type?: string, start: number, end: number }[]} Import declarations in source order (possibly empty).
  */
-function collectImports(program) {
-    const imports = [];
+function collectImports(program: { body?: readonly JsxImportNode[] | null }) {
+    const imports: JsxImportNode[] = [];
     const body = program.body;
     if (!Array.isArray(body))
         return imports;
@@ -184,12 +227,19 @@ function collectImports(program) {
  * @param {string} code Source text.
  * @param {number} line 1-based.
  * @param {number} column 0-based.
- * @returns {{ hit: { node: object, ancestors: object[] }|null, imports: object[], parseErrors: { message: string }[], offsetToLine: (n: number) => { line: number, column: number } }}
+ * @returns {{ hit: { node: { type: string, start: number, end: number, callee?: unknown }, ancestors: readonly { type: string, start: number, end: number, callee?: unknown }[] } | null, imports: { type?: string, start: number, end: number }[], parseErrors: readonly { message?: string }[], offsetToLine: (n: number) => { line: number, column: number } }}
+ *   `hit` is null when neither an offset nor a same-line element exists. Closure writes to `chosen` are not visible to
+ *   control-flow analysis, so the declared return type (not the initializer `null`) is what callers see.
  */
-export function locateJsxAtPosition(code, line, column) {
+export function locateJsxAtPosition(code: string, line: number, column: number): {
+    hit: JsxHit | null,
+    imports: JsxImportNode[],
+    parseErrors: readonly { message?: string }[],
+    offsetToLine: (off: number) => { line: number, column: number },
+} {
     const lineStartOffsets = buildLineStartOffsets(code);
     const offset = offsetFromLineColumn(lineStartOffsets, line, column);
-    const offsetToLine = (off) => lineColumnFromOffset(lineStartOffsets, off);
+    const offsetToLine = (off: number) => lineColumnFromOffset(lineStartOffsets, off);
 
     // Filename only affects diagnostics; lang forces TSX/JSX parsing.
     const result = parseSync('extract.tsx', code, {
@@ -199,8 +249,8 @@ export function locateJsxAtPosition(code, line, column) {
     const program = result.program;
     const parseErrors = Array.isArray(result.errors) ? result.errors : [];
 
-    let chosen = null;
-    let lineFallback = null;
+    let chosen: JsxHit | null = null;
+    let lineFallback: JsxHit | null = null;
 
     walkAst(program, (node, ancestors) => {
         if (node.type !== 'JSXElement' && node.type !== 'JSXFragment')
@@ -237,7 +287,7 @@ export function locateJsxAtPosition(code, line, column) {
  * @param {number} maxComponentLines Cap for selected node / component slices.
  * @returns {Partial<{ selectedNodeCode: string, selectedNodeRange: object, containingComponentCode: string, containingComponentRange: object, importsCode: string, importsRange: object, astError: string }>}
  */
-export function extractJsxFromCode(code, line, column, maxContextLines, maxComponentLines) {
+export function extractJsxFromCode(code: string, line: number, column: number, maxContextLines: number, maxComponentLines: number) {
     const lines = code.split('\n');
     const out: any = {};
     void maxContextLines;

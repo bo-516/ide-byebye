@@ -33,7 +33,7 @@ export function resolveGrokBuildPathStyleOptions(config: any = {}) {
  * @param {string} value Raw path or literal to quote.
  * @returns {string} Bash single-quoted literal.
  */
-export function shellSingleQuote(value) {
+export function shellSingleQuote(value: string) {
     return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
@@ -44,11 +44,13 @@ export function shellSingleQuote(value) {
  * configured paths are resolved against the current Node process; blank / non-string values fall back to
  * `context.projectRoot`.
  *
- * @param {Record<string, unknown>} config Grok Build adapter config.
- * @param {{ projectRoot: string }} context Agent context carrying the Vite project root.
- * @returns {string} Absolute working directory for `--cwd` and the launcher `cd`.
+ * @param {{ projectRoot?: unknown } | null | undefined} config Grok Build adapter config.
+ * @param {{ projectRoot?: string }} context Agent context carrying the Vite project root. A string `projectRoot` makes the return a string.
+ * @returns {string | undefined} Absolute working directory for `--cwd` and the launcher `cd`, or `context.projectRoot` when no override is set.
  */
-export function resolveGrokBuildProjectRoot(config, context) {
+export function resolveGrokBuildProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot: string }): string;
+export function resolveGrokBuildProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot?: string }): string | undefined;
+export function resolveGrokBuildProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot?: string }) {
     const configuredRoot = typeof config?.projectRoot === 'string' && config.projectRoot.trim()
         ? config.projectRoot.trim()
         : '';
@@ -66,7 +68,7 @@ export function resolveGrokBuildProjectRoot(config, context) {
  * @param {Record<string, unknown>} [config] Grok Build adapter config (optional `projectRoot` override).
  * @returns {Record<string, unknown>} Request view whose `projectRoot` matches Grok's cwd.
  */
-export function withGrokBuildPathRoot(request, config: any = {}) {
+export function withGrokBuildPathRoot(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
     const pathRoot = resolveGrokBuildProjectRoot(config, { projectRoot: request.projectRoot });
     if (pathRoot === request.projectRoot)
         return request;
@@ -85,10 +87,11 @@ export function withGrokBuildPathRoot(request, config: any = {}) {
  * @param {'relative' | 'absolute'} pathStyle How to present the path.
  * @returns {string} Path text for the short prompt line.
  */
-export function formatGrokBuildHandoffPath(promptPath, pathRoot, pathStyle) {
+export function formatGrokBuildHandoffPath(promptPath: string, pathRoot: string | undefined, pathStyle: 'relative' | 'absolute') {
     if (pathStyle === 'absolute')
         return path.resolve(promptPath).split(path.sep).join('/');
-    const rel = path.relative(pathRoot, promptPath);
+    // `pathRoot` is the cwd string at runtime. The assertion is erased; `path.relative` still receives the original value.
+    const rel = path.relative(pathRoot as string, promptPath);
     if (rel && !rel.startsWith('..') && !path.isAbsolute(rel))
         return rel.split(path.sep).join('/');
     return path.resolve(promptPath).split(path.sep).join('/');
@@ -106,7 +109,7 @@ export function formatGrokBuildHandoffPath(promptPath, pathRoot, pathStyle) {
  * @param {Record<string, unknown>} [config] Grok Build adapter config (path style + optional `projectRoot`).
  * @returns {string} Final prompt text ending with a trailing newline.
  */
-export function buildGrokBuildPrompt(request, config: any = {}) {
+export function buildGrokBuildPrompt(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
     return buildPrompt(withGrokBuildPathRoot(request, config), resolveGrokBuildPathStyleOptions(config));
 }
 
@@ -122,7 +125,7 @@ export function buildGrokBuildPrompt(request, config: any = {}) {
  * @param {Record<string, unknown>} [config] Grok Build adapter config (path style + optional `projectRoot`).
  * @returns {string} Grok Build handoff prompt ending with a newline.
  */
-export function buildGrokBuildFilePrompt(request, promptPath, config: any = {}) {
+export function buildGrokBuildFilePrompt(request: Parameters<typeof buildPrompt>[0], promptPath: string, config: any = {}) {
     const intent = String(request.intent ?? '').trim();
     const rooted = withGrokBuildPathRoot(request, config);
     const pathOptions = resolveGrokBuildPathStyleOptions(config);
@@ -142,7 +145,7 @@ export function buildGrokBuildFilePrompt(request, promptPath, config: any = {}) 
  * @param {string} prompt Rendered prompt text.
  * @returns {boolean} True when the request should be written to disk and replaced by a short pointer prompt.
  */
-export function shouldWriteGrokBuildPromptFile(config, prompt) {
+export function shouldWriteGrokBuildPromptFile(config: { promptMode?: unknown, promptArgLimit?: unknown }, prompt: unknown) {
     const mode = config.promptMode ?? 'auto';
     if (mode === 'file')
         return true;
@@ -164,7 +167,7 @@ export function shouldWriteGrokBuildPromptFile(config, prompt) {
  *        `resumeSessionId` must be a UUID; a bad value throws before the script is returned.
  * @returns {string} Executable bash script contents (including shebang).
  */
-export function buildGrokBuildLauncherScript(input) {
+export function buildGrokBuildLauncherScript(input: { command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }) {
     const command = shellSingleQuote(input.command);
     const cwd = shellSingleQuote(input.cwd);
     const promptPath = shellSingleQuote(input.promptPath);
@@ -191,7 +194,7 @@ export function buildGrokBuildLauncherScript(input) {
  * @param {(value: string) => string} quote Platform quoting helper.
  * @returns {string} A leading-space flag, or `''`.
  */
-function resumeFlag(sessionId, quote) {
+function resumeFlag(sessionId: string | undefined, quote: (value: string) => string) {
     if (sessionId == null || sessionId === '')
         return '';
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(sessionId)))
@@ -207,7 +210,7 @@ function resumeFlag(sessionId, quote) {
  * @param {string} value Raw path or literal.
  * @returns {string} PowerShell single-quoted literal.
  */
-export function powershellSingleQuote(value) {
+export function powershellSingleQuote(value: string) {
     return `'${String(value).replace(/'/g, "''")}'`;
 }
 
@@ -222,7 +225,7 @@ export function powershellSingleQuote(value) {
  * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }} input Launcher fields.
  * @returns {string} `.cmd` file contents (CRLF).
  */
-export function buildGrokBuildWindowsLauncherScript(input) {
+export function buildGrokBuildWindowsLauncherScript(input: { command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }) {
     const resume = resumeFlag(input.resumeSessionId, powershellSingleQuote);
     const permissionArgs = typeof input.permissionMode === 'string' && input.permissionMode.trim()
         ? ` --permission-mode ${powershellSingleQuote(input.permissionMode.trim())}`
@@ -255,7 +258,7 @@ export function grokBuildLauncherExtension(platform = process.platform) {
  * @param {string} [platform=process.platform] Node platform id.
  * @returns {string} Script contents to write.
  */
-export function buildGrokBuildLauncherFile(input, platform = process.platform) {
+export function buildGrokBuildLauncherFile(input: { command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }, platform = process.platform) {
     return platform === 'win32'
         ? buildGrokBuildWindowsLauncherScript(input)
         : buildGrokBuildLauncherScript(input);
@@ -271,7 +274,7 @@ export function buildGrokBuildLauncherFile(input, platform = process.platform) {
  * @param {Record<string, unknown>} config Grok Build adapter config.
  * @returns {string[]} Ordered command candidates to probe.
  */
-export function resolveGrokBuildCommandCandidates(config) {
+export function resolveGrokBuildCommandCandidates(config: { command?: unknown }) {
     if (typeof config.command === 'string' && config.command.trim())
         return [config.command.trim()];
     return [DEFAULT_GROK_BUILD_COMMAND, path.join(os.homedir(), '.grok', 'bin', DEFAULT_GROK_BUILD_COMMAND)];

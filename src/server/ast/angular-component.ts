@@ -20,13 +20,42 @@ export type ComponentTemplate =
     | { kind: 'external', file: string, classStart: number, classEnd: number };
 
 /**
+ * oxc expression / decorator fields this module reads.
+ *
+ * Boundary: `value` is either a nested node (property value, callee) or a primitive on a literal. The primitive
+ * case is only tested with `typeof`; the slice uses `start` / `end`. Not an oxc union type.
+ */
+interface AstExpr {
+    type?: string;
+    start: number;
+    end: number;
+    value?: AstExpr | null;
+    name?: string;
+    expressions?: readonly unknown[];
+    expression?: AstExpr | null;
+    callee?: AstExpr | null;
+    property?: AstExpr | null;
+    arguments?: readonly AstExpr[];
+    key?: AstExpr | null;
+    properties?: readonly AstExpr[];
+}
+
+/** Class declaration that owns an `@Component` metadata object. */
+interface ComponentClass {
+    start: number;
+    end: number;
+    decorators: readonly AstExpr[];
+    id?: { name?: string, start: number } | null;
+}
+
+/**
  * Literal text of a string literal or an expression-free template literal.
  *
- * @param {any} node oxc expression node.
+ * @param {AstExpr | null | undefined} node oxc expression node. `null` / `undefined`, or a non-literal, returns `null`.
  * @param {string} code Source the node belongs to.
  * @returns {{ text: string, offset: number } | null} Raw content (source slice, so offsets map 1:1) and its offset.
  */
-function literalText(node, code: string) {
+function literalText(node: AstExpr | null | undefined, code: string) {
     const isString = node?.type === 'Literal' && typeof node.value === 'string';
     const isTemplate = node?.type === 'TemplateLiteral' && (node.expressions?.length ?? 0) === 0;
     if (!isString && !isTemplate)
@@ -37,10 +66,10 @@ function literalText(node, code: string) {
 /**
  * Object-literal argument of an `@Component({...})` decorator, if any.
  *
- * @param {any} decorator oxc decorator node.
- * @returns {any | null} ObjectExpression, or `null` for other decorators.
+ * @param {AstExpr | null | undefined} decorator oxc decorator node. `null` / `undefined` is not `@Component`.
+ * @returns {AstExpr | null} ObjectExpression, or `null` for other decorators.
  */
-function componentMetadata(decorator) {
+function componentMetadata(decorator: AstExpr | null | undefined) {
     const call = decorator?.expression;
     const callee = call?.type === 'CallExpression' ? call.callee : null;
     const name = callee?.type === 'Identifier' ? callee.name : callee?.property?.name;
@@ -59,7 +88,7 @@ function componentMetadata(decorator) {
  * @param {{ className?: string, line?: number }} target Class name and 1-based class line from `debugInfo`.
  * @returns {ComponentTemplate | null} Template location, or `null` when no literal template is found.
  */
-export function findComponentTemplate(code: string, file: string, target: { className?: string, line?: number }) {
+export function findComponentTemplate(code: string, file: string, target: { className?: string, line?: number }): ComponentTemplate | null {
     let program;
     try {
         program = parseSync(`${path.basename(file)}.ts`, code, { sourceType: 'module', lang: 'ts' }).program;
@@ -68,7 +97,7 @@ export function findComponentTemplate(code: string, file: string, target: { clas
         return null;
     }
     const lineStarts = buildLineStartOffsets(code);
-    const components = [];
+    const components: Array<{ node: ComponentClass, metadata: AstExpr }> = [];
     walkAst(program, (node: any) => {
         if ((node.type === 'ClassDeclaration' || node.type === 'ClassExpression') && Array.isArray(node.decorators)) {
             const metadata = node.decorators.map(componentMetadata).find(Boolean);

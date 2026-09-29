@@ -5,7 +5,7 @@ import { TOKEN_HEADER } from '../shared/constants.js';
  * that prevents a malicious page payload from pointing the server at arbitrary
  * files on disk.
  */
-export function assertPathInsideRoot(file, root) {
+export function assertPathInsideRoot(file: string, root: string) {
     const resolvedRoot = path.resolve(root);
     const resolvedFile = path.resolve(root, file);
     const relative = path.relative(resolvedRoot, resolvedFile);
@@ -15,7 +15,7 @@ export function assertPathInsideRoot(file, root) {
     return resolvedFile;
 }
 /** True when the file resolves inside root (non-throwing variant). */
-export function isInsideRoot(file, root) {
+export function isInsideRoot(file: string, root: string) {
     try {
         assertPathInsideRoot(file, root);
         return true;
@@ -25,7 +25,7 @@ export function isInsideRoot(file, root) {
     }
 }
 /** Constant-time-ish token comparison. */
-export function tokenMatches(expected, received) {
+export function tokenMatches(expected: string, received: string | null | undefined) {
     if (!received || received.length !== expected.length)
         return false;
     let mismatch = 0;
@@ -34,8 +34,18 @@ export function tokenMatches(expected, received) {
     }
     return mismatch === 0;
 }
+/**
+ * Request fields the token and origin guards read.
+ * Purpose: real `IncomingMessage` values satisfy this, and unit tests pass plain header bags.
+ * Boundary: only `headers` and `url` are consulted. A missing `url` skips the query-string token.
+ */
+interface GuardedRequest {
+    headers: Record<string, string | string[] | undefined>;
+    url?: string;
+}
+
 /** Read the dev token from header or query string. */
-export function readToken(req) {
+export function readToken(req: GuardedRequest) {
     const headerValue = req.headers[TOKEN_HEADER];
     if (typeof headerValue === 'string' && headerValue)
         return headerValue;
@@ -64,8 +74,8 @@ const LOCAL_HOSTNAMES = new Set([
  * Referer when present; absence (e.g. same-origin fetch without Origin) is
  * allowed because the token already gates access.
  */
-export function isLocalRequest(req) {
-    const candidates = [req.headers.origin, req.headers.referer].filter((v) => typeof v === 'string' && v.length > 0);
+export function isLocalRequest(req: GuardedRequest) {
+    const candidates = [req.headers.origin, req.headers.referer].filter((v): v is string => typeof v === 'string' && v.length > 0);
     if (candidates.length === 0)
         return true;
     return candidates.every((value) => {
@@ -89,7 +99,7 @@ export function isLocalRequest(req) {
  * @param {import('node:http').IncomingMessage} req Incoming request.
  * @returns {boolean} `true` for `localhost`, `*.localhost`, `127.0.0.1` and `[::1]` (any port).
  */
-export function isLocalHostHeader(req) {
+export function isLocalHostHeader(req: import('node:http').IncomingMessage) {
     const host = typeof req.headers.host === 'string' ? req.headers.host : '';
     try {
         const { hostname } = new URL(`http://${host}`);
@@ -110,7 +120,7 @@ export function isLocalHostHeader(req) {
  * @param {import('node:http').IncomingMessage} req Incoming request.
  * @returns {boolean} `true` when the request may receive the session.
  */
-export function isSameOriginPageRequest(req) {
+export function isSameOriginPageRequest(req: import('node:http').IncomingMessage) {
     const site = req.headers['sec-fetch-site'];
     if (typeof site === 'string' && site)
         return site === 'same-origin';

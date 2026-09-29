@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pidAlive, readTail } from './file-window.js';
+import type { SessionFs } from './file-window.js';
 import { readSessionPicker } from './options.js';
 import { buildProjectScope, matchSessionCwd, normalizeScopePath, sessionLocation, sessionProjectName } from './project-scope.js';
 import { SESSION_ID_PATTERN, sessionTitle } from './types.js';
@@ -9,6 +10,30 @@ import { SESSION_ID_PATTERN, sessionTitle } from './types.js';
 /** Tail window for `events.jsonl`. Smaller than Codex: Grok sessions are one directory per conversation. */
 const EVENT_TAIL_BYTES = 32768;
 const EXCLUDED_KINDS = new Set(['subagent', 'subagent_resume', 'headless']);
+
+/**
+ * One row of `active_sessions.json`.
+ *
+ * Boundary: the file is either a bare array of these objects or `{ sessions: [] }`. Only the id and pid are read.
+ * A missing id cannot match a UUID, so the row is ignored rather than treated as live.
+ */
+interface ActiveSessionEntry {
+    session_id?: unknown;
+    sessionId?: unknown;
+    pid?: unknown;
+}
+
+/**
+ * Fields read from one `events.jsonl` record when classifying a turn.
+ *
+ * Boundary: a torn line fails `JSON.parse` and is skipped. Other keys do not affect `working` / `waiting` / `idle`.
+ */
+interface GrokEventRecord {
+    type?: string;
+    event?: string;
+    phase?: string;
+    payload?: { phase?: string };
+}
 
 /**
  * Resolve the Grok data directory.
@@ -33,7 +58,7 @@ export function resolveGrokHome(config: any = {}, homeDir = os.homedir()) {
  * @param {number} ms Delay. Production uses 50.
  * @returns {Promise<void>}
  */
-function delay(ms) {
+function delay(ms: number) {
     return new Promise((resolve) => {
         setTimeout(resolve, ms);
     });
@@ -48,13 +73,14 @@ function delay(ms) {
  *
  * @param {string} file Active-session file.
  * @param {{ readFileSync: Function, existsSync: Function, sleep?: Function }} io Filesystem and clock.
- * @returns {Promise<{ entries: Array<Record<string, unknown>>, unreadable: boolean }>}
+ *        `readFileSync` is `Function` so a test double with a narrower encoding parameter still assigns.
+ * @returns {Promise<{ entries: ActiveSessionEntry[], unreadable: boolean }>}
  */
-async function readActiveSessions(file, io) {
+async function readActiveSessions(file: string, io: { readFileSync: Function; existsSync: Function; sleep?: Function }): Promise<{ entries: ActiveSessionEntry[]; unreadable: boolean }> {
     if (!io.existsSync(file))
         return { entries: [], unreadable: false };
-    const parse = (text) => {
-        const value = JSON.parse(text);
+    const parse = (text: string) => {
+        const value: { sessions?: ActiveSessionEntry[] } | ActiveSessionEntry[] | null = JSON.parse(text);
         if (Array.isArray(value))
             return value;
         if (value && Array.isArray(value.sessions))
@@ -93,11 +119,11 @@ async function readActiveSessions(file, io) {
  * @param {boolean} dropFirst Drop the first line because the window started mid-file.
  * @returns {'working' | 'waiting' | 'idle'}
  */
-function classifyGrokStatus(text, live, dropFirst) {
+function classifyGrokStatus(text: string, live: boolean, dropFirst: boolean) {
     const lines = String(text ?? '').split(/\r?\n/);
     if (dropFirst && lines.length > 1)
         lines.shift();
-    const events = [];
+    const events: GrokEventRecord[] = [];
     for (const line of lines) {
         if (!line.trim())
             continue;
@@ -140,7 +166,7 @@ function classifyGrokStatus(text, live, dropFirst) {
  * @param {{ readFileSync: Function, existsSync: Function, sleep?: Function }} [io] Filesystem override.
  * @returns {Promise<boolean>} True when injection must be refused.
  */
-export async function isGrokSessionLive(home, sessionId, io = fs) {
+export async function isGrokSessionLive(home: string, sessionId: string, io = fs) {
     const active = await readActiveSessions(path.join(home, 'active_sessions.json'), io);
     if (active.unreadable)
         return true;
@@ -158,10 +184,16 @@ export async function isGrokSessionLive(home, sessionId, io = fs) {
  * after one retry, every row is `live-unknown`. A missing home returns an empty list and no notice. Session directory
  * names are `encodeURIComponent(cwd)` and are decoded here; the page never supplies that path.
  *
- * @param {{ projectRoot: string, config?: Record<string, unknown>, io?: typeof fs }} input Inspector root and Grok config.
+ * @param {{ projectRoot: string, config?: { projectRoot?: unknown, sessions?: unknown }, io?: SessionFs }} input
+ *        Inspector root and Grok config. `config.projectRoot` is an extra scope root. `config.sessions` is the picker
+ *        override. `io` replaces `node:fs` in tests and may also carry `sleep` for the active-file retry.
  * @returns {Promise<{ sessions: Array<Record<string, unknown>>, delivery: 'resume-submit', notice?: string }>}
  */
-export async function listGrokSessions(input) {
+export async function listGrokSessions(input: {
+    projectRoot: string;
+    config?: { projectRoot?: unknown; sessions?: unknown };
+    io?: SessionFs;
+}) {
     const io = input.io ?? fs;
     const config = input.config ?? {};
     const picker = readSessionPicker(config);
@@ -222,7 +254,14 @@ export async function listGrokSessions(input) {
             if (!io.existsSync(summaryPath))
                 continue;
             sawSummary = true;
-            let summary;
+            let summary: {
+                session_kind?: string;
+                info?: { session_kind?: string } | null;
+                generated_title?: string;
+                session_summary?: string;
+                last_active_at?: string;
+                updated_at?: string;
+            } | null;
             try {
                 summary = JSON.parse(io.readFileSync(summaryPath, 'utf8'));
             }

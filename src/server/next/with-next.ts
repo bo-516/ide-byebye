@@ -43,19 +43,19 @@ function captureStack() {
  * @param {{ root?: string }} options Plugin options.
  * @returns {string} Absolute project root.
  */
-function resolveRoot(options) {
+function resolveRoot(options: { root?: string }) {
     return path.resolve(options.root ?? detectNextProjectDir(captureStack()) ?? process.cwd());
 }
 
 /**
  * Apply the full dev integration to a resolved Next config object.
  *
- * @param {Record<string, any>} nextConfig Resolved user config.
- * @param {Record<string, unknown>} options Plugin options.
+ * @param {Parameters<typeof mergeTurbopackRules>[0] | null | undefined} nextConfig Resolved user config.
+ * @param {NextIdeByebyeOptions} options Plugin options.
  * @param {string} root Absolute project root.
- * @returns {Record<string, any>} Config with Turbopack rules and the wrapped webpack hook.
+ * @returns {Parameters<typeof mergeTurbopackRules>[0]} Config with Turbopack rules and the wrapped webpack hook.
  */
-function applyNextIntegration(nextConfig, options, root) {
+function applyNextIntegration(nextConfig: Parameters<typeof mergeTurbopackRules>[0] | null | undefined, options: NextIdeByebyeOptions, root: string) {
     const config = nextConfig ?? {};
     const inspector = getNextInspector(root, options);
     const { stableKey, typedRules } = turbopackShape(root);
@@ -79,15 +79,16 @@ export function withIdeByebye<T = Record<string, unknown>>(nextConfig: T = {} as
     const root = resolveRoot(options);
     const hostable = isInspectorHostProcess();
     if (typeof input === 'function') {
-        return (async (phase, context) => {
+        return (async (phase: string, context: unknown) => {
             const resolved = await input(phase, context);
             return phase === PHASE_DEVELOPMENT_SERVER && hostable ? applyNextIntegration(resolved, options, root) : resolved;
         }) as T;
     }
     const isDev = process.env.NODE_ENV === 'development' && hostable;
     if (input && typeof input.then === 'function')
-        return input.then((resolved) => (isDev ? applyNextIntegration(resolved, options, root) : resolved));
-    return isDev ? applyNextIntegration(input, options, root) : nextConfig;
+        return input.then((resolved: Parameters<typeof mergeTurbopackRules>[0] | null | undefined) => (isDev ? applyNextIntegration(resolved, options, root) : resolved));
+    // The constructed config is the caller's `T` at runtime; the generic return cannot name that spread.
+    return isDev ? applyNextIntegration(input, options, root) as T : nextConfig;
 }
 
 /**

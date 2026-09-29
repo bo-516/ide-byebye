@@ -12,7 +12,7 @@ import { antigravityNavigateExpression, antigravityUserDataDir, buildAntigravity
  * @param {typeof fetch} [fetchImpl=fetch] HTTP implementation.
  * @returns {Promise<{ url: string, webSocketDebuggerUrl: string } | null>} Composer page, or null when the app is not reachable.
  */
-async function readAntigravityPage(userDataDir, fetchImpl = fetch) {
+async function readAntigravityPage(userDataDir: string, fetchImpl = fetch) {
     let text;
     try {
         text = fs.readFileSync(path.join(userDataDir, 'DevToolsActivePort'), 'utf8');
@@ -47,7 +47,7 @@ async function readAntigravityPage(userDataDir, fetchImpl = fetch) {
  * @param {number} [timeoutMs=8000] How long to wait for the result.
  * @returns {Promise<void>} Resolves when DevTools accepts the expression.
  */
-function evaluateInPage(wsUrl, expression, timeoutMs = 8000) {
+function evaluateInPage(wsUrl: string, expression: string, timeoutMs = 8000) {
     const WebSocketImpl = globalThis.WebSocket;
     if (typeof WebSocketImpl !== 'function')
         throw new Error('This Node version cannot attach to the Antigravity window');
@@ -57,7 +57,7 @@ function evaluateInPage(wsUrl, expression, timeoutMs = 8000) {
             ws.close();
             reject(new Error('Timed out while writing the prompt into Antigravity'));
         }, timeoutMs);
-        const finish = (err) => {
+        const finish = (err?: unknown) => {
             clearTimeout(timer);
             ws.close();
             if (err)
@@ -102,7 +102,7 @@ function evaluateInPage(wsUrl, expression, timeoutMs = 8000) {
  * @param {{ prompt: string, workspaceDir?: string, timeoutMs?: number, userDataDir?: string }} input Prompt and optional project directory.
  * @returns {Promise<boolean>} True when the composer URL was applied.
  */
-export async function injectAntigravityComposer(input) {
+export async function injectAntigravityComposer(input: { prompt: string, workspaceDir?: string, timeoutMs?: number, userDataDir?: string }) {
     const userDataDir = input.userDataDir || antigravityUserDataDir();
     const deadline = Date.now() + (input.timeoutMs ?? 20000);
     let page = null;

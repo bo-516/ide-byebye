@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
 import { quoteWindowsCmdArg } from './opener.js';
 import { createAntigravitySessionBridge } from '../sessions/antigravity-sessions.js';
@@ -26,7 +27,7 @@ const CLI_HANDOFF_TIMEOUT_MS = 45000;
  * @param {Date} date Date used to stamp the file name.
  * @returns {string} ISO-like timestamp with colon characters replaced.
  */
-function fileStamp(date) {
+function fileStamp(date: Date) {
     return date.toISOString().replace(/:/g, '-').replace(/\..+$/, '');
 }
 
@@ -40,16 +41,16 @@ function fileStamp(date) {
  * @param {number} [timeoutMs=5000] Kill timeout.
  * @returns {Promise<boolean>} True when `--version` exits 0.
  */
-function probeCommandVersion(command, timeoutMs = 5000) {
-    return new Promise((resolve) => {
+function probeCommandVersion(command: string, timeoutMs = 5000) {
+    return new Promise<boolean>((resolve) => {
         let settled = false;
-        const finish = (ok) => {
+        const finish = (ok: boolean) => {
             if (settled)
                 return;
             settled = true;
             resolve(ok);
         };
-        let child;
+        let child: ChildProcess;
         try {
             child = spawn(command, ['--version'], { stdio: 'ignore' });
         }
@@ -75,10 +76,10 @@ function probeCommandVersion(command, timeoutMs = 5000) {
 /**
  * First IDE CLI candidate whose `--version` succeeds.
  *
- * @param {Record<string, unknown>} config Antigravity IDE adapter config.
+ * @param {{ command?: unknown }} config Antigravity IDE adapter config.
  * @returns {Promise<string | null>} Command to embed in the launcher, or null.
  */
-async function resolveAntigravityIdeCommand(config) {
+async function resolveAntigravityIdeCommand(config: { command?: unknown }) {
     for (const candidate of resolveAntigravityIdeCommandCandidates(config)) {
         if (await probeCommandVersion(candidate))
             return candidate;
@@ -92,10 +93,14 @@ async function resolveAntigravityIdeCommand(config) {
  * Boundary: both files stay under `outputDir/launches` inside the project root. The launcher never contains the prompt
  * text — the bridge extension reads a separate request file. Windows writes `.cmd`; other platforms write `.command`.
  *
- * @param {{ request: Record<string, unknown>, context: { outputDir: string, projectRoot: string }, launcher: Record<string, unknown> }} input Write inputs. `launcher` is the script field bag plus `prompt`.
+ * @param {{ request: { id: string, createdAt: string | number | Date }, context: { outputDir: string, projectRoot: string }, launcher: { command: string, cwd: string, prompt?: unknown, newWindow?: boolean, reuseWindow?: boolean } }} input Write inputs. `launcher.prompt` is the script body; the other fields are the launcher file.
  * @returns {{ launchPath: string, promptPath: string }} Absolute paths.
  */
-function writeLauncherFiles(input) {
+function writeLauncherFiles(input: {
+    request: { id: string, createdAt: string | number | Date },
+    context: { outputDir: string, projectRoot: string },
+    launcher: { command: string, cwd: string, prompt?: unknown, newWindow?: boolean, reuseWindow?: boolean },
+}) {
     const launchesDir = path.join(input.context.outputDir, 'launches');
     assertPathInsideRoot(launchesDir, input.context.projectRoot);
     fs.mkdirSync(launchesDir, { recursive: true });
@@ -121,15 +126,15 @@ function writeLauncherFiles(input) {
  * @param {string} launchPath Absolute launcher path (bash script or `.cmd`).
  * @returns {Promise<void>} Resolves on exit 0.
  */
-function runLauncher(launchPath) {
+function runLauncher(launchPath: string) {
     const onWindows = process.platform === 'win32';
     // Quote the launcher path for cmd so a project path with spaces is one token. The prompt itself stays in the
     // prompt file; this argv is only the script path.
     const command = onWindows ? 'cmd.exe' : 'bash';
     const args = onWindows ? ['/d', '/s', '/c', quoteWindowsCmdArg(launchPath)] : [launchPath];
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
         let settled = false;
-        const finish = (err) => {
+        const finish = (err?: unknown) => {
             if (settled)
                 return;
             settled = true;
@@ -139,7 +144,7 @@ function runLauncher(launchPath) {
                 resolve(undefined);
         };
         let stderr = '';
-        let child;
+        let child: ChildProcess;
         try {
             child = spawn(command, args, {
                 stdio: ['ignore', 'ignore', 'pipe'],
@@ -199,12 +204,19 @@ export function createAntigravityIdeAdapter(config: any = {}) {
          * @param {{ projectRoot: string }} ctx Inspector project root.
          * @returns {Promise<{ sessions: Array<Record<string, unknown>>, delivery: string, notice?: string }>}
          */
-        async listSessions(ctx) {
+        async listSessions(ctx: { projectRoot: string }) {
             return sessions.list(ctx.projectRoot);
         },
-        async send(request, context) {
+        async send(request: Parameters<typeof collectAntigravityIdeContextFiles>[0] & { id: string, createdAt: string | number | Date }, context: {
+            emit: (event: { type: string, text?: string }) => void,
+            prompt: string,
+            outputDir: string,
+            projectRoot: string,
+            targetSession?: { id: string, cwd?: string, status?: string, route?: { languageServerPort?: number } } | null,
+        }) {
             if (context.targetSession)
-                return sessions.send(request, context);
+                // The guard proves `targetSession` is set. The assertion is erased; `send` still receives `context`.
+                return sessions.send(request, context as Parameters<typeof sessions.send>[1]);
             const events = [{ type: 'started', text: 'Opening Antigravity IDE' }];
             context.emit(events[0]);
             try {

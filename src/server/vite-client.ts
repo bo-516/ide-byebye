@@ -9,10 +9,10 @@
  * `rolldown-vite`, plus the full-bundle-mode `bundledDevClient.mjs`). Query strings and Windows separators are
  * normalized first. Any other id — including user modules that happen to be named `client.mjs` — returns `false`.
  *
- * @param {string} id Vite module id (resolved path, possibly with `?query`).
+ * @param {string | undefined} id Vite module id (resolved path, possibly with `?query`). A missing id is not a client entry.
  * @returns {boolean} `true` only for Vite's browser client entry.
  */
-export function isViteClientModule(id) {
+export function isViteClientModule(id: string | undefined) {
     const clean = String(id ?? '').split('?')[0].replace(/\\/g, '/');
     return /vite\/dist\/client\/(?:client|bundledDevClient)\.mjs$/.test(clean);
 }

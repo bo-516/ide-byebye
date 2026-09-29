@@ -13,7 +13,9 @@
 
 import { fileURLToPath } from 'node:url';
 import { requireFromProject } from './project-module.js';
+import type { extractJsxFromCode } from './jsx-locator.js';
 import { innerContent, staticAttr, VUE_ELEMENT } from './vue-sfc.js';
+import type { VueCompilerNode } from './vue-sfc.js';
 import { buildLineStartOffsets, lineColumnFromOffset } from './line-offsets.js';
 import { extractScriptImports, scriptLangFromAttr } from './script-imports.js';
 import { importFields, pickTemplateHit, templateHitFields, templateOffset, type ElementSpan } from './template-hit.js';
@@ -38,10 +40,10 @@ function loadVueCompiler(file?: string) {
 /**
  * Flatten every element below `root` (components, slots and `<template>` wrappers included) into spans.
  *
- * @param {object} root Template element node.
+ * @param {VueCompilerNode} root Template element node. Its `children` are walked; the root itself is not a span.
  * @returns {ElementSpan[]} Absolute spans in document order.
  */
-function collectElementSpans(root) {
+function collectElementSpans(root: VueCompilerNode) {
     const spans: ElementSpan[] = [];
     const stack = [...(root.children ?? [])].reverse();
     while (stack.length > 0) {
@@ -59,10 +61,10 @@ function collectElementSpans(root) {
  * Pick the import block shown for the SFC: `<script setup>` first, then the plain `<script>`.
  *
  * @param {string} code Full file source.
- * @param {object[]} scripts Top-level `<script>` element nodes.
+ * @param {VueCompilerNode[]} scripts Top-level `<script>` element nodes.
  * @returns {{ code: string, start: number, end: number } | null} Absolute import block, or `null`.
  */
-function sfcImports(code, scripts) {
+function sfcImports(code: string, scripts: readonly VueCompilerNode[]) {
     const ordered = [...scripts].sort((a, b) => Number(staticAttr(b, 'setup') !== null) - Number(staticAttr(a, 'setup') !== null));
     for (const script of ordered) {
         const { content, offset } = innerContent(script);
@@ -77,19 +79,19 @@ function sfcImports(code, scripts) {
  * Delegate a hit inside a JSX `<script>` block to the JSX extractor, shifting its ranges back to file lines.
  *
  * @param {string} code Full file source.
- * @param {object} script `<script>` element node containing the hit.
+ * @param {VueCompilerNode} script `<script>` element node containing the hit.
  * @param {number} line 1-based file line.
  * @param {number} column Column forwarded unchanged to the JSX extractor.
  * @param {number} maxComponentLines Slice cap.
- * @param {Function} extractJsx `extractJsxFromCode`-compatible function.
+ * @param {typeof extractJsxFromCode} extractJsx `extractJsxFromCode`-compatible function.
  * @param {(offset: number) => { line: number }} offsetToLine File offset → line converter.
  * @returns {Record<string, unknown>} JSX fields in file coordinates, or `astError` when nothing was found.
  */
-function extractScriptJsx(code, script, line, column, maxComponentLines, extractJsx, offsetToLine) {
+function extractScriptJsx(code: string, script: VueCompilerNode, line: number, column: number, maxComponentLines: number, extractJsx: typeof extractJsxFromCode, offsetToLine: (offset: number) => { line: number }) {
     const { content, offset } = innerContent(script);
     const lineShift = offsetToLine(offset).line - 1;
     const inner = extractJsx(content, line - lineShift, column, 0, maxComponentLines);
-    const shift = (range) => range && ({ startLine: range.startLine + lineShift, endLine: range.endLine + lineShift });
+    const shift = (range: { startLine: number, endLine: number } | null | undefined) => range && ({ startLine: range.startLine + lineShift, endLine: range.endLine + lineShift });
     const out: Record<string, unknown> = {};
     for (const key of ['selectedNode', 'containingComponent', 'imports']) {
         if (inner[`${key}Code`]) {
@@ -109,27 +111,27 @@ function extractScriptJsx(code, script, line, column, maxComponentLines, extract
  * @param {number} line 1-based line from `data-insp-path`.
  * @param {number} column 1-based column from `data-insp-path` (the element's `<`).
  * @param {number} maxComponentLines Cap for the selected-node / template slices.
- * @param {Function} [extractJsx] JSX extractor used for hits inside `<script lang="tsx|jsx">`; omit to report an
+ * @param {typeof extractJsxFromCode} [extractJsx] JSX extractor used for hits inside `<script lang="tsx|jsx">`; omit to report an
  *   `astError` for script hits instead.
  * @param {string} [file] Absolute SFC path. Required to load the project's compiler; omit only in tests that
  *   resolve `@vue/compiler-dom` from this package.
  * @returns {Record<string, unknown>} `selectedNode*`, `containingComponent*` (the whole `<template>` element),
  *   `imports*`, or `astError` when the position cannot be mapped (the caller keeps its line window).
  */
-export function extractVueFromCode(code, line, column, maxComponentLines, extractJsx?, file?: string) {
+export function extractVueFromCode(code: string, line: number, column: number, maxComponentLines: number, extractJsx?: typeof extractJsxFromCode, file?: string) {
     const compiler = loadVueCompiler(file);
     if (!compiler)
         return { astError: '@vue/compiler-dom is not available; install it to get Vue template context' };
     const lineStartOffsets = buildLineStartOffsets(code);
-    const offsetToLine = (offset) => lineColumnFromOffset(lineStartOffsets, offset);
+    const offsetToLine = (offset: number) => lineColumnFromOffset(lineStartOffsets, offset);
     const offset = templateOffset(lineStartOffsets, line, column);
     // onError keeps the tolerant AST; code-inspector already skipped files that do not parse cleanly.
     const ast = compiler.parse(code, { comments: true, onError: () => { } });
-    const roots = (ast.children ?? []).filter((node) => node.type === VUE_ELEMENT);
-    const template = roots.find((node) => node.tag === 'template');
-    const scripts = roots.filter((node) => node.tag === 'script');
+    const roots = (ast.children ?? []).filter((node: VueCompilerNode) => node.type === VUE_ELEMENT);
+    const template = roots.find((node: VueCompilerNode) => node.tag === 'template');
+    const scripts = roots.filter((node: VueCompilerNode) => node.tag === 'script');
     const imports = importFields(sfcImports(code, scripts), offsetToLine);
-    const inBlock = (node) => node.loc.start.offset <= offset && offset < node.loc.end.offset;
+    const inBlock = (node: VueCompilerNode) => node.loc.start.offset <= offset && offset < node.loc.end.offset;
 
     const script = scripts.find(inBlock);
     if (script) {

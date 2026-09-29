@@ -43,7 +43,8 @@ export function getNextInspector(root: string, options: object): NextInspector {
     const key = path.resolve(root);
     if (!registry.has(key))
         registry.set(key, startNextInspector(key, options));
-    return registry.get(key);
+    // `has` does not narrow `get`. The assertion is erased; a missing key still returns undefined.
+    return registry.get(key)!;
 }
 
 /**

@@ -17,7 +17,7 @@ export { buildCursorAppDeepLink, buildCursorAppFilePrompt, resolveCursorAppWorks
  * @param {Date} date Date used to stamp the prompt file name.
  * @returns {string} ISO-like timestamp with colon characters replaced.
  */
-function fileStamp(date) {
+function fileStamp(date: Date) {
     return date.toISOString().replace(/:/g, '-').replace(/\..+$/, '');
 }
 
@@ -31,7 +31,14 @@ function fileStamp(date) {
  * @param {{ outputDir: string, projectRoot: string, prompt: string }} context Agent context used for storage and rendering.
  * @returns {string} Absolute path to the written prompt file.
  */
-function writePromptFile(request, context) {
+function writePromptFile(request: {
+    id: string,
+    createdAt: string,
+    agent: string,
+    applyMode: string,
+    pageUrl: string,
+    selection: { file: string, line: number, column: number },
+}, context: { outputDir: string, projectRoot: string, prompt: string }) {
     const requestsDir = path.join(context.outputDir, 'requests');
     assertPathInsideRoot(requestsDir, context.projectRoot);
     fs.mkdirSync(requestsDir, { recursive: true });
@@ -50,7 +57,7 @@ function writePromptFile(request, context) {
  * @param {string} prompt Rendered prompt text.
  * @returns {boolean} True when the request should be written to disk first.
  */
-function shouldWritePromptFile(config, prompt) {
+function shouldWritePromptFile(config: { promptMode?: unknown, promptUrlLimit?: unknown }, prompt: string) {
     const mode = config.promptMode ?? 'auto';
     if (mode === 'file')
         return true;
@@ -76,7 +83,19 @@ export function createCursorAppAdapter(config: any = {}) {
         async isAvailable() {
             return { available: true };
         },
-        async send(request, context) {
+        async send(request: {
+            id: string,
+            createdAt: string,
+            agent: string,
+            applyMode: string,
+            pageUrl: string,
+            selection: { file: string, line: number, column: number },
+        }, context: {
+            emit: (event: { type: string, text?: string }) => void,
+            prompt: string,
+            outputDir: string,
+            projectRoot: string,
+        }) {
             const events = [{ type: 'started', text: 'Opening Cursor' }];
             context.emit(events[0]);
             try {

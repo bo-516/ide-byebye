@@ -25,7 +25,7 @@ export const PLUGIN_NAME = 'code-intent-inspector';
  * @param {ReturnType<typeof buildRegistry>} registry Enabled agent registry.
  * @returns {Array<{ name: string, label: string, title?: string }>} Footer descriptors for custom clients.
  */
-function customAgentActions(resolved, registry) {
+function customAgentActions(resolved: ReturnType<typeof resolveOptions>, registry: ReturnType<typeof buildRegistry>) {
     return normalizeCustomAgents(resolved.agents?.custom)
         .filter((target: any) => registry.has(target.name))
         .map((target: any) => ({ name: target.name, label: target.label, title: target.title }));
@@ -43,7 +43,7 @@ function customAgentActions(resolved, registry) {
  * @param {string} origin Absolute origin of the standalone inspector server.
  * @returns {Record<string, unknown>} Browser client config injected into the served HTML.
  */
-function makeClientConfig(resolved, registry, token, origin) {
+function makeClientConfig(resolved: ReturnType<typeof resolveOptions>, registry: ReturnType<typeof buildRegistry>, token: string, origin: string) {
     const names = registry.names();
     const defaultAgent = registry.has(resolved.defaultAgent)
         ? resolved.defaultAgent
@@ -99,13 +99,22 @@ function makeClientConfig(resolved, registry, token, origin) {
 export function createInspectorRuntime(options: any = {}, runtimeOptions: { exposeSession?: boolean } = {}) {
     const resolved = resolveOptions(options);
     const token = crypto.randomUUID();
-    const ctx = {
+    /** Fields that stay null until `initPaths` or the first successful client/server load. */
+    const ctx: {
+        projectRoot: string;
+        outputDirAbs: string;
+        logger: ReturnType<typeof createLogger> | null;
+        registry: ReturnType<typeof buildRegistry>;
+        sessionStore: SessionStore | null;
+        /** Cached browser client source; only set after a successful load. */
+        clientCode: string | null;
+        serverPromise: Promise<Awaited<ReturnType<typeof createInspectorServer>>> | null;
+    } = {
         projectRoot: process.cwd(),
         outputDirAbs: path.resolve(process.cwd(), resolved.outputDir),
         logger: null,
         registry: buildRegistry(resolved.agents),
         sessionStore: null,
-        /** @type {string | null} Cached browser client source; only set after a successful load. */
         clientCode: null,
         serverPromise: null,
     };
@@ -119,7 +128,7 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
     const MISSING_CLIENT_STUB =
         `console.warn(${JSON.stringify('[code-intent-inspector] client bundle missing; expected dist/client.js or an embedded single-file bundle. Run `npm run build` in the package root, then reload.')});`;
 
-    function initPaths(rootDir) {
+    function initPaths(rootDir: string | undefined) {
         ctx.projectRoot = rootDir || process.cwd();
         ctx.outputDirAbs = path.resolve(ctx.projectRoot, resolved.outputDir);
         ctx.logger = createLogger(ctx.outputDirAbs);
@@ -159,7 +168,8 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
             token,
             registry: ctx.registry,
             sessionStore: ctx.sessionStore,
-            logger: ctx.logger,
+            // initPaths assigns ctx.logger. A property write inside that call is not visible to control-flow analysis.
+            logger: ctx.logger!,
             clientCode: loadClient(),
             projectRoot: ctx.projectRoot,
             outputDirAbs: ctx.outputDirAbs,
@@ -188,7 +198,8 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
             // updateDeps below so a build that finishes mid-boot is visible without a full restart.
             ctx.serverPromise = createInspectorServer(serverDeps());
         }
-        const info = await ctx.serverPromise;
+        // Assigned in the branch above when it was null; a second caller awaits the same promise.
+        const info = await ctx.serverPromise!;
         info.updateDeps(serverDeps());
         if (firstStart) {
             // Never be the reason a process stays alive (see the runtime doc comment).
@@ -213,8 +224,18 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
         };
     }
 
-    /** Vite / rsbuild tag-descriptor form: console filter + config global + module script that loads client.js. */
-    async function injectionTags() {
+    /**
+     * Vite / rsbuild tag-descriptor form: console filter + config global + module script that loads client.js.
+     *
+     * @returns {Promise<Array<{ tag: string, injectTo: 'head' | 'body' | 'head-prepend' | 'body-prepend', children?: string, attrs?: { type?: string, src?: string } }>>}
+     *   Config script (children) then module script (attrs.src). Callers that read `attrs` use the second tag.
+     */
+    async function injectionTags(): Promise<Array<{
+        tag: string;
+        injectTo: 'head' | 'body' | 'head-prepend' | 'body-prepend';
+        children?: string;
+        attrs?: { type?: string; src?: string };
+    }>> {
         const { config, clientSrc } = await clientBootstrap();
         return [
             {
@@ -246,7 +267,7 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
     async function injectionHtml() {
         const [configTag, scriptTag] = await injectionTags();
         return `<script>${configTag.children}</script>` +
-            `<script type="module" src="${scriptTag.attrs.src}"></script>`;
+            `<script type="module" src="${scriptTag.attrs!.src}"></script>`;
     }
 
     /**
@@ -258,10 +279,11 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
      * @param {object} compiler webpack or rspack compiler.
      * @param {'webpack' | 'rspack'} bundler Which unplugin adapter to apply.
      */
-    function registerStampOnCompiler(compiler, bundler) {
+    function registerStampOnCompiler(compiler: Parameters<ReturnType<typeof stampUnplugin.webpack>['apply']>[0] | Parameters<ReturnType<typeof stampUnplugin.rspack>['apply']>[0], bundler: 'webpack' | 'rspack') {
         try {
-            const plugin = bundler === 'rspack' ? stampUnplugin.rspack(options) : stampUnplugin.webpack(options);
-            plugin.apply(compiler);
+            // Both adapters receive the same compiler value. The annotation is erased; `bundler` still picks the adapter.
+            const plugin: { apply(compiler: never): void } = bundler === 'rspack' ? stampUnplugin.rspack(options) : stampUnplugin.webpack(options);
+            plugin.apply(compiler as never);
         }
         catch (err) {
             ctx.logger?.warn?.(`source stamp (${bundler}) not applied: ${err instanceof Error ? err.message : String(err)}`);
@@ -273,7 +295,7 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
         get enabled() {
             return resolved.enabled !== false;
         },
-        initPaths(rootDir) {
+        initPaths(rootDir: string | undefined) {
             initPaths(rootDir);
             cleanupNonScreenshotArtifacts(ctx.outputDirAbs, ctx.projectRoot);
         },

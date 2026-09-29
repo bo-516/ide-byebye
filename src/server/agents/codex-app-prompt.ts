@@ -2,6 +2,11 @@ import { buildPromptReferenceLines } from '../prompt.js';
 import { buildPromptMarkdownReferenceLines } from '../prompt-markdown.js';
 import { buildStyleContextLines } from '../styles.js';
 
+/** Fields the Codex prompt builders forward into the shared formatters. */
+type CodexPromptRequest = Parameters<typeof buildPromptReferenceLines>[0]
+    & Parameters<typeof buildPromptMarkdownReferenceLines>[0]
+    & NonNullable<Parameters<typeof buildStyleContextLines>[0]>;
+
 /**
  * Build Codex App prompt parts while de-duplicating inline code references.
  *
@@ -9,10 +14,10 @@ import { buildStyleContextLines } from '../styles.js';
  * reference is left alone unless it exactly matches a known label. References already present in the intent are removed
  * from the top context block so Codex App does not receive the same file link twice.
  *
- * @param {Record<string, unknown>} request Normalized intent request containing `intent` and resolved references.
+ * @param {CodexPromptRequest} request Normalized intent request containing `intent` and resolved references.
  * @returns {{ refs: string[], intent: string }} Top context refs and intent text safe for a Codex App deeplink.
  */
-function codexAppPromptParts(request) {
+function codexAppPromptParts(request: CodexPromptRequest) {
     let intent = String(request.intent ?? '').trim();
     // Codex App rewrites plain `@path` chips into Markdown links. Matching must use project-relative forms so they
     // line up with what the mention editor serializes and with `buildPromptMarkdownReferenceLines` (which is always
@@ -49,10 +54,10 @@ function codexAppPromptParts(request) {
  * references while preserving the user's intent verbatim after trimming. Missing intent still returns a trailing
  * newline so deeplink decoding behaves consistently.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {CodexPromptRequest} request Normalized intent request.
  * @returns {string} Codex App prompt ending with a newline.
  */
-export function buildCodexAppPrompt(request) {
+export function buildCodexAppPrompt(request: CodexPromptRequest) {
     const { refs, intent } = codexAppPromptParts(request);
     const styleLines = buildStyleContextLines(request);
     const top = refs.length && styleLines.length ? [...refs, '', ...styleLines] : [...refs, ...styleLines];
@@ -66,11 +71,11 @@ export function buildCodexAppPrompt(request) {
  * file. Passing an empty prompt path makes the app prompt omit the handoff file, so callers should only use a path
  * returned by the adapter's prompt writer.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {CodexPromptRequest} request Normalized intent request.
  * @param {string} promptPath Absolute prompt file path written under the inspector output directory.
  * @returns {string} Codex App handoff prompt ending with a newline.
  */
-export function buildCodexAppFilePrompt(request, promptPath) {
+export function buildCodexAppFilePrompt(request: CodexPromptRequest, promptPath: string) {
     // The full request context (including any captured styles) is written to the handoff file, so this short prompt
     // stays compact and does not inline the style block.
     const { refs, intent } = codexAppPromptParts(request);

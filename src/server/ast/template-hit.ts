@@ -46,7 +46,7 @@ export function templateOffset(lineStartOffsets: number[], line: number, column:
  * @returns {ElementSpan | null} Exact match, else tightest span containing `offset`, else tightest span covering
  *   `line`, else `null`.
  */
-export function pickTemplateHit<T extends ElementSpan>(spans: T[], offset: number, line: number, offsetToLine) {
+export function pickTemplateHit<T extends ElementSpan>(spans: T[], offset: number, line: number, offsetToLine: (offset: number) => { line: number }) {
     let containing: T | null = null;
     let onLine: T | null = null;
     for (const span of spans) {
@@ -79,7 +79,7 @@ export function pickTemplateHit<T extends ElementSpan>(spans: T[], offset: numbe
  * @param {(offset: number) => { line: number }} offsetToLine Offset → line converter for `code`.
  * @returns {Record<string, unknown>} `selectedNode*` and (when `container` is set) `containingComponent*` fields.
  */
-export function templateHitFields(code, lines, hit: ElementSpan, container: ElementSpan | null, hitLine, maxComponentLines, offsetToLine) {
+export function templateHitFields(code: string, lines: string[], hit: ElementSpan, container: ElementSpan | null, hitLine: number, maxComponentLines: number, offsetToLine: (offset: number) => { line: number }) {
     const out: Record<string, unknown> = {
         selectedNodeCode: cappedComponentCode(code, lines, hit, hitLine, maxComponentLines, offsetToLine),
         selectedNodeRange: nodeRange(hit, offsetToLine),
@@ -98,7 +98,7 @@ export function templateHitFields(code, lines, hit: ElementSpan, container: Elem
  * @param {(offset: number) => { line: number }} offsetToLine Offset → line converter for the whole file.
  * @returns {Record<string, unknown>} Import fields, or an empty object when `block` is `null`.
  */
-export function importFields(block: { code: string, start: number, end: number } | null, offsetToLine) {
+export function importFields(block: { code: string, start: number, end: number } | null, offsetToLine: (offset: number) => { line: number }) {
     if (!block)
         return {};
     return {

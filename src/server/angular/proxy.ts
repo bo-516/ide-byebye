@@ -25,14 +25,15 @@ const REGISTRY_KEY = Symbol.for('ide-byebye.angular.runtimes');
  * @param {AngularIdeByebyeOptions} options Plugin options; only the first call per root is honored.
  * @returns {ReturnType<typeof createInspectorRuntime>} Shared runtime.
  */
-function angularRuntime(root: string, options: AngularIdeByebyeOptions) {
+function angularRuntime(root: string, options: AngularIdeByebyeOptions): ReturnType<typeof createInspectorRuntime> {
     const registry: Map<string, ReturnType<typeof createInspectorRuntime>> = (globalThis as any)[REGISTRY_KEY] ??= new Map();
     if (!registry.has(root)) {
         const runtime = createInspectorRuntime(options, { exposeSession: true });
         runtime.initPaths(root);
         registry.set(root, runtime);
     }
-    return registry.get(root);
+    // `has` does not narrow `get`. The assertion is erased; a missing root still returns undefined.
+    return registry.get(root)!;
 }
 
 /**

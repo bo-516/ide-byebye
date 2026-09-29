@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { findNearestGitRoot } from '../workspace-root.js';
+import type { SessionFs } from './file-window.js';
 
 /**
  * Path implementation for scope checks.
@@ -11,7 +12,7 @@ import { findNearestGitRoot } from '../workspace-root.js';
  * @param {string} platform Node platform id.
  * @returns {path.PlatformPath} `path.win32` or `path.posix`.
  */
-function pathApi(platform) {
+function pathApi(platform: string) {
     return platform === 'win32' ? path.win32 : path.posix;
 }
 
@@ -23,10 +24,11 @@ function pathApi(platform) {
  * Page input must never be passed here — only server-derived cwd strings and config roots.
  *
  * @param {string} input Absolute or relative path.
- * @param {{ realpathSync?: { native?: Function } }} [io] Filesystem used for realpath. Defaults to `node:fs`.
+ * @param {SessionFs} [io] Filesystem used for realpath and exists. Defaults to `node:fs`. A test stand-in must still
+ *        expose `realpathSync` (including `.native`) and `existsSync`.
  * @returns {string} Canonical absolute path, or a resolved absolute path when realpath fails.
  */
-export function normalizeScopePath(input, io = fs) {
+export function normalizeScopePath(input: string, io: SessionFs = fs) {
     const resolved = path.resolve(input);
     const realpath = io.realpathSync?.native ?? io.realpathSync;
     if (typeof realpath !== 'function')
@@ -36,7 +38,7 @@ export function normalizeScopePath(input, io = fs) {
     }
     catch {
         // A deleted session directory still has to line up with a realpath'd project root (/var vs /private/var).
-        const exists = typeof io.existsSync === 'function' ? (candidate) => io.existsSync(candidate) : (candidate) => fs.existsSync(candidate);
+        const exists = typeof io.existsSync === 'function' ? (candidate: string) => io.existsSync(candidate) : (candidate: string) => fs.existsSync(candidate);
         let cursor = resolved;
         const suffix = [];
         while (true) {
@@ -67,7 +69,7 @@ export function normalizeScopePath(input, io = fs) {
  * @param {string} platform Node platform id.
  * @returns {'equal' | 'inside' | 'outside'}
  */
-function classify(child, parent, platform) {
+function classify(child: string, parent: string, platform: string) {
     const api = pathApi(platform);
     const rel = api.relative(parent, child);
     if (rel === '')
@@ -91,16 +93,16 @@ function classify(child, parent, platform) {
  *        Test hooks. Omit them in production.
  * @returns {{ projectRoot: string, gitRoot: string | null, roots: string[], platform: string }} Scope used by matchers.
  */
-export function buildProjectScope(projectRoot, extraRoots = [], opts: any = {}) {
+export function buildProjectScope(projectRoot: string, extraRoots: string[] = [], opts: any = {}) {
     const platform = opts.platform ?? process.platform;
-    const realpath = opts.realpath ?? ((input) => normalizeScopePath(input, opts.io));
+    const realpath = opts.realpath ?? ((input: string) => normalizeScopePath(input, opts.io));
     const root = realpath(projectRoot);
     const discovered = opts.gitRoot === undefined ? findNearestGitRoot(root) : opts.gitRoot;
     const gitRoot = discovered ? realpath(discovered) : null;
     const extras = (Array.isArray(extraRoots) ? extraRoots : [])
         .filter((entry) => typeof entry === 'string' && entry.trim())
         .map((entry) => realpath(entry.trim()));
-    const roots = [];
+    const roots: string[] = [];
     for (const candidate of [root, gitRoot, ...extras]) {
         if (!candidate)
             continue;
@@ -122,11 +124,11 @@ export function buildProjectScope(projectRoot, extraRoots = [], opts: any = {}) 
  * @param {{ platform?: string, realpath?: (input: string) => string }} [opts] Test hooks.
  * @returns {boolean} True when the session may be listed.
  */
-export function matchSessionCwd(cwd, scope, opts: any = {}) {
+export function matchSessionCwd(cwd: string, scope: { projectRoot: string, gitRoot: string | null, roots: string[], platform?: string }, opts: any = {}) {
     if (!cwd || typeof cwd !== 'string' || !scope?.projectRoot)
         return false;
     const platform = opts.platform ?? scope.platform ?? process.platform;
-    const realpath = opts.realpath ?? ((input) => normalizeScopePath(input));
+    const realpath = opts.realpath ?? ((input: string) => normalizeScopePath(input));
     let resolved;
     try {
         resolved = realpath(cwd);
@@ -157,7 +159,7 @@ export function matchSessionCwd(cwd, scope, opts: any = {}) {
  * @param {string} [platform=process.platform] Platform whose `relative` should run.
  * @returns {string} Relative location, never empty.
  */
-export function sessionLocation(cwd, projectRoot, platform = process.platform) {
+export function sessionLocation(cwd: string, projectRoot: string, platform = process.platform) {
     const rel = pathApi(platform).relative(projectRoot, cwd);
     if (!rel)
         return '.';
@@ -171,7 +173,7 @@ export function sessionLocation(cwd, projectRoot, platform = process.platform) {
  * @param {string} [platform=process.platform] Platform whose basename rules apply.
  * @returns {string} Final path segment, or the cwd itself when it has none.
  */
-export function sessionProjectName(cwd, platform = process.platform) {
+export function sessionProjectName(cwd: string, platform = process.platform) {
     const base = pathApi(platform).basename(cwd);
     return base || cwd;
 }

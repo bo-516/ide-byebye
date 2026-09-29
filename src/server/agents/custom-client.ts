@@ -32,7 +32,7 @@ const ERROR_DETAIL_LIMIT = 200;
  * @param {Record<string, unknown>} target Normalized custom-client descriptor.
  * @returns {string} Prompt text to hand to the client.
  */
-export function resolveDeliveryPrompt(request, context: any, target: any) {
+export function resolveDeliveryPrompt(request: Parameters<typeof buildPrompt>[0], context: any, target: any) {
     return target.pathStyles ? buildPrompt(request, target.pathStyles) : context.prompt;
 }
 
@@ -52,9 +52,9 @@ export function resolveDeliveryPrompt(request, context: any, target: any) {
  * @param {Record<string, unknown>} target Normalized custom-client descriptor.
  * @returns {Record<string, unknown>} Delivery payload sent over HTTP or `postMessage`.
  */
-export function buildDeliveryPayload(request: any, prompt, target: any) {
-    const screenshots = (request.screenshots ?? []).map((shot) => shot?.filePath).filter(Boolean);
-    const recordings = (request.recordings ?? []).map((clip) => clip?.stillFramePath).filter(Boolean);
+export function buildDeliveryPayload(request: any, prompt: string, target: any) {
+    const screenshots = (request.screenshots ?? []).map((shot: { filePath?: unknown } | null | undefined) => shot?.filePath).filter(Boolean);
+    const recordings = (request.recordings ?? []).map((clip: { stillFramePath?: unknown } | null | undefined) => clip?.stillFramePath).filter(Boolean);
     return {
         type: target.messageType ?? DEFAULT_DELIVERY_MESSAGE_TYPE,
         source: DELIVERY_SOURCE,
@@ -105,7 +105,7 @@ async function readErrorDetail(res: any) {
  * @param {Record<string, unknown>} payload Delivery payload.
  * @returns {Promise<void>} Resolves when the client accepted the prompt.
  */
-async function postDelivery(fetchImpl, target: any, payload) {
+async function postDelivery(fetchImpl: (url: string, init: Record<string, unknown>) => Promise<{ ok?: boolean, status?: number, text?: () => Promise<unknown> }>, target: any, payload: Record<string, unknown>) {
     const res = await fetchImpl(target.url, {
         method: target.method,
         headers: { 'Content-Type': 'application/json', ...target.headers },
@@ -134,7 +134,7 @@ async function postDelivery(fetchImpl, target: any, payload) {
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
  */
 export function createCustomAgentAdapter(target: any, deps: any = {}) {
-    const fetchImpl = deps.fetch ?? ((...args) => (globalThis as any).fetch(...args));
+    const fetchImpl = deps.fetch ?? ((...args: unknown[]) => (globalThis as any).fetch(...args));
     return {
         name: target.name,
         async isAvailable() {
@@ -142,7 +142,7 @@ export function createCustomAgentAdapter(target: any, deps: any = {}) {
                 ? { available: false, reason: target.configError }
                 : { available: true };
         },
-        async send(request, context) {
+        async send(request: Parameters<typeof buildPrompt>[0] & { id: string }, context: { emit: (event: { type: string, text?: string }) => void, prompt: string }) {
             const events = [{ type: 'started', text: `Sending prompt to ${target.label}` }];
             context.emit(events[0]);
             try {
@@ -206,6 +206,6 @@ export function createCustomAgentAdapter(target: any, deps: any = {}) {
  * @param {{ fetch?: Function }} [deps] Injectable dependencies forwarded to each adapter.
  * @returns {Array<{ name: string, isAvailable: Function, send: Function }>} Adapters ready to register.
  */
-export function createCustomAgentAdapters(value, deps: any = {}) {
+export function createCustomAgentAdapters(value: unknown, deps: any = {}) {
     return normalizeCustomAgents(value).map((target) => createCustomAgentAdapter(target, deps));
 }

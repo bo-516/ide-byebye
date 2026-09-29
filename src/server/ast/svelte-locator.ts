@@ -28,6 +28,35 @@ const SVELTE_ELEMENT_TYPES = new Set([
 ]);
 
 /**
+ * Svelte AST node the element walk reads. `start` / `end` are absolute offsets when `type` names an element.
+ *
+ * Boundary: a string index covers block fields (`else`, `body`, `fragment`, …) without a per-version visitor.
+ * Scalars and `null` are ignored; only objects and arrays are walked.
+ */
+type SvelteValue = SvelteNode | SvelteNode[] | string | number | boolean | null | undefined;
+
+interface SvelteNode {
+    type: string;
+    start: number;
+    end: number;
+    [key: string]: SvelteValue;
+}
+
+/** Instance or module script tag. `start` / `end` cover the whole tag, not the inner source. */
+interface SvelteScript {
+    start: number;
+    end: number;
+}
+
+/** Parsed component (legacy `html` or modern `fragment`, plus optional scripts). */
+interface SvelteAst {
+    instance?: SvelteScript | null;
+    module?: SvelteScript | null;
+    fragment?: SvelteNode | null;
+    html?: SvelteNode | null;
+}
+
+/**
  * Resolve and load the project's `svelte/compiler` for a component file.
  *
  * Boundary: shared with the stamper via {@link requireFromProject}. Svelte 5's `require` condition is CommonJS,
@@ -48,13 +77,14 @@ function loadSvelteCompiler(file: string) {
  * Purpose: a generic walk (every object property) keeps up with block shapes (`else`, `pending`/`then`/`catch`,
  * `consequent`/`alternate`, `body`, snippets) without a per-version visitor table.
  *
- * @param {object} root Markup root (`ast.html` legacy, `ast.fragment` modern).
+ * @param {SvelteNode | null | undefined} root Markup root (`ast.html` legacy, `ast.fragment` modern).
+ *   `null` / `undefined` yields no spans.
  * @returns {ElementSpan[]} Element spans (absolute offsets); order is not significant.
  */
-function collectElementSpans(root) {
+function collectElementSpans(root: SvelteNode | null | undefined) {
     const spans: ElementSpan[] = [];
-    const seen = new Set();
-    const stack = [root];
+    const seen = new Set<SvelteNode | SvelteNode[]>();
+    const stack: Array<SvelteNode | SvelteNode[] | null | undefined> = [root];
     while (stack.length > 0) {
         const node = stack.pop();
         if (!node || typeof node !== 'object' || seen.has(node))
@@ -82,10 +112,10 @@ function collectElementSpans(root) {
  * Import block of the component's instance script (falling back to the module script).
  *
  * @param {string} code Full component source.
- * @param {object} ast Parsed AST (either shape); `instance` / `module` carry absolute `start`/`end` of the tag.
+ * @param {{ instance?: SvelteScript | null, module?: SvelteScript | null }} ast Parsed AST (either shape); `instance` / `module` carry absolute `start`/`end` of the tag.
  * @returns {{ code: string, start: number, end: number } | null} Absolute import block, or `null`.
  */
-function componentImports(code, ast) {
+function componentImports(code: string, ast: SvelteAst) {
     for (const script of [ast.instance, ast.module]) {
         if (!script || !Number.isInteger(script.start) || !Number.isInteger(script.end))
             continue;
@@ -113,11 +143,11 @@ function componentImports(code, ast) {
  * @returns {Record<string, unknown>} `selectedNode*`, `containingComponent*` (the whole component file), `imports*`,
  *   or `astError` when Svelte is unavailable or the position maps to no element.
  */
-export function extractSvelteFromCode(code, line, column, maxComponentLines, file) {
+export function extractSvelteFromCode(code: string, line: number, column: number, maxComponentLines: number, file: string) {
     const compiler = loadSvelteCompiler(file);
     if (!compiler)
         return { astError: 'svelte/compiler is not resolvable from this file; using a line window' };
-    let ast;
+    let ast: SvelteAst;
     try {
         ast = compiler.parse(code, { modern: true });
     }
@@ -125,7 +155,7 @@ export function extractSvelteFromCode(code, line, column, maxComponentLines, fil
         return { astError: err instanceof Error ? err.message : String(err) };
     }
     const lineStartOffsets = buildLineStartOffsets(code);
-    const offsetToLine = (offset) => lineColumnFromOffset(lineStartOffsets, offset);
+    const offsetToLine = (offset: number) => lineColumnFromOffset(lineStartOffsets, offset);
     const imports = importFields(componentImports(code, ast), offsetToLine);
     const markup = ast.fragment ?? ast.html;
     const hit = pickTemplateHit(collectElementSpans(markup), templateOffset(lineStartOffsets, line, column), line, offsetToLine);

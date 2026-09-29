@@ -119,10 +119,16 @@ function bodyClosingOffsets(source: string, lang: 'tsx' | 'jsx') {
  * @param {string} input.bootstrapFile Absolute path of the generated `'use client'` bootstrap module.
  * @param {(pagesDir: string) => boolean} input.hasCustomApp Whether that pages directory has an `_app` module; only
  *   called for Pages Router modules. Answering wrongly either skips injection (no custom `_app` → nothing mounts) or
- *   injects into every page (harmless: the bootstrap is a shared, idempotent module).
+ *   injects into every page (harmless: the bootstrap is a shared, idempotent module). A zero-arg function is accepted.
  * @returns {string | null} Rewritten source, or `null` when the module is left unchanged.
  */
-export function injectNextBootstrap({ source, resourcePath, projectDir, bootstrapFile, hasCustomApp }) {
+export function injectNextBootstrap({ source, resourcePath, projectDir, bootstrapFile, hasCustomApp }: {
+    source: string;
+    resourcePath: string;
+    projectDir: string;
+    bootstrapFile: string;
+    hasCustomApp: (pagesDir: string) => boolean;
+}) {
     if (!bootstrapFile || typeof source !== 'string' || source.includes(BOOTSTRAP_IDENTIFIER))
         return null;
     const role = classifyNextModule(resourcePath, projectDir);

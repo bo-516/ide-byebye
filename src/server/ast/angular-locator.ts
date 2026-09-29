@@ -88,7 +88,8 @@ export function extractAngularSourceContext({ file, code, line, hint, projectRoo
         return { ...componentContext, astError: 'No literal @Component template found for this class' };
     if (template.kind === 'external' && !projectRoot)
         return { ...componentContext, astError: 'External template not read without a project root' };
-    const templateFile = template.kind === 'external' ? assertPathInsideRoot(template.file, projectRoot) : file;
+    // The early return above already guarantees a root for external templates; CFA does not carry that into this ternary.
+    const templateFile = template.kind === 'external' ? assertPathInsideRoot(template.file, projectRoot!) : file;
     const templateCode = template.kind === 'external' ? fs.readFileSync(templateFile, 'utf8') : code;
     const text = template.kind === 'external' ? templateCode : template.text;
     const offset = template.kind === 'external' ? 0 : template.offset;

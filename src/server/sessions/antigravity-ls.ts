@@ -5,6 +5,30 @@ import path from 'node:path';
 /** Both discovery and each language-server call stop after this long. */
 export const LS_TIMEOUT_MS = 2000;
 
+/** IDE language server from discovery. `csrfToken` must not be logged or copied onto a catalog row. `uid` is null on Windows. */
+interface LanguageServerProcess {
+    pid: number;
+    uid: number | null;
+    port: number;
+    csrfToken: string;
+    workspaceId: string;
+    exe: string;
+}
+
+/** CIM JSON row. Only the command line and pid are read; anything else fails {@link parseLanguageServerCommand}. */
+interface WindowsProcessRow {
+    CommandLine?: string;
+    commandLine?: string;
+    ProcessId?: unknown;
+    processId?: unknown;
+}
+
+/** Connect error JSON. Only top-level `code` or `error.code` counts; a body that merely mentions oauth is not an auth failure. */
+interface AuthErrorJson {
+    code?: unknown;
+    error?: { code?: unknown } | null;
+}
+
 const SERVER_MARKER = /[/\\]extensions[/\\]antigravity[/\\]bin[/\\]language_server_/;
 
 /**
@@ -40,7 +64,7 @@ export function discoveryCommand(platform = process.platform) {
  * @param {string} name Flag name without the leading dashes.
  * @returns {string} Flag value, or `''`.
  */
-function readFlag(command, name) {
+function readFlag(command: string, name: string) {
     const match = String(command).match(new RegExp(`--${name}(?:=|\\s+)(\\S+)`));
     return match ? match[1] : '';
 }
@@ -54,12 +78,13 @@ function readFlag(command, name) {
  * @param {string} command Raw command line.
  * @returns {string} Executable path, or `''`.
  */
-function languageServerExecutable(command) {
+function languageServerExecutable(command: string) {
     const text = String(command);
     const marker = text.search(SERVER_MARKER);
     if (marker < 0)
         return '';
-    const tail = text.slice(marker).match(/language_server_\S*/);
+    // `String.match` always sets `index`. The lib type marks it optional, so the match is narrowed here.
+    const tail = text.slice(marker).match(/language_server_\S*/) as (RegExpMatchArray & { index: number }) | null;
     if (!tail)
         return '';
     return text.slice(0, marker + tail.index + tail[0].length).trim();
@@ -75,7 +100,7 @@ function languageServerExecutable(command) {
  * @param {string} [platform=process.platform] Platform used to join the path.
  * @returns {string} Absolute `cert.pem` path.
  */
-export function certPathForLanguageServer(exe, platform = process.platform) {
+export function certPathForLanguageServer(exe: string, platform: string = process.platform) {
     const api = platform === 'win32' ? path.win32 : path.posix;
     return api.normalize(api.join(api.dirname(exe), '..', 'dist', 'languageServer', 'cert.pem'));
 }
@@ -92,9 +117,9 @@ export function certPathForLanguageServer(exe, platform = process.platform) {
  * @param {number} pid Process id.
  * @param {number | null} uid Owner uid, or null when the source has none.
  * @param {number | null} ownUid Uid that may see the process. Null skips the check.
- * @returns {Record<string, unknown> | null} Server descriptor, or null when the line is not an IDE language server.
+ * @returns {LanguageServerProcess | null} Server descriptor, or null when the line is not an IDE language server.
  */
-export function parseLanguageServerCommand(command, pid, uid, ownUid) {
+export function parseLanguageServerCommand(command: string, pid: number, uid: number | null, ownUid: number | null) {
     if (ownUid != null && uid != null && Number(ownUid) !== Number(uid))
         return null;
     if (!SERVER_MARKER.test(command) || /--subclient_type(?:=|\s+)hub\b/.test(command))
@@ -124,11 +149,11 @@ export function parseLanguageServerCommand(command, pid, uid, ownUid) {
  * CSRF token in memory for the subsequent loopback call.
  *
  * @param {string} text Full `ps` stdout.
- * @param {number | null | undefined} ownUid Current user id.
- * @returns {Array<Record<string, unknown>>} IDE language servers.
+ * @param {number | null | undefined} ownUid Current user id. `undefined` is treated as null (no uid filter).
+ * @returns {LanguageServerProcess[]} IDE language servers.
  */
-export function parseProcessTable(text, ownUid) {
-    const servers = [];
+export function parseProcessTable(text: string, ownUid: number | null | undefined) {
+    const servers: LanguageServerProcess[] = [];
     for (const line of String(text ?? '').split(/\r?\n/)) {
         const match = line.match(/^\s*(\d+)\s+(\d+)\s+([\s\S]+)$/);
         if (!match)
@@ -147,10 +172,10 @@ export function parseProcessTable(text, ownUid) {
  * into the menu. Uid is not available, so no uid filter is applied.
  *
  * @param {string} text PowerShell `ConvertTo-Json` output.
- * @returns {Array<Record<string, unknown>>} IDE language servers.
+ * @returns {LanguageServerProcess[]} IDE language servers.
  */
-export function parseWindowsProcessJson(text) {
-    let value;
+export function parseWindowsProcessJson(text: string) {
+    let value: WindowsProcessRow | WindowsProcessRow[] | null;
     try {
         value = JSON.parse(text);
     }
@@ -158,7 +183,7 @@ export function parseWindowsProcessJson(text) {
         return [];
     }
     const rows = Array.isArray(value) ? value : value ? [value] : [];
-    const servers = [];
+    const servers: LanguageServerProcess[] = [];
     for (const row of rows) {
         const command = row?.CommandLine ?? row?.commandLine ?? '';
         const pid = Number(row?.ProcessId ?? row?.processId);
@@ -178,11 +203,11 @@ export function parseWindowsProcessJson(text) {
  *
  * @param {{ port: number, csrfToken: string }} ls Language server from discovery.
  * @param {string} method RPC name (`GetAllCascadeTrajectories`, `SendUserCascadeMessage`, …).
- * @param {Record<string, unknown>} body JSON body.
+ * @param {unknown} body JSON body. `null` and `undefined` are sent as `{}`. Callers must not put `metadata` or `api_key` here.
  * @param {string | Buffer} cert Bundled CA contents.
  * @returns {{ options: Record<string, unknown>, timeoutMs: number, body: string }} Request passed to the transport.
  */
-export function buildLanguageServerRequest(ls, method, body, cert) {
+export function buildLanguageServerRequest(ls: { port: number; csrfToken: string }, method: string, body: unknown, cert: string | Buffer) {
     return {
         options: {
             host: '127.0.0.1',
@@ -205,10 +230,10 @@ export function buildLanguageServerRequest(ls, method, body, cert) {
 /**
  * True when an HTTPS error is a certificate failure.
  *
- * @param {unknown} err Error from `https.request`.
+ * @param {{ code?: string } | null | undefined} err HTTPS error. `code` is the Node errno; a missing object is not a TLS failure.
  * @returns {boolean} True for Node TLS verification failures.
  */
-function isTlsError(err) {
+function isTlsError(err: { code?: string } | null | undefined) {
     const code = err?.code ?? '';
     return code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
         || code === 'CERT_HAS_EXPIRED'
@@ -226,10 +251,10 @@ const AUTH_ERROR_CODES = new Set(['unauthenticated', 'permission_denied', 'unaut
  * Boundary: only a top-level `code` or `error.code` is inspected. Scanning the whole body would treat a session
  * titled "oauth login", or a 200 send body that mentions `api_key`, as `ls-requires-credentials`.
  *
- * @param {Record<string, unknown> | undefined} json Response JSON.
+ * @param {AuthErrorJson | null | undefined} json Response JSON. Arrays and non-objects are not auth errors.
  * @returns {boolean} True for an explicit auth error object.
  */
-function explicitAuthError(json) {
+function explicitAuthError(json: AuthErrorJson | null | undefined) {
     if (!json || typeof json !== 'object' || Array.isArray(json))
         return false;
     const nested = json.error;
@@ -247,13 +272,14 @@ function explicitAuthError(json) {
  * not trigger a read of any credential file. A 200 body is returned even when its text mentions oauth or api_key.
  * Other failures become `ls-unreachable`. The CSRF token is not copied into the thrown error.
  *
- * @param {Record<string, unknown>} ls Language server descriptor.
+ * @param {{ port: number, csrfToken: string }} ls Language server descriptor. `readCert` receives the same object, so an
+ *        `exe` field is still present at runtime when the default loader is used.
  * @param {string} method RPC name.
- * @param {Record<string, unknown>} body JSON body.
+ * @param {unknown} body JSON body forwarded to {@link buildLanguageServerRequest}.
  * @param {{ readCert: Function, exchange?: Function }} io Cert loader and optional transport.
  * @returns {Promise<Record<string, unknown>>} Parsed JSON body.
  */
-export async function callLanguageServer(ls, method, body, io) {
+export async function callLanguageServer(ls: { port: number; csrfToken: string }, method: string, body: unknown, io: { readCert: Function; exchange?: Function }) {
     const cert = await io.readCert(ls);
     const request = buildLanguageServerRequest(ls, method, body, cert);
     let response;
@@ -261,7 +287,7 @@ export async function callLanguageServer(ls, method, body, io) {
         response = await (io.exchange ?? exchangeHttps)(request);
     }
     catch (err) {
-        const tls = isTlsError(err);
+        const tls = isTlsError(err as { code?: string } | null);
         throw Object.assign(new Error(tls ? 'Language server TLS verification failed' : 'Language server did not respond'), {
             code: tls ? 'ls-tls' : 'ls-unreachable',
         });
@@ -284,10 +310,10 @@ export async function callLanguageServer(ls, method, body, io) {
  * @param {{ options: import('https').RequestOptions, timeoutMs: number, body: string }} request Built request.
  * @returns {Promise<{ status: number, json: Record<string, unknown> }>} Status and parsed JSON (empty when blank).
  */
-function exchangeHttps(request) {
+function exchangeHttps(request: { options: import('https').RequestOptions, timeoutMs: number, body: string }) {
     return new Promise((resolve, reject) => {
         const req = https.request(request.options, (res) => {
-            const chunks = [];
+            const chunks: Buffer[] = [];
             let size = 0;
             res.on('data', (chunk) => {
                 size += chunk.length;
@@ -299,7 +325,7 @@ function exchangeHttps(request) {
             });
             res.on('end', () => {
                 const text = Buffer.concat(chunks).toString('utf8');
-                let json = {};
+                let json: Record<string, unknown> = {};
                 if (text) {
                     try {
                         json = JSON.parse(text);
@@ -326,7 +352,7 @@ function exchangeHttps(request) {
  * A spawn failure resolves to an empty list so the menu can still offer a new session.
  *
  * @param {{ processText?: string, uid?: number | null, platform?: string }} [io] Test fixture or live defaults.
- * @returns {Promise<Array<Record<string, unknown>>>} Discovered servers. CSRF tokens stay on these objects.
+ * @returns {Promise<LanguageServerProcess[]>} Discovered servers. CSRF tokens stay on these objects.
  */
 export function discoverLanguageServers(io: any = {}) {
     if (typeof io.processText === 'string') {
@@ -340,7 +366,7 @@ export function discoverLanguageServers(io: any = {}) {
     const ownUid = io.uid === undefined ? process.getuid?.() ?? null : io.uid;
     return new Promise((resolve) => {
         let settled = false;
-        const finish = (servers) => {
+        const finish = (servers: LanguageServerProcess[]) => {
             if (settled)
                 return;
             settled = true;
@@ -354,7 +380,7 @@ export function discoverLanguageServers(io: any = {}) {
             finish([]);
             return;
         }
-        const chunks = [];
+        const chunks: Buffer[] = [];
         child.stdout?.on('data', (chunk) => chunks.push(chunk));
         const timer = setTimeout(() => {
             child.kill();

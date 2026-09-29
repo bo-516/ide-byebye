@@ -33,7 +33,7 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i;
  * @param {Record<string, unknown>} entry Raw custom-client entry from plugin config.
  * @returns {{ pathStyle: 'relative' | 'absolute', artifactPathStyle: 'relative' | 'absolute' } | undefined} Prompt path styles, or undefined to inherit.
  */
-function readPathStyles(entry) {
+function readPathStyles(entry: Record<string, unknown>) {
     if (entry.pathStyle === undefined && entry.artifactPathStyle === undefined)
         return undefined;
     return resolvePromptPathStyleOptions(entry);
@@ -51,7 +51,7 @@ function readPathStyles(entry) {
  * @param {string} label Human label used in the config-error text.
  * @returns {{ url: string | null, method: string, headers: Record<string, string>, timeoutMs: number, configError?: string }} HTTP transport fields.
  */
-function normalizeHttpTransport(entry, label) {
+function normalizeHttpTransport(entry: Record<string, unknown>, label: string) {
     const raw = typeof entry.url === 'string' ? entry.url.trim() : '';
     let url = null;
     try {
@@ -65,9 +65,9 @@ function normalizeHttpTransport(entry, label) {
     const method = typeof entry.method === 'string' && HTTP_METHODS.includes(entry.method.trim().toUpperCase())
         ? entry.method.trim().toUpperCase()
         : 'POST';
-    const headers = {};
+    const headers: Record<string, string> = {};
     if (entry.headers && typeof entry.headers === 'object') {
-        for (const [key, value] of Object.entries(entry.headers)) {
+        for (const [key, value] of Object.entries(entry.headers as Record<string, unknown>)) {
             if (typeof key === 'string' && key.trim() && typeof value === 'string')
                 headers[key] = value;
         }
@@ -98,7 +98,7 @@ function normalizeHttpTransport(entry, label) {
  * @param {Record<string, unknown>} entry Raw custom-client entry from plugin config.
  * @returns {{ messageType: string, windowTarget: string, targetOrigin: string }} postMessage transport fields.
  */
-function normalizePostMessageTransport(entry) {
+function normalizePostMessageTransport(entry: Record<string, unknown>) {
     const messageType = typeof entry.messageType === 'string' && entry.messageType.trim()
         ? entry.messageType.trim()
         : DEFAULT_DELIVERY_MESSAGE_TYPE;
@@ -155,7 +155,7 @@ export function normalizeCustomAgent(entry: any) {
  * @param {unknown} value Raw `agents.custom` value from plugin config.
  * @returns {Array<Record<string, unknown>>} Normalized custom prompt-delivery targets.
  */
-export function normalizeCustomAgents(value) {
+export function normalizeCustomAgents(value: unknown) {
     const entries = Array.isArray(value)
         ? value
         : (value && typeof value === 'object' ? [value] : []);

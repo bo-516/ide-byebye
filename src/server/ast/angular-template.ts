@@ -31,8 +31,42 @@ export interface TemplateElement {
     sameTagIndex: number;
 }
 
+/** Attribute on an R3 element (`name` / `value` are whatever the compiler stored; both are stringified). */
+interface R3Attr {
+    name?: unknown;
+    value?: unknown;
+}
+
+/**
+ * R3 template node. Child-bearing keys are a node or a list; other nodes are transparent containers.
+ *
+ * Boundary: duck-typed. A missing field just contributes no children. Not an `@angular/compiler` union.
+ */
+interface R3Node {
+    name?: string;
+    attributes?: R3Attr[];
+    value?: unknown;
+    sourceSpan?: { start: { offset: number }, end: { offset: number } };
+    children?: R3Node | R3Node[] | null;
+    branches?: R3Node | R3Node[] | null;
+    groups?: R3Node | R3Node[] | null;
+    cases?: R3Node | R3Node[] | null;
+    empty?: R3Node | R3Node[] | null;
+    placeholder?: R3Node | R3Node[] | null;
+    loading?: R3Node | R3Node[] | null;
+    error?: R3Node | R3Node[] | null;
+}
+
+/** R3 element that renders a DOM node (`name`, static `attributes`, `children`, and a source span). */
+interface R3Element extends R3Node {
+    name: string;
+    attributes: R3Attr[];
+    children: R3Node[];
+    sourceSpan: { start: { offset: number }, end: { offset: number } };
+}
+
 /** Child-bearing properties of R3 nodes (elements, templates and every block kind). */
-const CHILD_KEYS = ['children', 'branches', 'groups', 'cases', 'empty', 'placeholder', 'loading', 'error'];
+const CHILD_KEYS: readonly ('children' | 'branches' | 'groups' | 'cases' | 'empty' | 'placeholder' | 'loading' | 'error')[] = ['children', 'branches', 'groups', 'cases', 'empty', 'placeholder', 'loading', 'error'];
 
 /** Elements that never render a DOM node. */
 const TRANSPARENT_TAGS = new Set(['ng-container', 'ng-content', 'ng-template']);
@@ -40,21 +74,21 @@ const TRANSPARENT_TAGS = new Set(['ng-container', 'ng-content', 'ng-template']);
 /**
  * Whether an R3 node is an element (`name` + `attributes` + `children`), as opposed to templates, blocks or text.
  *
- * @param {any} node R3 node.
- * @returns {boolean} `true` for elements.
+ * @param {R3Node | null | undefined} node R3 node. `null` / `undefined` is not an element.
+ * @returns {boolean} `true` for elements (narrows to {@link R3Element}).
  */
-function isElementNode(node) {
+function isElementNode(node: R3Node | null | undefined): node is R3Element {
     return typeof node?.name === 'string' && Array.isArray(node.attributes) && Array.isArray(node.children) && !!node.sourceSpan;
 }
 
 /**
  * Child nodes of any R3 node kind.
  *
- * @param {any} node R3 node.
- * @returns {any[]} Direct children (block branches / cases / sub-blocks included).
+ * @param {R3Node | null | undefined} node R3 node. `null` / `undefined` yields no children.
+ * @returns {R3Node[]} Direct children (block branches / cases / sub-blocks included).
  */
-function childNodes(node) {
-    const out = [];
+function childNodes(node: R3Node | null | undefined) {
+    const out: R3Node[] = [];
     for (const key of CHILD_KEYS) {
         const value = node?.[key];
         if (Array.isArray(value))
@@ -68,12 +102,12 @@ function childNodes(node) {
 /**
  * Static words of an element's direct text children.
  *
- * @param {any[]} children Element children.
+ * @param {readonly R3Node[]} children Element children.
  * @param {string} template Template source (for bound text spans).
  * @returns {string[]} Up to 12 lower-cased words of 2+ characters.
  */
-function staticWords(children, template: string) {
-    const parts = [];
+function staticWords(children: readonly R3Node[], template: string) {
+    const parts: string[] = [];
     for (const child of children) {
         if (typeof child?.value === 'string' && !child.name)
             parts.push(child.value);
@@ -86,13 +120,13 @@ function staticWords(children, template: string) {
 /**
  * Flatten R3 template nodes into rendered elements, in document order.
  *
- * @param {any[]} nodes `parseTemplate(...).nodes`.
+ * @param {readonly R3Node[] | null | undefined} nodes `parseTemplate(...).nodes`. `null` / `undefined` yields no elements.
  * @param {string} template Template source the nodes were parsed from.
  * @returns {TemplateElement[]} Rendered elements with parent links.
  */
-export function flattenTemplate(nodes, template: string): TemplateElement[] {
+export function flattenTemplate(nodes: readonly R3Node[] | null | undefined, template: string): TemplateElement[] {
     const out: TemplateElement[] = [];
-    const visit = (node, parent: number) => {
+    const visit = (node: R3Node | null | undefined, parent: number) => {
         if (!isElementNode(node) || TRANSPARENT_TAGS.has(node.name)) {
             for (const child of childNodes(node))
                 visit(child, parent);

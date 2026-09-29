@@ -24,7 +24,7 @@ const SCREENSHOT_FILE_ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
  * @param {string} dataUrl Screenshot payload encoded as a browser data URL.
  * @returns {{ mimeType: string, ext: string, bytes: Buffer }} Parsed MIME type, target extension, and binary bytes.
  */
-function parseDataUrl(dataUrl) {
+function parseDataUrl(dataUrl: string) {
     const match = dataUrl.match(/^data:(image\/(?:png|jpeg|webp));base64,([a-zA-Z0-9+/=]+)$/);
     if (!match)
         throw new Error('Screenshot must be a png, jpeg, or webp data URL');
@@ -44,7 +44,7 @@ function parseDataUrl(dataUrl) {
  * @param {string} outputDir Inspector output directory.
  * @returns {string} Path to the screenshots subdirectory.
  */
-function screenshotsDir(outputDir) {
+function screenshotsDir(outputDir: string) {
     return path.join(outputDir, 'screenshots');
 }
 
@@ -72,7 +72,7 @@ function randomScreenshotFileId(length = SCREENSHOT_FILE_ID_LENGTH) {
  * @param {Buffer} bytes Screenshot bytes to persist.
  * @returns {string} Absolute path of the newly written screenshot file.
  */
-function writeRandomNamedScreenshot(dir, ext, bytes) {
+function writeRandomNamedScreenshot(dir: string, ext: string, bytes: Buffer) {
     for (let attempt = 0; attempt < 20; attempt += 1) {
         const target = path.join(dir, `${randomScreenshotFileId()}.${ext}`);
         try {
@@ -80,7 +80,8 @@ function writeRandomNamedScreenshot(dir, ext, bytes) {
             return target;
         }
         catch (err) {
-            if (err?.code === 'EEXIST')
+            // Strict catch is `unknown`, so `err?.code` is not a property access. The cast is erased.
+            if ((err as { code?: string } | null)?.code === 'EEXIST')
                 continue;
             throw err;
         }
@@ -99,7 +100,7 @@ function writeRandomNamedScreenshot(dir, ext, bytes) {
  * @param {number} nowMs Current timestamp in milliseconds, injectable for tests.
  * @returns {number} Number of expired screenshot files removed.
  */
-export function cleanupExpiredScreenshots(outputDir, projectRoot, nowMs = Date.now()) {
+export function cleanupExpiredScreenshots(outputDir: string, projectRoot: string, nowMs = Date.now()) {
     const dir = screenshotsDir(outputDir);
     assertPathInsideRoot(dir, projectRoot);
     if (!fs.existsSync(dir))
@@ -137,7 +138,10 @@ export function cleanupExpiredScreenshots(outputDir, projectRoot, nowMs = Date.n
  * @param {string} outputDir Inspector output directory.
  * @returns {{ scope: string, filePath: string, mimeType: string, width?: number, height?: number, capturedAt?: string }} Persisted screenshot metadata.
  */
-function writeScreenshotPayload(payload, request, outputDir) {
+/** Browser screenshot payload `writeScreenshotPayload` reads. A missing `dataUrl` throws in `parseDataUrl`. */
+type ScreenshotWritePayload = { dataUrl: string, scope: string, width?: number, height?: number, capturedAt?: string };
+
+function writeScreenshotPayload(payload: ScreenshotWritePayload, request: { projectRoot: string }, outputDir: string) {
     const { mimeType, ext, bytes } = parseDataUrl(payload.dataUrl);
     const dir = screenshotsDir(outputDir);
     assertPathInsideRoot(dir, request.projectRoot);
@@ -159,12 +163,12 @@ function writeScreenshotPayload(payload, request, outputDir) {
  * Boundary: undefined payloads return undefined after cleanup. Passing a malformed payload propagates the parse/write
  * error so the caller can report a failed send instead of building a prompt with a missing image.
  *
- * @param {Record<string, unknown> | undefined} payload Optional browser screenshot payload.
+ * @param {ScreenshotWritePayload | null | undefined} payload Optional browser screenshot payload. Missing data URL or scope throws inside the writer.
  * @param {{ projectRoot: string }} request Intent request carrying the trusted project root.
  * @param {string} outputDir Inspector output directory.
- * @returns {Record<string, unknown> | undefined} Persisted screenshot metadata, if a payload was supplied.
+ * @returns {ReturnType<typeof writeScreenshotPayload> | undefined} Persisted screenshot metadata, if a payload was supplied.
  */
-export function saveScreenshotPayload(payload, request, outputDir) {
+export function saveScreenshotPayload(payload: ScreenshotWritePayload | null | undefined, request: { projectRoot: string }, outputDir: string) {
     cleanupExpiredScreenshots(outputDir, request.projectRoot);
     if (!payload)
         return undefined;
@@ -177,12 +181,12 @@ export function saveScreenshotPayload(payload, request, outputDir) {
  * Boundary: empty or missing arrays return undefined after cleanup. Each payload is written independently with a short
  * random filename, so multiple scopes from one request no longer share the long request id in their names.
  *
- * @param {Array<Record<string, unknown>> | undefined} payloads Optional screenshot payload list.
+ * @param {readonly ScreenshotWritePayload[] | null | undefined} payloads Optional screenshot payload list.
  * @param {{ projectRoot: string }} request Intent request carrying the trusted project root.
  * @param {string} outputDir Inspector output directory.
- * @returns {Array<Record<string, unknown>> | undefined} Persisted screenshot metadata list, if any payloads were supplied.
+ * @returns {Array<ReturnType<typeof writeScreenshotPayload>> | undefined} Persisted screenshot metadata list, if any payloads were supplied.
  */
-export function saveScreenshotPayloads(payloads, request, outputDir) {
+export function saveScreenshotPayloads(payloads: readonly ScreenshotWritePayload[] | null | undefined, request: { projectRoot: string }, outputDir: string) {
     cleanupExpiredScreenshots(outputDir, request.projectRoot);
     if (!payloads?.length)
         return undefined;
@@ -197,7 +201,7 @@ export function saveScreenshotPayloads(payloads, request, outputDir) {
  * @param {string} outputDir Inspector output directory.
  * @returns {string} Path to the recordings subdirectory.
  */
-function recordingsDir(outputDir) {
+function recordingsDir(outputDir: string) {
     return path.join(outputDir, RECORDINGS_SUBDIR);
 }
 
@@ -212,7 +216,7 @@ function recordingsDir(outputDir) {
  * @param {number} nowMs Current timestamp in milliseconds, injectable for tests.
  * @returns {number} Number of expired recording files removed.
  */
-export function cleanupExpiredRecordings(outputDir, projectRoot, nowMs = Date.now()) {
+export function cleanupExpiredRecordings(outputDir: string, projectRoot: string, nowMs = Date.now()) {
     const dir = recordingsDir(outputDir);
     assertPathInsideRoot(dir, projectRoot);
     if (!fs.existsSync(dir))
@@ -239,18 +243,31 @@ export function cleanupExpiredRecordings(outputDir, projectRoot, nowMs = Date.no
 }
 
 /**
+ * Browser recording payload. `stillFrame.dataUrl` is optional so a stream can be stored before a still exists;
+ * a present but malformed data URL still throws in `parseDataUrl`.
+ */
+type RecordingWritePayload = {
+    scope?: string;
+    events?: unknown;
+    clip?: unknown;
+    durationMs?: number;
+    stillFrame?: { dataUrl?: string; width?: number; height?: number } | null;
+    capturedAt?: string;
+};
+
+/**
  * Persist one recording payload: the rrweb event stream as JSON plus the rasterized still frame.
  *
  * Boundary: only the still frame is later referenced in prompts; the `.rrweb.json` stream is for in-browser human review
  * and is never shown to an agent. The events file and still share one random id for easy on-disk correlation. A missing
  * or malformed still data URL throws during parsing so a failed send is reported rather than persisting a half-recording.
  *
- * @param {{ scope?: string, events?: unknown[], clip?: Record<string, unknown>, durationMs?: number, stillFrame?: { dataUrl: string }, capturedAt?: string }} payload Browser recording payload.
+ * @param {RecordingWritePayload} payload Browser recording payload. A malformed still `dataUrl` throws in `parseDataUrl`.
  * @param {{ projectRoot: string }} request Intent request carrying the trusted project root.
  * @param {string} outputDir Inspector output directory.
- * @returns {{ scope: string, eventsPath: string, stillFramePath?: string, clip?: Record<string, unknown>, durationMs?: number, capturedAt?: string }} Persisted recording metadata.
+ * @returns {{ scope: string, eventsPath: string, stillFramePath?: string, clip?: unknown, durationMs?: number, capturedAt?: string }} Persisted recording metadata.
  */
-function writeRecordingPayload(payload, request, outputDir) {
+function writeRecordingPayload(payload: RecordingWritePayload, request: { projectRoot: string }, outputDir: string) {
     const dir = recordingsDir(outputDir);
     assertPathInsideRoot(dir, request.projectRoot);
     fs.mkdirSync(dir, { recursive: true });
@@ -261,7 +278,7 @@ function writeRecordingPayload(payload, request, outputDir) {
         eventsPath = path.join(dir, `${id}.rrweb.json`);
     }
     fs.writeFileSync(eventsPath, JSON.stringify(payload.events ?? []), 'utf8');
-    let stillFramePath;
+    let stillFramePath: string | undefined;
     if (payload.stillFrame?.dataUrl) {
         const { ext, bytes } = parseDataUrl(payload.stillFrame.dataUrl);
         stillFramePath = path.join(dir, `${id}.${ext}`);
@@ -283,12 +300,12 @@ function writeRecordingPayload(payload, request, outputDir) {
  * Boundary: empty or missing arrays return undefined after cleanup. Each recording is written independently. Throws on a
  * malformed still data URL so the caller can report a failed send instead of building a prompt with a missing frame.
  *
- * @param {Array<Record<string, unknown>> | undefined} payloads Optional recording payload list.
+ * @param {readonly RecordingWritePayload[] | null | undefined} payloads Optional recording payload list.
  * @param {{ projectRoot: string }} request Intent request carrying the trusted project root.
  * @param {string} outputDir Inspector output directory.
- * @returns {Array<Record<string, unknown>> | undefined} Persisted recording metadata list, if any payloads were supplied.
+ * @returns {Array<ReturnType<typeof writeRecordingPayload>> | undefined} Persisted recording metadata list, if any payloads were supplied.
  */
-export function saveRecordingPayloads(payloads, request, outputDir) {
+export function saveRecordingPayloads(payloads: readonly RecordingWritePayload[] | null | undefined, request: { projectRoot: string }, outputDir: string) {
     cleanupExpiredRecordings(outputDir, request.projectRoot);
     if (!payloads?.length)
         return undefined;

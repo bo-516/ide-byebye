@@ -12,8 +12,11 @@ import path from 'node:path';
  *   C:\\path\\to\\App.tsx:12:8                         (Windows)
  *
  * Throws when a line/column pair cannot be recovered.
+ *
+ * @param {unknown} raw Attribute value. Non-strings throw.
+ * @returns {{ file: string, line: number, column: number }} Normalized path and 1-based position.
  */
-export function parseInspPath(raw) {
+export function parseInspPath(raw: unknown) {
     if (!raw || typeof raw !== 'string') {
         throw new Error('Empty data-insp-path attribute');
     }
@@ -56,7 +59,15 @@ export function parseInspPath(raw) {
     }
     throw new Error(`Cannot parse line/column from data-insp-path: ${raw}`);
 }
-function finalize(file, line, column) {
+/**
+ * Normalize a recovered path and position.
+ *
+ * @param {string} file Filesystem path, possibly still encoded.
+ * @param {number} line 1-based line. Values below 1 throw.
+ * @param {number} column 1-based column. Non-finite or below 1 becomes 1.
+ * @returns {{ file: string, line: number, column: number }}
+ */
+function finalize(file: string, line: number, column: number) {
     if (!file) {
         throw new Error('data-insp-path resolved to an empty file path');
     }

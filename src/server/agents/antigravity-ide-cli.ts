@@ -25,7 +25,7 @@ const DARWIN_APP_CLI = '/Applications/Antigravity IDE.app/Contents/Resources/app
  * @param {{ projectRoot: string }} context Agent context carrying the bundler project root.
  * @returns {string} Absolute workspace directory passed to the IDE CLI.
  */
-export function resolveAntigravityIdeProjectRoot(config, context) {
+export function resolveAntigravityIdeProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot: string }) {
     const configured = typeof config?.projectRoot === 'string' ? config.projectRoot.trim() : '';
     return configured ? path.resolve(configured) : context.projectRoot;
 }
@@ -65,9 +65,9 @@ export function resolveAntigravityIdeCommandCandidates(config: any = {}, options
  * @param {Record<string, unknown>} request Normalized intent request.
  * @returns {string[]} Unique absolute paths, unfiltered.
  */
-export function collectAntigravityIdeContextFiles(request) {
-    const files = [];
-    const add = (filePath) => {
+export function collectAntigravityIdeContextFiles(request: Parameters<typeof buildPromptReferenceLines>[0] | null | undefined) {
+    const files: string[] = [];
+    const add = (filePath: unknown) => {
         if (typeof filePath === 'string' && filePath && !files.includes(filePath))
             files.push(filePath);
     };
@@ -100,7 +100,7 @@ export function collectAntigravityIdeContextFiles(request) {
  * @param {string[]} roots Trusted directories (plugin project root, IDE workspace).
  * @returns {string[]} Paths safe to pass as `--add-file`.
  */
-export function retainPathsInsideRoots(files, roots) {
+export function retainPathsInsideRoots(files: string[], roots: string[]) {
     const trusted = (roots ?? []).filter((root) => typeof root === 'string' && root);
     return (files ?? []).filter((file) => trusted.some((root) => isInsideRoot(file, root)));
 }
@@ -116,7 +116,7 @@ export function retainPathsInsideRoots(files, roots) {
  * @param {string} prompt Rendered prompt text.
  * @returns {boolean} True when the full prompt should be replaced by a pointer.
  */
-export function shouldWriteAntigravityIdePromptFile(config, prompt) {
+export function shouldWriteAntigravityIdePromptFile(config: { promptMode?: unknown, promptArgLimit?: unknown } | null | undefined, prompt: string) {
     const text = String(prompt ?? '');
     const mode = config?.promptMode ?? 'auto';
     if (mode === 'file' || text.startsWith('-'))
@@ -138,7 +138,7 @@ export function shouldWriteAntigravityIdePromptFile(config, prompt) {
  * @param {string} promptPath Absolute handoff markdown path.
  * @returns {string} Prompt ending with a newline.
  */
-export function buildAntigravityIdeFilePrompt(request, promptPath) {
+export function buildAntigravityIdeFilePrompt(request: Parameters<typeof buildPromptReferenceLines>[0], promptPath: string) {
     const intent = String(request?.intent ?? '').trim();
     const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
     return ['Request file:', promptPath, ...refs, '', intent].join('\n').trim() + '\n';
@@ -154,7 +154,7 @@ export function buildAntigravityIdeFilePrompt(request, promptPath) {
  * @param {Record<string, unknown>} input Launcher fields.
  * @returns {string} Empty, `--new-window`, or `--reuse-window`.
  */
-function bashOpenFlag(input) {
+function bashOpenFlag(input: { newWindow?: unknown, reuseWindow?: unknown }) {
     if (input.newWindow)
         return ' --new-window';
     if (input.reuseWindow)
@@ -171,7 +171,7 @@ function bashOpenFlag(input) {
  * @param {{ command: string, cwd: string, newWindow?: boolean, reuseWindow?: boolean }} input Launcher fields.
  * @returns {string} Bash script including the shebang.
  */
-export function buildAntigravityIdeLauncherScript(input) {
+export function buildAntigravityIdeLauncherScript(input: { command: string, cwd: string, newWindow?: boolean, reuseWindow?: boolean }) {
     const command = shellSingleQuote(input.command);
     const cwd = shellSingleQuote(input.cwd);
     return [
@@ -192,7 +192,7 @@ export function buildAntigravityIdeLauncherScript(input) {
  * @param {{ command: string, cwd: string, newWindow?: boolean, reuseWindow?: boolean }} input Launcher fields.
  * @returns {string} `.cmd` contents (CRLF).
  */
-export function buildAntigravityIdeWindowsLauncherScript(input) {
+export function buildAntigravityIdeWindowsLauncherScript(input: { command: string, cwd: string, newWindow?: boolean, reuseWindow?: boolean }) {
     const command = powershellSingleQuote(input.command);
     const cwd = powershellSingleQuote(input.cwd);
     const openFlag = input.newWindow ? ' --new-window' : input.reuseWindow ? ' --reuse-window' : '';
@@ -217,11 +217,11 @@ export function antigravityIdeLauncherExtension(platform = process.platform) {
 /**
  * Launcher body for the platform.
  *
- * @param {Record<string, unknown>} input Fields accepted by the bash / PowerShell builders.
+ * @param {{ command: string, cwd: string, newWindow?: boolean, reuseWindow?: boolean, promptPath?: string }} input Fields accepted by the bash / PowerShell builders. `promptPath` is ignored; the prompt stays in a separate file.
  * @param {string} [platform=process.platform] Node platform id.
  * @returns {string} Script contents.
  */
-export function buildAntigravityIdeLauncherFile(input, platform = process.platform) {
+export function buildAntigravityIdeLauncherFile(input: { command: string, cwd: string, newWindow?: boolean, reuseWindow?: boolean, promptPath?: string }, platform = process.platform) {
     return platform === 'win32'
         ? buildAntigravityIdeWindowsLauncherScript(input)
         : buildAntigravityIdeLauncherScript(input);

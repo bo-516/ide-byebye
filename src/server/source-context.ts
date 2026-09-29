@@ -16,7 +16,7 @@ import { extractVueFromCode } from './ast/vue-locator.js';
  * @param {string} file Absolute or relative path (only the extension is used).
  * @returns {'tsx'|'jsx'|'ts'|'js'|'vue'|'svelte'|'unknown'}
  */
-export function detectLanguage(file) {
+export function detectLanguage(file: string) {
     const ext = path.extname(file).toLowerCase();
     switch (ext) {
         case '.tsx':
@@ -63,7 +63,7 @@ const LOCATOR_FIELDS = [
  *        Hit position and source; `column` is forwarded as parsed from `data-insp-path`.
  * @returns {Record<string, unknown>} Locator fields (see {@link LOCATOR_FIELDS}).
  */
-function runLocator(language, input) {
+function runLocator(language: string, input: { file: string, code: string, line: number, column: number, maxContextLines: number, maxComponentLines: number }) {
     const { file, code, line, column, maxContextLines, maxComponentLines } = input;
     if (language === 'vue')
         return extractVueFromCode(code, line, column, maxComponentLines, extractJsxFromCode, file);
@@ -79,7 +79,12 @@ function runLocator(language, input) {
  * @param {Record<string, unknown>} inner Locator output.
  * @returns {Record<string, unknown>} `base` with AST fields merged.
  */
-function mergeLocatorFields(base, inner) {
+function mergeLocatorFields(base: Record<string, unknown> & {
+    containingComponentRange?: { startLine: number, endLine: number };
+    selectedNodeRange?: { startLine: number, endLine: number };
+    startLine: number;
+    endLine: number;
+}, inner: Record<string, unknown>) {
     for (const key of LOCATOR_FIELDS) {
         if (inner[key] != null && inner[key] !== '')
             base[key] = inner[key];
@@ -107,7 +112,7 @@ function mergeLocatorFields(base, inner) {
  * @param {{ file: string, line: number, column: number, maxContextLines?: number, maxComponentLines?: number, angular?: import('../shared/angular-hint.js').AngularHint | null, projectRoot?: string }} opts
  * @returns {object} SourceContext fields for the prompt pipeline.
  */
-export function extractSourceContext(opts) {
+export function extractSourceContext(opts: { file: string, line: number, column: number, maxContextLines?: number, maxComponentLines?: number, angular?: import('../shared/angular-hint.js').AngularHint | null, projectRoot?: string }) {
     const { file, line, column, maxContextLines = DEFAULT_MAX_SOURCE_CONTEXT_LINES, maxComponentLines = DEFAULT_MAX_COMPONENT_LINES, angular, projectRoot, } = opts;
     const code = fs.readFileSync(file, 'utf8');
     const lines = code.split('\n');

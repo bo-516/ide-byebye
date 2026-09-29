@@ -11,8 +11,11 @@
  * when collecting a component's returns — they are components of their own, or plain functions.
  */
 
+import type { Scope } from './jsx-bind.js';
 import { PATH_ATTR } from './stamp-edits.js';
+import type { StampNode } from './stamp-edits.js';
 import { isClass, isFunction, isObjectMethod } from './jsx-bindings.js';
+import type { ScopedNode, ScopeIndex } from './jsx-bindings.js';
 import { paramPlan, propertyName } from './jsx-params.js';
 import { collectRootTargets, estimateRootCount, type RootTarget } from './jsx-roots.js';
 
@@ -29,11 +32,11 @@ export interface PropPlan {
  * whether a value is actually written; it must call `plan.insert` only for plans whose `starts`
  * were written. Class components have no parameter plan.
  *
- * @param {object} input `scopes` from `buildScopes`, plus the parsed `code`.
+ * @param {{ scopes: ScopeIndex, code: string }} input `scopes` from `buildScopes`, plus the parsed `code`.
  * @param {Map<number, string>} dynamic Local opening-element or call `start` → callsite expression.
  * @returns {PropPlan[]} One plan per function component that has a usable first parameter.
  */
-export function componentPropagations(input, dynamic: Map<number, string>): PropPlan[] {
+export function componentPropagations(input: { scopes: ScopeIndex, code: string }, dynamic: Map<number, string>): PropPlan[] {
     const { scopes, code } = input;
     const plans: PropPlan[] = [];
     for (const item of scopes.functions) {
@@ -42,8 +45,8 @@ export function componentPropagations(input, dynamic: Map<number, string>): Prop
         const plan = paramPlan(item.node, code);
         if (!plan)
             continue;
-        const targets = [];
-        eachRoot(item.node, scopes, (expression, scope) => {
+        const targets: RootTarget[] = [];
+        eachRoot(item.node, scopes, (expression: StampNode | null | undefined, scope: Scope | null) => {
             if (estimateRootCount(expression, scope) > 1)
                 return;
             targets.push(...collectRootTargets(expression, scope));
@@ -57,7 +60,7 @@ export function componentPropagations(input, dynamic: Map<number, string>): Prop
             continue;
         const expr = `this.props && this.props[${JSON.stringify(PATH_ATTR)}]`;
         for (const method of renderMethods(item.node)) {
-            eachRoot(method.value, scopes, (expression, scope) => {
+            eachRoot(method!.value as StampNode | null | undefined, scopes, (expression: StampNode | null | undefined, scope: Scope | null) => {
                 if (estimateRootCount(expression, scope) > 1)
                     return;
                 rememberTargets(collectRootTargets(expression, scope), expr, dynamic);
@@ -68,7 +71,7 @@ export function componentPropagations(input, dynamic: Map<number, string>): Prop
 }
 
 function rememberTargets(targets: RootTarget[], expr: string, dynamic: Map<number, string>): number[] {
-    const starts = [];
+    const starts: number[] = [];
     for (const target of targets) {
         const start = target.type === 'jsx' ? target.node.openingElement?.start : target.node.start;
         if (typeof start !== 'number' || dynamic.has(start))
@@ -79,39 +82,39 @@ function rememberTargets(targets: RootTarget[], expr: string, dynamic: Map<numbe
     return starts;
 }
 
-function isComponentFunction(item, scopes): boolean {
+function isComponentFunction(item: ScopedNode, scopes: ScopeIndex): boolean {
     const name = ownerName(item.node, item.ancestors);
     if (name)
         return /^[A-Z]/.test(name);
     return hasExportDefault(item.ancestors) && hasRenderable(item.node, scopes);
 }
 
-function isComponentClass(item, scopes): boolean {
+function isComponentClass(item: ScopedNode, scopes: ScopeIndex): boolean {
     const renders = renderMethods(item.node);
     if (!item.node.superClass || renders.length === 0)
         return false;
     const name = ownerName(item.node, item.ancestors);
     if (name)
         return /^[A-Z]/.test(name);
-    return hasExportDefault(item.ancestors) && renders.some((method) => hasRenderable(method.value, scopes));
+    return hasExportDefault(item.ancestors) && renders.some((method) => hasRenderable(method!.value as StampNode | null | undefined, scopes));
 }
 
-function ownerName(node, ancestors): string {
+function ownerName(node: StampNode, ancestors: StampNode[]): string {
     if (node.id?.type === 'Identifier' && node.id.name)
-        return node.id.name;
+        return node.id.name as string;
     for (let i = ancestors.length - 1; i >= 0; i--) {
-        const current = ancestors[i];
+        const current = ancestors[i]!;
         if (current.type === 'VariableDeclarator' && current.id?.type === 'Identifier')
-            return current.id.name;
+            return current.id.name as string;
         if (current.type === 'AssignmentExpression' && current.left?.type === 'Identifier')
-            return current.left.name;
+            return current.left.name as string;
         if (isFunction(current) || isClass(current) || isObjectMethod(current) || current.type === 'MethodDefinition')
             break;
     }
     return '';
 }
 
-function hasExportDefault(ancestors): boolean {
+function hasExportDefault(ancestors: StampNode[]): boolean {
     for (let i = ancestors.length - 1; i >= 0; i--) {
         const current = ancestors[i];
         if (current.type === 'ExportDefaultDeclaration')
@@ -122,9 +125,9 @@ function hasExportDefault(ancestors): boolean {
     return false;
 }
 
-function hasRenderable(fn, scopes): boolean {
+function hasRenderable(fn: StampNode | null | undefined, scopes: ScopeIndex): boolean {
     let found = false;
-    eachRoot(fn, scopes, (expression, scope) => {
+    eachRoot(fn, scopes, (expression: StampNode | null | undefined, scope: Scope | null) => {
         if (collectRootTargets(expression, scope).length > 0)
             found = true;
     });
@@ -134,26 +137,26 @@ function hasRenderable(fn, scopes): boolean {
 /**
  * Visit each return argument, or the arrow expression body, without entering nested functions or classes.
  *
- * @param {object} fn Function node.
- * @param {object} scopes Scope index.
- * @param {(expression: object, scope: object) => void} visit
+ * @param {StampNode | null | undefined} fn Function node.
+ * @param {ScopeIndex} scopes Scope index.
+ * @param {(expression: StampNode | null | undefined, scope: Scope | null) => void} visit
  */
-function eachRoot(fn, scopes, visit) {
+function eachRoot(fn: StampNode | null | undefined, scopes: ScopeIndex, visit: (expression: StampNode | null | undefined, scope: Scope | null) => void) {
     if (!fn?.body)
         return;
     if (fn.body.type !== 'BlockStatement') {
         visit(fn.body, scopes.scopeOf(fn.body));
         return;
     }
-    const stack = [{ node: fn.body, blocked: false }];
+    const stack: Array<{ node: StampNode, blocked: boolean }> = [{ node: fn.body, blocked: false }];
     while (stack.length) {
-        const { node, blocked } = stack.pop();
+        const { node, blocked } = stack.pop()!;
         if (!node || typeof node !== 'object' || blocked)
             continue;
         if (node.type === 'ReturnStatement')
             visit(node.argument, scopes.scopeOf(node));
         for (const key of Object.keys(node)) {
-            const child = node[key];
+            const child = node[key as keyof typeof node];
             const children = Array.isArray(child) ? child : [child];
             for (const item of children) {
                 if (!item || typeof item.type !== 'string')
@@ -165,8 +168,8 @@ function eachRoot(fn, scopes, visit) {
     }
 }
 
-function renderMethods(classNode) {
-    return (classNode.body?.body ?? []).filter((member) => member?.type === 'MethodDefinition'
+function renderMethods(classNode: StampNode): Array<StampNode | null | undefined> {
+    return (classNode.body?.body as (Array<StampNode | null | undefined> | null | undefined) ?? []).filter((member) => member?.type === 'MethodDefinition'
         && !member.computed
         && propertyName(member.key) === 'render'
         && member.value);

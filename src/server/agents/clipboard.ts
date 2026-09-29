@@ -8,7 +8,11 @@ export const clipboardAdapter = {
     async isAvailable() {
         return { available: true };
     },
-    async send(request, context) {
+    /**
+     * @param request Intent request. Only `id` is copied onto the result.
+     * @param context Route context. `prompt` is the text the page copies; `emit` records the two status events.
+     */
+    async send(request: { id: string }, context: { emit: (event: { type: string, text?: string }) => void, prompt: string }) {
         context.emit({ type: 'started', text: 'Generating prompt for clipboard' });
         context.emit({ type: 'completed', text: 'Prompt ready to copy' });
         return {

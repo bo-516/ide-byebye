@@ -11,10 +11,10 @@ import {
  * Boundary: non-finite values (including a missing option) become the default 20. Fractional numbers are truncated
  * toward zero before clamping, so `20.9` is 20.
  *
- * @param {unknown} value Configured `sessions.limit`.
+ * @param {unknown} value Configured `sessions.limit`. Non-numbers become the default.
  * @returns {number} Integer from 1 to 50.
  */
-function clampLimit(value) {
+function clampLimit(value: unknown) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed))
         return SESSION_LIMIT_DEFAULT;
@@ -27,10 +27,10 @@ function clampLimit(value) {
  * Boundary: omitted or non-finite values use 30 days. Zero and negative values also fall back to 30 so a typo cannot
  * hide every rollout. The number is a day count, not a directory-name date.
  *
- * @param {unknown} value Configured `sessions.lookbackDays`.
+ * @param {unknown} value Configured `sessions.lookbackDays`. Non-positive values become the default.
  * @returns {number} Positive day count.
  */
-function clampLookback(value) {
+function clampLookback(value: unknown) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0)
         return SESSION_LOOKBACK_DAYS_DEFAULT;

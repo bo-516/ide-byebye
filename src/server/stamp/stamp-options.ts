@@ -86,10 +86,11 @@ export function resetStampOptionWarnings(): void {
     deprecatedWarned = false;
 }
 
-function asList(value): Array<string | RegExp> {
+function asList(value: unknown): Array<string | RegExp> {
     if (value == null)
         return [];
-    return Array.isArray(value) ? value : [value];
+    // The assertions are erased. A bad pattern still reaches the caller and is rejected later.
+    return Array.isArray(value) ? value as Array<string | RegExp> : [value as string | RegExp];
 }
 
 /**
@@ -111,24 +112,25 @@ export function serializeStampOptions(options: IdeByebyeOptions | undefined) {
 /**
  * Restore loader options, including RegExps that were serialized as `{ source, flags }`.
  *
- * @param {object} raw Options object from `this.getOptions()`. A missing object means stamping on with no filters.
+ * @param {{ enabled?: unknown, include?: unknown, exclude?: unknown, escapeTags?: unknown } | null | undefined} raw Options object from `this.getOptions()`. A missing object means stamping on with no filters.
  * @returns {ResolvedStampOptions}
  */
-export function reviveStampOptions(raw): ResolvedStampOptions {
+export function reviveStampOptions(raw: { enabled?: unknown, include?: unknown, exclude?: unknown, escapeTags?: unknown } | null | undefined): ResolvedStampOptions {
     return {
         enabled: raw?.enabled !== false,
-        include: reviveList(raw?.include),
-        exclude: reviveList(raw?.exclude),
-        escapeTags: reviveList(raw?.escapeTags),
+        include: reviveList(raw?.include as Parameters<typeof reviveList>[0]),
+        exclude: reviveList(raw?.exclude as Parameters<typeof reviveList>[0]),
+        escapeTags: reviveList(raw?.escapeTags as Parameters<typeof reviveList>[0]),
     };
 }
 
-function serializeList(list) {
+function serializeList(list: ReadonlyArray<string | RegExp> | null | undefined) {
     return (list ?? []).map((item) => item instanceof RegExp ? { source: item.source, flags: item.flags } : item);
 }
 
-function reviveList(list) {
-    return (list ?? []).map((item) => (item && typeof item === 'object' && typeof item.source === 'string')
+function reviveList(list: Array<{ source?: unknown, flags?: string } | string | RegExp | null> | null | undefined): Array<string | RegExp> {
+    // `(list ?? [])` is the original expression. A non-array still throws on `.map`; do not coerce it to [].
+    return (list ?? []).map((item): string | RegExp => (item && typeof item === 'object' && typeof item.source === 'string')
         ? new RegExp(item.source, item.flags || '')
-        : item);
+        : item as string | RegExp);
 }

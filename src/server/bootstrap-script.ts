@@ -48,7 +48,7 @@ export function consoleFilterSnippet() {
     ].join('\n');
 }
 
-export function buildBootstrapStatement({ config, clientSrc }) {
+export function buildBootstrapStatement({ config, clientSrc }: { config: unknown, clientSrc: string }) {
     return [
         ';(function () {',
         consoleFilterSnippet(),

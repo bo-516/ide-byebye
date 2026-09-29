@@ -15,6 +15,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import type { PluginBuild } from 'esbuild';
 import { createUnplugin } from 'unplugin';
 import type { IdeByebyeOptions } from '../../types.js';
 import { isUnincludedNodeModule, stampModule, type StampFamily } from './stamp-module.js';
@@ -142,7 +143,7 @@ function familyOf(framework: string): StampFamily {
  * @param {ResolvedStampOptions} resolved Stamp switch from {@link resolveStampOptions}.
  * @returns {void}
  */
-function installEsbuild(build, options: IdeByebyeOptions, resolved: ResolvedStampOptions) {
+function installEsbuild(build: PluginBuild, options: IdeByebyeOptions, resolved: ResolvedStampOptions) {
     build.onLoad({ filter: ESBUILD_FILTER }, async (args) => {
         if (process.env.NODE_ENV === 'production' || options?.enabled === false || !resolved.enabled)
             return null;
@@ -185,7 +186,7 @@ function esbuildLoader(file: string) {
     return 'js';
 }
 
-function warnIfAfterFramework(plugins) {
+function warnIfAfterFramework(plugins: ReadonlyArray<{ name?: string } | null | undefined> | null | undefined) {
     if (orderWarned || !Array.isArray(plugins))
         return;
     const mine = plugins.findIndex((plugin) => plugin?.name === STAMP_NAME);

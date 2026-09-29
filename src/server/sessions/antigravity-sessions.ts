@@ -8,11 +8,51 @@ import { readSessionPicker } from './options.js';
 import { buildProjectScope, matchSessionCwd, normalizeScopePath, sessionLocation, sessionProjectName } from './project-scope.js';
 import { sessionErrorText, sessionTitle } from './types.js';
 
-const WORKING_STATUSES = new Set([
+/** Run states treated as `working`. `undefined` is included so a missing status can be passed to `Set.has` and stays idle. */
+const WORKING_STATUSES = new Set<string | undefined>([
     'CASCADE_RUN_STATUS_RUNNING',
     'CASCADE_RUN_STATUS_CANCELING',
     'CASCADE_RUN_STATUS_BUSY',
 ]);
+
+/**
+ * Test double for discovery and the loopback RPC. Every field is optional; production passes `{}` or omits `io`.
+ *
+ * Boundary: `processText` skips the process spawn. `readCert` and `exchange` replace the cert read and HTTPS call.
+ * `readCert` / `exchange` stay `Function` so a test method with a narrower parameter still assigns.
+ * `platform` is a plain string: callers pass `'darwin'` / `'win32'`, and the cert helper only compares it to `'win32'`.
+ */
+interface AntigravitySessionIo {
+    processText?: string;
+    uid?: number | null;
+    platform?: string;
+    readCert?: Function;
+    exchange?: Function;
+}
+
+/**
+ * Cascade the send RPC addresses.
+ *
+ * Boundary: `route.languageServerPort` picks the discovered server. `cwd` is the thread folder used when the prompt
+ * is rebuilt. `status` selects immediate delivery versus queue-when-idle. Other catalog fields are ignored here.
+ */
+interface AntigravityTargetSession {
+    id: string;
+    cwd?: string;
+    status?: string;
+    route?: { languageServerPort?: number };
+}
+
+/**
+ * Discovered language server fields the send path reads.
+ *
+ * Boundary: `exe` is only for the bundled CA path. `csrfToken` stays on this object and is not copied to the result.
+ */
+interface AntigravityServerRef {
+    port: number;
+    csrfToken: string;
+    exe: string;
+}
 
 /**
  * Map a trajectory summary's run state onto the shared status codes.
@@ -20,10 +60,11 @@ const WORKING_STATUSES = new Set([
  * Boundary: `killed` rows are omitted by the caller before this runs. Running, canceling, busy, or `notFullyIdle`
  * are `working` even when `waitingSteps` is also set. A non-empty `waitingSteps` is otherwise `waiting`.
  *
- * @param {Record<string, unknown>} summary One `CascadeTrajectorySummary`.
+ * @param {{ status?: string, notFullyIdle?: unknown, waitingSteps?: unknown } | null | undefined} summary
+ *        One `CascadeTrajectorySummary`. A missing object is idle. `waitingSteps` is only tested with `Array.isArray`.
  * @returns {'working' | 'waiting' | 'idle'}
  */
-function statusOf(summary) {
+function statusOf(summary: { status?: string; notFullyIdle?: unknown; waitingSteps?: unknown } | null | undefined) {
     if (WORKING_STATUSES.has(summary?.status) || summary?.notFullyIdle === true)
         return 'working';
     if (Array.isArray(summary?.waitingSteps) && summary.waitingSteps.length > 0)
@@ -34,10 +75,10 @@ function statusOf(summary) {
 /**
  * Turn `file://` workspace URIs into a filesystem path.
  *
- * @param {unknown} uri `workspaceFolderAbsoluteUri` or a raw path.
+ * @param {unknown} uri `workspaceFolderAbsoluteUri` or a raw path. Non-strings become `''`.
  * @returns {string} Absolute path, or `''` when the URI cannot be parsed.
  */
-function cwdFromWorkspace(uri) {
+function cwdFromWorkspace(uri: unknown) {
     if (typeof uri !== 'string' || !uri)
         return '';
     if (uri.startsWith('file:')) {
@@ -60,9 +101,9 @@ function cwdFromWorkspace(uri) {
  * @param {string | string[]} projectRoots Inspector root and its realpath, either or both.
  * @returns {string[]} Distinct directories.
  */
-function workspaceRoots(projectRoots) {
-    const roots = [];
-    const push = (value) => {
+function workspaceRoots(projectRoots: string | string[]) {
+    const roots: string[] = [];
+    const push = (value: unknown) => {
         if (typeof value === 'string' && value && !roots.includes(value))
             roots.push(value);
     };
@@ -95,7 +136,7 @@ function workspaceRoots(projectRoots) {
  * @param {string | string[]} projectRoots Inspector project root, before and after realpath.
  * @returns {boolean} True when the flag points at this project.
  */
-function workspaceMatches(workspaceId, projectRoots) {
+function workspaceMatches(workspaceId: string, projectRoots: string | string[]) {
     if (!workspaceId)
         return false;
     for (const root of workspaceRoots(projectRoots)) {
@@ -122,10 +163,11 @@ function workspaceMatches(workspaceId, projectRoots) {
  * Boundary: ISO strings pass through. Numeric seconds or milliseconds are converted. Anything else becomes the
  * current time so the row still sorts instead of dropping out.
  *
- * @param {unknown} value Summary timestamp.
+ * @param {string | number | { seconds?: unknown } | null | undefined} value Summary timestamp. A `{ seconds }` object is
+ *        treated as epoch seconds. Anything else becomes the current time.
  * @returns {string} ISO 8601.
  */
-function updatedAtFrom(value) {
+function updatedAtFrom(value: string | number | { seconds?: unknown } | null | undefined) {
     if (typeof value === 'string' && Number.isFinite(Date.parse(value)))
         return new Date(value).toISOString();
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -148,7 +190,7 @@ function updatedAtFrom(value) {
  * @param {string} prompt Prompt text. v1 sends text only; screenshot paths may already be inside it.
  * @returns {Record<string, unknown>} JSON body.
  */
-export function buildCascadeSendBody(session, prompt) {
+export function buildCascadeSendBody(session: { id: string, status?: string }, prompt: string) {
     const body: Record<string, unknown> = {
         cascadeId: session.id,
         items: [{ text: String(prompt ?? '') }],
@@ -165,7 +207,7 @@ export function buildCascadeSendBody(session, prompt) {
  * @param {string} [platform] Path platform.
  * @returns {Promise<Buffer>} PEM contents.
  */
-function readBundledCert(ls, platform = process.platform) {
+function readBundledCert(ls: { exe: string }, platform: string = process.platform) {
     return fs.promises.readFile(certPathForLanguageServer(ls.exe, platform));
 }
 
@@ -177,10 +219,16 @@ function readBundledCert(ls, platform = process.platform) {
  * that returned it. CSRF tokens stay on `servers` and are not copied onto session rows. `io.exchange` replaces the
  * network in tests.
  *
- * @param {{ projectRoot: string, config?: Record<string, unknown>, io?: Record<string, unknown> }} input
+ * @param {{ projectRoot: string, config?: { experimentalSessions?: boolean, sessions?: unknown }, io?: AntigravitySessionIo }} input
+ *        `config` is only read by the picker (`sessions`). `experimentalSessions` is accepted so the adapter can pass
+ *        its whole config object. `io` is the language-server transport, not a filesystem.
  * @returns {Promise<{ sessions: Array<Record<string, unknown>>, servers: Array<Record<string, unknown>>, delivery: 'submit', notice?: string }>}
  */
-export async function listAntigravitySessions(input) {
+export async function listAntigravitySessions(input: {
+    projectRoot: string;
+    config?: { experimentalSessions?: boolean; sessions?: unknown };
+    io?: AntigravitySessionIo;
+}) {
     const io = input.io ?? {};
     const delivery = 'submit';
     const picker = readSessionPicker(input.config ?? {});
@@ -190,7 +238,7 @@ export async function listAntigravitySessions(input) {
     // `io` is the language-server transport, not a filesystem. Scope checks use the real disk.
     const scope = buildProjectScope(input.projectRoot);
     const byId = new Map();
-    const readCert = io.readCert ?? ((ls) => readBundledCert(ls, io.platform));
+    const readCert = io.readCert ?? ((ls: { exe: string }) => readBundledCert(ls, io.platform));
     for (const ls of servers) {
         let response;
         try {
@@ -246,10 +294,16 @@ export async function listAntigravitySessions(input) {
  * are returned as codes and do not fall back to reading the IDE credential database. The CSRF token is read from
  * the language-server descriptor already in memory.
  *
- * @param {{ session: Record<string, unknown>, prompt: string, servers: Array<Record<string, unknown>>, io?: Record<string, unknown> }} input
+ * @param {{ session: AntigravityTargetSession, prompt: string, servers?: AntigravityServerRef[], io?: AntigravitySessionIo }} input
+ *        `servers` is the list from {@link listAntigravitySessions}. An empty list cannot be addressed.
  * @returns {Promise<{ ok: boolean, code?: string, error?: string }>} Delivery result. `ok: true` means the RPC was accepted.
  */
-export async function sendToAntigravityConversation(input) {
+export async function sendToAntigravityConversation(input: {
+    session: AntigravityTargetSession;
+    prompt: string;
+    servers?: AntigravityServerRef[];
+    io?: AntigravitySessionIo;
+}) {
     const session = input.session;
     const servers = input.servers ?? [];
     const port = session?.route?.languageServerPort;
@@ -257,13 +311,17 @@ export async function sendToAntigravityConversation(input) {
     if (!ls)
         return { ok: false, code: 'ls-unreachable', error: sessionErrorText('ls-unreachable') };
     const io = input.io ?? {};
-    const readCert = io.readCert ?? ((server) => readBundledCert(server, io.platform));
+    const readCert = io.readCert ?? ((server: { exe: string }) => readBundledCert(server, io.platform));
     const transport = { readCert, exchange: io.exchange };
     try {
         await callLanguageServer(ls, 'SendUserCascadeMessage', buildCascadeSendBody(session, input.prompt), transport);
     }
     catch (err) {
-        const code = err?.code === 'ls-tls' || err?.code === 'ls-requires-credentials' ? err.code : 'ls-unreachable';
+        // Strict catch is `unknown`, so `err.code` is not a property access. The casts are erased.
+        const code = (err as { code?: string } | null)?.code === 'ls-tls'
+            || (err as { code?: string } | null)?.code === 'ls-requires-credentials'
+            ? (err as { code: string }).code
+            : 'ls-unreachable';
         return { ok: false, code, error: sessionErrorText(code) };
     }
     try {
@@ -281,22 +339,24 @@ export async function sendToAntigravityConversation(input) {
  * Boundary: tokens never leave this closure. `list` refreshes the cache; `send` uses it and, if the port is gone,
  * lists once more. Disabled when `experimentalSessions` is not exactly `true`.
  *
- * @param {Record<string, unknown>} config Antigravity IDE adapter config.
- * @returns {{ enabled: boolean, list: Function, send: Function }}
+ * @param {Record<string, unknown>} config Antigravity IDE adapter config. `experimentalSessions` must be exactly `true`.
+ *        `sessionIo` is forwarded as the list/send transport.
+ * @returns {{ enabled: boolean, list: (projectRoot: string) => Promise<{ sessions: unknown[], delivery: string, notice?: string }>, send: (request: { id: string }, context: { projectRoot: string, targetSession: AntigravityTargetSession }) => Promise<Record<string, unknown>> }}
+ *          `list` refreshes the cached servers. `send` delivers into `context.targetSession`.
  */
 export function createAntigravitySessionBridge(config: any = {}) {
     let servers: any[] = [];
     const enabled = config.experimentalSessions === true;
     return {
         enabled,
-        async list(projectRoot) {
+        async list(projectRoot: string) {
             if (!enabled)
                 return { sessions: [], delivery: 'submit', notice: 'ide-not-running' };
             const listed = await listAntigravitySessions({ projectRoot, config, io: config.sessionIo });
             servers = listed.servers;
             return { sessions: listed.sessions, delivery: listed.delivery, notice: listed.notice };
         },
-        async send(request, context) {
+        async send(request: { id: string }, context: { projectRoot: string; targetSession: AntigravityTargetSession }) {
             if (!enabled) {
                 return {
                     ok: false,

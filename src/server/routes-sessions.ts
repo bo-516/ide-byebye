@@ -1,7 +1,37 @@
 import { sessionErrorText, SESSION_ID_PATTERNS, toPublicSession } from './sessions/types.js';
 
+/** One row from an agent's session list. Fields match {@link toPublicSession}. */
+type SessionRow = Parameters<typeof toPublicSession>[0];
+
+/** Fresh `listSessions` payload the catalog and send gate read. */
+type SessionListResult = {
+    sessions?: readonly SessionRow[] | null;
+    delivery?: unknown;
+    notice?: unknown;
+} | null | undefined;
+
+/**
+ * Registry methods the session routes call.
+ * Boundary: `has` / `sessionCapable` take `unknown` because the page chooses the agent name.
+ * `sessionCapable` and `listSessions` are optional so doubles without sessions still assign; the calls assert them.
+ */
+type SessionRouteRegistry = {
+    has(name: unknown): boolean;
+    /** Optional so agent doubles without session support still assign. Call sites assert it before use. */
+    sessionCapable?(name: unknown): boolean;
+    get(name: unknown): {
+        listSessions?(query: { projectRoot: string; fresh?: boolean }): Promise<SessionListResult>;
+    };
+};
+
+/** Optional logger. Both methods ignore extra arguments the router does not pass. */
+type SessionRouteLogger = {
+    warn?(message?: unknown): void;
+    error?(message?: unknown): void;
+};
+
 /** Agents whose unrecognized-format warning has already been logged in this process. */
-const warnedFormats = new Set();
+const warnedFormats = new Set<string>();
 
 /**
  * Write a JSON inspector response.
@@ -11,10 +41,10 @@ const warnedFormats = new Set();
  *
  * @param {import('node:http').ServerResponse} res Response.
  * @param {number} status HTTP status.
- * @param {Record<string, unknown>} body JSON body.
+ * @param {object} body JSON body. Callers must already have stripped absolute paths.
  * @returns {void}
  */
-function sendJson(res, status, body) {
+function sendJson(res: import('node:http').ServerResponse, status: number, body: object) {
     res.statusCode = status;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
@@ -29,7 +59,7 @@ function sendJson(res, status, body) {
  * @param {import('node:http').IncomingMessage} req Request.
  * @returns {string} Agent name, or `''` when missing or the URL is malformed.
  */
-function agentQuery(req) {
+function agentQuery(req: import('node:http').IncomingMessage) {
     try {
         return new URL(req.url ?? '', 'http://localhost').searchParams.get('agent') ?? '';
     }
@@ -41,11 +71,11 @@ function agentQuery(req) {
 /**
  * Error body for a refused target. `requestId` is empty because the intent request is not built when this fires.
  *
- * @param {string} agent Agent name from the payload, if any.
+ * @param {unknown} agent Agent name from the payload, if any. Non-strings are echoed as received so the client can see what it sent.
  * @param {string} code Session error code.
  * @returns {Record<string, unknown>} JSON body.
  */
-function targetError(agent, code) {
+function targetError(agent: unknown, code: string) {
     return {
         ok: false,
         agent,
@@ -65,17 +95,17 @@ function targetError(agent, code) {
  *
  * @param {import('node:http').IncomingMessage} req Request.
  * @param {import('node:http').ServerResponse} res Response.
- * @param {{ registry: { has: Function, sessionCapable: Function, get: Function }, projectRoot: string, logger?: { warn?: Function, error?: Function } }} deps Route dependencies.
+ * @param {{ registry: SessionRouteRegistry, projectRoot: string, logger?: SessionRouteLogger }} deps Route dependencies.
  * @returns {Promise<void>}
  */
-export async function handleSessionsGet(req, res, deps) {
+export async function handleSessionsGet(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, deps: { registry: SessionRouteRegistry, projectRoot: string, logger?: SessionRouteLogger }) {
     const agent = agentQuery(req);
-    if (!deps.registry.has(agent) || !deps.registry.sessionCapable(agent)) {
+    if (!deps.registry.has(agent) || !deps.registry.sessionCapable!(agent)) {
         sendJson(res, 200, targetError(agent, 'sessions-unsupported'));
         return;
     }
     try {
-        const listed = await deps.registry.get(agent).listSessions({
+        const listed = await deps.registry.get(agent).listSessions!({
             projectRoot: deps.projectRoot,
             fresh: true,
         });
@@ -109,24 +139,24 @@ export async function handleSessionsGet(req, res, deps) {
  * `target-invalid`, `target-missing`, `target-busy`, or `sessions-unsupported`. The id is never passed to `fs`.
  * `cwd-missing` is reported as `target-missing` (the session cannot be used). Live / unknown rows are `target-busy`.
  *
- * @param {Record<string, unknown>} payload Send body from the page.
- * @param {{ registry: { has: Function, sessionCapable: Function, get: Function }, projectRoot: string, logger?: { error?: Function } }} deps Route dependencies.
- * @returns {Promise<{ blocked: boolean, session: Record<string, unknown> | null, body?: Record<string, unknown> }>}
+ * @param {{ targetSessionId?: unknown, agent?: unknown } | null | undefined} payload Send body from the page. A missing or blank `targetSessionId` keeps the new-session path.
+ * @param {{ registry: SessionRouteRegistry, projectRoot: string, logger?: SessionRouteLogger }} deps Route dependencies.
+ * @returns {Promise<{ blocked: boolean, session: Record<string, unknown> | null, body?: object }>}
  */
-export async function gateSendTarget(payload, deps) {
+export async function gateSendTarget(payload: { targetSessionId?: unknown, agent?: unknown } | null | undefined, deps: { registry: SessionRouteRegistry, projectRoot: string, logger?: SessionRouteLogger }) {
     const id = payload?.targetSessionId;
     if (id == null || id === '')
         return { blocked: false, session: null };
     const agent = payload?.agent;
-    if (!deps.registry.has(agent) || !deps.registry.sessionCapable(agent) || typeof deps.registry.get(agent).listSessions !== 'function') {
+    if (!deps.registry.has(agent) || !deps.registry.sessionCapable!(agent) || typeof deps.registry.get(agent).listSessions !== 'function') {
         return { blocked: true, session: null, body: targetError(agent, 'sessions-unsupported') };
     }
-    const pattern = SESSION_ID_PATTERNS[agent];
+    const pattern = SESSION_ID_PATTERNS[agent as keyof typeof SESSION_ID_PATTERNS];
     if (typeof id !== 'string' || !pattern || !pattern.test(id))
         return { blocked: true, session: null, body: targetError(agent, 'target-invalid') };
-    let listed;
+    let listed: SessionListResult;
     try {
-        listed = await deps.registry.get(agent).listSessions({
+        listed = await deps.registry.get(agent).listSessions!({
             projectRoot: deps.projectRoot,
             fresh: true,
         });

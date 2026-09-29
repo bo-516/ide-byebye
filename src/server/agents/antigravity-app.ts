@@ -71,7 +71,7 @@ export function resolveAntigravityApp(platform = process.platform, homedir = os.
  * @param {string} text File contents.
  * @returns {{ port: number, browserPath: string } | null} Parsed endpoint, or null when the file is unusable.
  */
-export function parseDevToolsActivePort(text) {
+export function parseDevToolsActivePort(text: string) {
     const [portLine = '', browserPath = ''] = String(text ?? '').split(/\r?\n/);
     const port = Number(portLine.trim());
     if (!Number.isInteger(port) || port <= 0 || port > 65535)
@@ -92,7 +92,7 @@ export function parseDevToolsActivePort(text) {
  * @param {string} [workspaceDir] Project directory the composer should bind to.
  * @returns {string} Absolute URL on the same origin.
  */
-export function buildAntigravityComposerUrl(pageUrl, prompt, workspaceDir) {
+export function buildAntigravityComposerUrl(pageUrl: string, prompt: string, workspaceDir?: string) {
     const current = new URL(pageUrl);
     if (current.protocol !== 'https:' && current.protocol !== 'http:')
         throw new Error('Unexpected Antigravity page URL');
@@ -114,7 +114,7 @@ export function buildAntigravityComposerUrl(pageUrl, prompt, workspaceDir) {
  * @param {unknown} list Parsed `/json/list` body.
  * @returns {{ url: string, webSocketDebuggerUrl: string } | null} Page to navigate, or null.
  */
-export function selectAntigravityPage(list) {
+export function selectAntigravityPage(list: unknown) {
     if (!Array.isArray(list))
         return null;
     for (const entry of list) {
@@ -142,6 +142,6 @@ export function selectAntigravityPage(list) {
  * @param {string} targetUrl URL from {@link buildAntigravityComposerUrl}.
  * @returns {string} Expression for `Runtime.evaluate`.
  */
-export function antigravityNavigateExpression(targetUrl) {
+export function antigravityNavigateExpression(targetUrl: string) {
     return `location.href = ${JSON.stringify(targetUrl)}`;
 }

@@ -19,12 +19,12 @@ export const EMBEDDED_CLIENT_CODE_GLOBAL = '__CODE_INTENT_INSPECTOR_EMBEDDED_CLI
  * @param {Record<string, unknown> | typeof globalThis | null | undefined} globalObject Global-like object to inspect.
  * @returns {string | null} Embedded browser client JavaScript, or `null` when unavailable.
  */
-export function readEmbeddedClientCode(globalObject = globalThis) {
+export function readEmbeddedClientCode(globalObject: Record<string, unknown> | typeof globalThis | null | undefined = globalThis) {
     if (!globalObject || typeof globalObject !== 'object') {
         return null;
     }
 
-    const code = globalObject[EMBEDDED_CLIENT_CODE_GLOBAL];
+    const code = globalObject[EMBEDDED_CLIENT_CODE_GLOBAL as keyof typeof globalObject];
     return typeof code === 'string' && code.trim() ? code : null;
 }
 
@@ -39,7 +39,7 @@ export function readEmbeddedClientCode(globalObject = globalThis) {
  * @param {string} cwd Current working directory used for the final fallback.
  * @returns {string[]} Absolute file paths to probe in order.
  */
-function buildClientBundleCandidates(moduleUrl, cwd) {
+function buildClientBundleCandidates(moduleUrl: string, cwd: string) {
     return [
         fileURLToPath(new URL('../../dist/client.js', moduleUrl)),
         fileURLToPath(new URL('../../client.js', moduleUrl)),

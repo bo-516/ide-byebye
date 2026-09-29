@@ -18,7 +18,7 @@
  * @param {number} endLine 1-based end inclusive.
  * @returns {string}
  */
-export function sliceLines(lines, startLine, endLine) {
+export function sliceLines(lines: string[], startLine: number, endLine: number) {
     const s = Math.max(1, startLine);
     const e = Math.min(lines.length, endLine);
     return lines.slice(s - 1, e).join('\n');
@@ -32,7 +32,7 @@ export function sliceLines(lines, startLine, endLine) {
  * @param {number} maxContextLines Max lines in the window.
  * @returns {{ excerpt: string, startLine: number, endLine: number }} Excerpt and its inclusive 1-based range.
  */
-export function lineContextWindow(lines, line, maxContextLines) {
+export function lineContextWindow(lines: string[], line: number, maxContextLines: number) {
     const half = Math.floor(maxContextLines / 2);
     const startLine = Math.max(1, line - half);
     const endLine = Math.min(lines.length, line + half);
@@ -46,7 +46,7 @@ export function lineContextWindow(lines, line, maxContextLines) {
  * @param {{ start?: number|null, end?: number|null }} node AST node with ranges.
  * @returns {string|undefined}
  */
-export function codeSlice(code, node) {
+export function codeSlice(code: string, node: { start?: number|null, end?: number|null }) {
     if (node.start == null || node.end == null)
         return undefined;
     return code.slice(node.start, node.end);
@@ -59,7 +59,7 @@ export function codeSlice(code, node) {
  * @param {((offset: number) => { line: number })|undefined} offsetToLine Optional converter when `loc` is missing.
  * @returns {{ startLine: number, endLine: number }|undefined}
  */
-export function nodeRange(node, offsetToLine) {
+export function nodeRange(node: { loc?: { start: { line: number }, end: { line: number } }, start?: number|null, end?: number|null }, offsetToLine: ((offset: number) => { line: number })|undefined) {
     if (node?.loc) {
         return { startLine: node.loc.start.line, endLine: node.loc.end.line };
     }
@@ -88,7 +88,7 @@ export function nodeRange(node, offsetToLine) {
  * @param {((offset: number) => { line: number })|undefined} offsetToLine Used when node has no `loc`.
  * @returns {string|undefined}
  */
-export function cappedComponentCode(code, lines, node, hitLine, maxComponentLines, offsetToLine) {
+export function cappedComponentCode(code: string, lines: string[], node: { loc?: { start: { line: number }, end: { line: number } }, start?: number|null, end?: number|null }, hitLine: number, maxComponentLines: number, offsetToLine: ((offset: number) => { line: number })|undefined) {
     const range = nodeRange(node, offsetToLine);
     if (!range) {
         return codeSlice(code, node);

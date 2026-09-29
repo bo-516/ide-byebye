@@ -9,7 +9,9 @@
  * at `x`. Anything else (calls, member access) is not a root. Cycles in bindings are cut with `start:name`.
  */
 
+import type { Scope } from './jsx-bind.js';
 import { lookupBinding, singleAssignRight } from './jsx-bindings.js';
+import type { StampNode } from './stamp-edits.js';
 
 export type RootTarget = { type: 'jsx', node: any } | { type: 'createElement', node: any };
 
@@ -17,12 +19,12 @@ export type RootTarget = { type: 'jsx', node: any } | { type: 'createElement', n
  * Root elements of `node`, using `scope` for identifier lookup (the return's scope, or the
  * binding's scope when following an initializer — not the identifier's home scope).
  *
- * @param {object | null} node Expression. Null returns an empty list.
- * @param {object | null} scope Scope from {@link import('./jsx-bindings.js').buildScopes}.
+ * @param {StampNode | null | undefined} node Expression. Null returns an empty list.
+ * @param {Scope | null} scope Scope from {@link import('./jsx-bindings.js').buildScopes}.
  * @param {Set<string>} [visited] Bindings already entered. Omit at the top call.
  * @returns {RootTarget[]} JSX elements and `createElement` calls, in source order.
  */
-export function collectRootTargets(node, scope, visited = new Set<string>()): RootTarget[] {
+export function collectRootTargets(node: StampNode | null | undefined, scope: Scope | null, visited = new Set<string>()): RootTarget[] {
     const current = unwrap(node);
     if (!current)
         return [];
@@ -31,9 +33,9 @@ export function collectRootTargets(node, scope, visited = new Set<string>()): Ro
     if (current.type === 'JSXElement')
         return [{ type: 'jsx', node: current }];
     if (current.type === 'CallExpression') {
-        if (callName(current.callee) === 'createPortal')
+        if (callName(current.callee as StampNode | null | undefined) === 'createPortal')
             return collectRootTargets(current.arguments?.[0], scope, visited);
-        if (callName(current.callee) === 'createElement')
+        if (callName(current.callee as StampNode | null | undefined) === 'createElement')
             return [{ type: 'createElement', node: current }];
         return [];
     }
@@ -50,7 +52,7 @@ export function collectRootTargets(node, scope, visited = new Set<string>()): Ro
         return collectRootTargets(parts[parts.length - 1], scope, visited);
     }
     if (current.type === 'ArrayExpression')
-        return (current.elements ?? []).flatMap((element) => collectRootTargets(element?.type === 'SpreadElement' ? element.argument : element, scope, visited));
+        return (current.elements ?? []).flatMap((element: StampNode | null | undefined) => collectRootTargets(element?.type === 'SpreadElement' ? element.argument : element, scope, visited));
     if (current.type === 'JSXFragment')
         return fragmentTargets(current, scope, visited);
     return [];
@@ -60,12 +62,12 @@ export function collectRootTargets(node, scope, visited = new Set<string>()): Ro
  * How many roots `node` would produce. Stops at 2. Ternaries and logical expressions take the max,
  * so `cond ? <a/> : <b/>` counts as one and both branches still propagate.
  *
- * @param {object | null} node Expression.
- * @param {object | null} scope Lookup scope. See {@link collectRootTargets}.
+ * @param {StampNode | null | undefined} node Expression.
+ * @param {Scope | null} scope Lookup scope. See {@link collectRootTargets}.
  * @param {Set<string>} [visited] Bindings already entered.
  * @returns {number} 0, 1, or 2 (2 means "more than one").
  */
-export function estimateRootCount(node, scope, visited = new Set<string>()): number {
+export function estimateRootCount(node: StampNode | null | undefined, scope: Scope | null, visited = new Set<string>()): number {
     const current = unwrap(node);
     if (!current)
         return 0;
@@ -74,9 +76,9 @@ export function estimateRootCount(node, scope, visited = new Set<string>()): num
     if (current.type === 'JSXElement')
         return 1;
     if (current.type === 'CallExpression') {
-        if (callName(current.callee) === 'createPortal')
+        if (callName(current.callee as StampNode | null | undefined) === 'createPortal')
             return estimateRootCount(current.arguments?.[0], scope, visited);
-        return callName(current.callee) === 'createElement' ? 1 : 0;
+        return callName(current.callee as StampNode | null | undefined) === 'createElement' ? 1 : 0;
     }
     if (current.type === 'Identifier')
         return follow(current, scope, visited, 'count') as number;
@@ -91,17 +93,17 @@ export function estimateRootCount(node, scope, visited = new Set<string>()): num
         return estimateRootCount(parts[parts.length - 1], scope, visited);
     }
     if (current.type === 'ArrayExpression')
-        return sumCount(current.elements ?? [], scope, visited, (element) => element?.type === 'SpreadElement' ? element.argument : element);
+        return sumCount(current.elements ?? [], scope, visited, (element: StampNode | null | undefined) => element?.type === 'SpreadElement' ? element.argument : element);
     if (current.type === 'JSXFragment')
         return sumCount(current.children ?? [], scope, visited, fragmentChild);
     return 0;
 }
 
 /**
- * @param {object} node Expression that might be wrapped.
- * @returns {object} Inner expression, or `node` when it is already bare.
+ * @param {StampNode | null | undefined} node Expression that might be wrapped.
+ * @returns {StampNode | null | undefined} Inner expression, or `node` when it is already bare.
  */
-function unwrap(node) {
+function unwrap(node: StampNode | null | undefined): StampNode | null | undefined {
     if (!node)
         return node;
     if (node.type === 'ParenthesizedExpression' || node.type === 'TSAsExpression'
@@ -111,7 +113,7 @@ function unwrap(node) {
     return node;
 }
 
-function follow(node, scope, visited: Set<string>, mode: 'collect' | 'count') {
+function follow(node: StampNode, scope: Scope | null, visited: Set<string>, mode: 'collect' | 'count') {
     const empty = mode === 'collect' ? [] : 0;
     if (!scope || node.name === 'undefined')
         return empty;
@@ -130,8 +132,8 @@ function follow(node, scope, visited: Set<string>, mode: 'collect' | 'count') {
         : estimateRootCount(next, binding.scope, visited);
 }
 
-function fragmentTargets(node, scope, visited): RootTarget[] {
-    return (node.children ?? []).flatMap((child) => {
+function fragmentTargets(node: StampNode, scope: Scope | null, visited: Set<string>): RootTarget[] {
+    return (node.children ?? []).flatMap((child: StampNode) => {
         if (child.type === 'JSXElement')
             return [{ type: 'jsx', node: child }];
         if (child.type === 'JSXFragment')
@@ -142,7 +144,7 @@ function fragmentTargets(node, scope, visited): RootTarget[] {
     });
 }
 
-function fragmentChild(child) {
+function fragmentChild(child: StampNode | null | undefined): StampNode | null | undefined {
     if (child?.type === 'JSXElement' || child?.type === 'JSXFragment')
         return child;
     if (child?.type === 'JSXExpressionContainer')
@@ -150,7 +152,7 @@ function fragmentChild(child) {
     return null;
 }
 
-function sumCount(items, scope, visited, pick): number {
+function sumCount(items: ReadonlyArray<StampNode | null | undefined>, scope: Scope | null, visited: Set<string>, pick: (item: StampNode | null | undefined) => StampNode | null | undefined): number {
     let total = 0;
     for (const item of items) {
         const child = pick(item);
@@ -163,7 +165,7 @@ function sumCount(items, scope, visited, pick): number {
     return total;
 }
 
-function callName(callee): string {
+function callName(callee: StampNode | null | undefined): string {
     if (!callee)
         return '';
     if (callee.type === 'Identifier')

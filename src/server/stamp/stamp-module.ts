@@ -177,7 +177,7 @@ function querySkips(query: string): boolean {
     return false;
 }
 
-function matches(patterns, value: string): boolean {
+function matches(patterns: ReadonlyArray<string | RegExp> | null | undefined, value: string): boolean {
     for (const pattern of patterns ?? []) {
         if (typeof pattern === 'string') {
             if (value.includes(pattern))

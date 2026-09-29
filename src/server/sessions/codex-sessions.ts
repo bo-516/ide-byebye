@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { readHead, readTail } from './file-window.js';
+import type { SessionFs } from './file-window.js';
 import { readSessionPicker } from './options.js';
 import { buildProjectScope, matchSessionCwd, normalizeScopePath, sessionLocation, sessionProjectName } from './project-scope.js';
 import { SESSION_ID_PATTERN, sessionTitle } from './types.js';
@@ -45,9 +46,10 @@ export function resolveCodexHome(config: any = {}, env = process.env, homeDir = 
  * @param {string} raw Characters between the JSON quotes.
  * @returns {string} Decoded text.
  */
-function unescapeJson(raw) {
+function unescapeJson(raw: string) {
     try {
-        return JSON.parse(`"${raw}"`);
+        // A valid capture is one JSON string token, so the parse result is that decoded string.
+        return JSON.parse(`"${raw}"`) as string;
     }
     catch {
         return raw;
@@ -61,7 +63,7 @@ function unescapeJson(raw) {
  * @param {string} key JSON key (`id`, `cwd`, or `thread_source`).
  * @returns {string | null} Decoded value, or null when the key is absent.
  */
-function captureField(text, key) {
+function captureField(text: string, key: string) {
     const match = text.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`));
     return match ? unescapeJson(match[1]) : null;
 }
@@ -72,7 +74,7 @@ function captureField(text, key) {
  * @param {string} text Tail text. A window that starts mid-line is fine: the regex does not need a full record.
  * @returns {'task_started' | 'task_complete' | 'turn_aborted' | null} Last match, or null.
  */
-function lastLifecycle(text) {
+function lastLifecycle(text: string) {
     let last = null;
     for (const match of text.matchAll(LIFECYCLE))
         last = match[1];
@@ -86,7 +88,7 @@ function lastLifecycle(text) {
  * @param {number} mtimeMs Rollout mtime.
  * @returns {string} ISO timestamp.
  */
-function laterIso(indexed, mtimeMs) {
+function laterIso(indexed: string | undefined, mtimeMs: number) {
     const fromIndex = Date.parse(indexed ?? '');
     const fromFile = Number.isFinite(mtimeMs) ? mtimeMs : 0;
     const best = Math.max(Number.isFinite(fromIndex) ? fromIndex : 0, fromFile);
@@ -100,10 +102,10 @@ function laterIso(indexed, mtimeMs) {
  * skipped. A missing file yields an empty map, which lists sessions with a blank title rather than failing the menu.
  *
  * @param {string} file Index path.
- * @param {typeof fs} io Filesystem.
+ * @param {SessionFs} io Filesystem.
  * @returns {Map<string, { title: string, updatedAt: string }>} Last row for each id.
  */
-function readSessionIndex(file, io) {
+function readSessionIndex(file: string, io: SessionFs) {
     const titles = new Map();
     if (!io.existsSync(file))
         return titles;
@@ -117,7 +119,7 @@ function readSessionIndex(file, io) {
     for (const line of text.split(/\r?\n/)) {
         if (!line.trim())
             continue;
-        let row;
+        let row: { id?: unknown; thread_name?: unknown; title?: unknown; updated_at?: unknown } | null;
         try {
             row = JSON.parse(line);
         }
@@ -143,10 +145,10 @@ function readSessionIndex(file, io) {
  * @param {string} sessionsDir `sessions/` directory.
  * @param {number} lookbackMs Files older than this age are dropped.
  * @param {number} now Epoch ms.
- * @param {typeof fs} io Filesystem.
+ * @param {SessionFs} io Filesystem.
  * @returns {Array<{ file: string, mtimeMs: number, id: string }>} Candidates.
  */
-function listRolloutFiles(sessionsDir, lookbackMs, now, io) {
+function listRolloutFiles(sessionsDir: string, lookbackMs: number, now: number, io: SessionFs) {
     if (!io.existsSync(sessionsDir))
         return [];
     const found = [];
@@ -216,11 +218,20 @@ function listRolloutFiles(sessionsDir, lookbackMs, now, io) {
  * of their heads match the meta shape, the result is `{ notice: "unsupported-format" }` so the new-session path is
  * unchanged. Reads stay bounded: 4 KB head, 64 KB tail, and one 512 KB tail retry.
  *
- * @param {{ projectRoot: string, config?: Record<string, unknown>, now?: number, io?: typeof fs, env?: NodeJS.ProcessEnv, homeDir?: string }} input
- *        Inspector project root plus the Codex adapter config. `io` is the filesystem (tests wrap it).
+ * @param {{ projectRoot: string, config?: { projectRoot?: unknown, sessions?: unknown }, now?: number, io?: SessionFs, env?: NodeJS.ProcessEnv, homeDir?: string }} input
+ *        Inspector project root plus the Codex adapter config. `config.projectRoot` is an extra scope root.
+ *        `config.sessions` is the picker override. `io` is the filesystem (tests wrap it). Omitted `env` / `homeDir`
+ *        use the process environment and the OS home, via the defaults on {@link resolveCodexHome}.
  * @returns {{ sessions: Array<Record<string, unknown>>, delivery: 'prefill', notice?: string }} Catalog rows with server-only `cwd`.
  */
-export function listCodexSessions(input) {
+export function listCodexSessions(input: {
+    projectRoot: string;
+    config?: { projectRoot?: unknown; sessions?: unknown };
+    now?: number;
+    io?: SessionFs;
+    env?: NodeJS.ProcessEnv;
+    homeDir?: string;
+}) {
     const io = input.io ?? fs;
     const config = input.config ?? {};
     const picker = readSessionPicker(config);

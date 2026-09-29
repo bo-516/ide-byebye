@@ -12,7 +12,7 @@ import { normalizeTheme } from '../shared/theme.js';
  * @param {unknown} apiOrigin Optional absolute origin supplied by the plugin caller.
  * @returns {string | null} Normalized origin such as `http://127.0.0.1:8888`, or null to auto-detect.
  */
-function normalizeApiOrigin(apiOrigin) {
+function normalizeApiOrigin(apiOrigin: unknown) {
     if (typeof apiOrigin !== 'string') {
         return null;
     }
@@ -45,11 +45,25 @@ function normalizeApiOrigin(apiOrigin) {
  * @param {unknown} value Raw `recording` option.
  * @returns {{ enabled: boolean, maxDurationMs: number, mask: { allInputs: boolean, blockClass: string } }} Normalized recording options.
  */
-function normalizeRecordingConfig(value) {
-    const options = value && typeof value === 'object' ? value : {};
+function normalizeRecordingConfig(value: unknown) {
+    const options: {
+        maxDurationMs?: unknown;
+        enabled?: unknown;
+        mask?: unknown;
+    } = value && typeof value === 'object' ? value as {
+        maxDurationMs?: unknown;
+        enabled?: unknown;
+        mask?: unknown;
+    } : {};
     const rawMax = Number(options.maxDurationMs);
     const maxDurationMs = Number.isFinite(rawMax) && rawMax > 0 ? Math.min(Math.floor(rawMax), 300000) : 30000;
-    const mask = options.mask && typeof options.mask === 'object' ? options.mask : {};
+    const mask: {
+        allInputs?: unknown;
+        blockClass?: unknown;
+    } = options.mask && typeof options.mask === 'object' ? options.mask as {
+        allInputs?: unknown;
+        blockClass?: unknown;
+    } : {};
     return {
         enabled: (value === true || (value !== null && typeof value === 'object')) && options.enabled !== false,
         maxDurationMs,
@@ -69,7 +83,7 @@ function normalizeRecordingConfig(value) {
  * @param {unknown} value Raw config value (`'relative'` | `'absolute'` | other).
  * @returns {'relative' | 'absolute'} Normalized path style.
  */
-export function normalizePathStyle(value) {
+export function normalizePathStyle(value: unknown): 'relative' | 'absolute' {
     return value === 'absolute' ? 'absolute' : 'relative';
 }
 
@@ -84,7 +98,7 @@ export function normalizePathStyle(value) {
  * @param {unknown} value Raw config value (`'relative'` | `'absolute'` | undefined | other).
  * @returns {'relative' | 'absolute'} Normalized artifact path style.
  */
-export function normalizeArtifactPathStyle(value) {
+export function normalizeArtifactPathStyle(value: unknown): 'relative' | 'absolute' {
     if (value === undefined)
         return 'absolute';
     return value === 'relative' ? 'relative' : 'absolute';
@@ -102,7 +116,7 @@ export function normalizeArtifactPathStyle(value) {
  * @param {{ pathStyle?: unknown, artifactPathStyle?: unknown }} [options] Raw path-style fields from plugin or agent config.
  * @returns {{ pathStyle: 'relative' | 'absolute', artifactPathStyle: 'relative' | 'absolute' }} Options for `buildPrompt`.
  */
-export function resolvePromptPathStyleOptions(options: any = {}) {
+export function resolvePromptPathStyleOptions(options: any = {}): { pathStyle: 'relative' | 'absolute', artifactPathStyle: 'relative' | 'absolute' } {
     return {
         pathStyle: normalizePathStyle(options.pathStyle),
         artifactPathStyle: normalizeArtifactPathStyle(options.artifactPathStyle),
@@ -121,7 +135,23 @@ export function resolvePromptPathStyleOptions(options: any = {}) {
  * @param {Record<string, unknown>} options Raw plugin options supplied from Vite config.
  * @returns {Record<string, unknown>} Fully resolved inspector options used by server and browser config generation.
  */
-export function resolveOptions(options) {
+export function resolveOptions(options: {
+    enabled?: unknown;
+    locale?: unknown;
+    theme?: unknown;
+    hotkey?: unknown;
+    clickModifier?: unknown;
+    defaultAgent?: unknown;
+    outputDir?: unknown;
+    applyMode?: unknown;
+    maxSourceContextLines?: unknown;
+    maxDomSnippetLength?: unknown;
+    apiOrigin?: unknown;
+    recording?: unknown;
+    pathStyle?: unknown;
+    artifactPathStyle?: unknown;
+    agents?: Record<string, unknown>;
+}) {
     const pathStyles = resolvePromptPathStyleOptions(options);
     return {
         enabled: options.enabled ?? true,
@@ -133,7 +163,8 @@ export function resolveOptions(options) {
         // config; pass an explicit modifier to override, or `false`/`null` to disable click-picking.
         clickModifier: options.clickModifier ?? 'auto',
         defaultAgent: options.defaultAgent ?? 'claude-app',
-        outputDir: options.outputDir ?? DEFAULT_OUTPUT_DIR,
+        // Callers pass this to `path.resolve`, which requires a string. Non-strings still flow through unchanged.
+        outputDir: options.outputDir as string ?? DEFAULT_OUTPUT_DIR,
         // prompt-only is the safer default: the agent proposes a plan rather than
         // editing files until the user opts into agent-edit.
         applyMode: options.applyMode ?? 'prompt-only',
@@ -148,13 +179,14 @@ export function resolveOptions(options) {
     };
 }
 /** Coerce a `boolean | config` agent entry into a config object or undefined. */
-export function coerceAgentConfig(value) {
+export function coerceAgentConfig(value: unknown) {
     if (value === true)
         return { enabled: true };
     if (!value)
         return undefined;
     if (typeof value === 'object') {
-        return value.enabled === false ? undefined : value;
+        // `object` has no `enabled`. The cast is erased, so `null` still throws on the property read.
+        return (value as { enabled?: boolean }).enabled === false ? undefined : value;
     }
     return undefined;
 }

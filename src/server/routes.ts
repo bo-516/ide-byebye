@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ENDPOINTS, ROUTE_PREFIX, TOKEN_HEADER } from '../shared/constants.js';
 import { isLocalHostHeader, isLocalRequest, isSameOriginPageRequest, readToken, tokenMatches } from './security.js';
 import { buildIntentRequest, resolveSelection } from './pipeline.js';
@@ -7,7 +8,83 @@ import { saveScreenshotPayloads, saveRecordingPayloads } from './screenshot.js';
 import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
 import { resolveVendorEsmPath } from './vendor.js';
 import { gateSendTarget, handleSessionsGet } from './routes-sessions.js';
-function sendJson(res, status, body) {
+
+/**
+ * Options the router reads. Several fields stay `unknown` because `resolveOptions` produces them with `??`.
+ * `pathStyle` / `artifactPathStyle` are the resolved prompt unions.
+ */
+type InspectorRouteOptions = {
+    defaultAgent?: unknown;
+    applyMode?: unknown;
+    maxSourceContextLines?: unknown;
+    pathStyle?: 'relative' | 'absolute';
+    artifactPathStyle?: 'relative' | 'absolute';
+};
+
+/** One row shape `listSessions` must return so the session routes can map it. */
+type SessionListShape = {
+    sessions?: readonly (Parameters<typeof import('./sessions/types.js').toPublicSession>[0])[] | null;
+    delivery?: unknown;
+    notice?: unknown;
+} | null | undefined;
+
+/**
+ * Adapter methods the agents and send routes call.
+ * Boundary: `listSessions` is optional because test doubles and non-session agents omit it.
+ */
+type InspectorRouteAdapter = {
+    isAvailable(): Promise<{ available?: boolean; reason?: string }>;
+    send(request: unknown, context: unknown): Promise<{
+        events?: unknown[];
+        agent?: unknown;
+        ok?: boolean;
+        error?: unknown;
+    }>;
+    listSessions?(query: { projectRoot: string; fresh?: boolean }): Promise<SessionListShape>;
+};
+
+/**
+ * Registry methods the router calls.
+ * Boundary: names are `unknown` because `options.defaultAgent` and the page payload are not narrowed to `string`.
+ * `sessionCapable` is optional so a route double that only lists agents still assigns; the session routes assert it.
+ */
+type InspectorRouteRegistry = {
+    has(name: unknown): boolean;
+    names(): string[];
+    listAvailable(): Promise<unknown[]>;
+    get(name: unknown): InspectorRouteAdapter;
+    sessionCapable?(name: unknown): boolean;
+};
+
+/**
+ * Logger calls on the send path.
+ * Boundary: `info` and `warn` are not called here. They are part of the type so the shared logger object assigns.
+ */
+type InspectorRouteLogger = {
+    info?(...args: unknown[]): void;
+    warn?(...args: unknown[]): void;
+    error(...args: unknown[]): void;
+    audit(...args: unknown[]): void;
+};
+
+/**
+ * Dependencies for every inspector route.
+ * Boundary: `session` exists only for the Angular bootstrap handoff. `sessionStore` is forwarded, not read here.
+ */
+type InspectorRouteDeps = {
+    options: InspectorRouteOptions;
+    token: string;
+    registry: InspectorRouteRegistry;
+    sessionStore: unknown;
+    logger: InspectorRouteLogger;
+    clientCode: string;
+    projectRoot: string;
+    outputDirAbs: string;
+    session?: () => Record<string, unknown>;
+};
+
+/** JSON response. `body` is `unknown` so route object literals stay assignable. */
+function sendJson(res: ServerResponse, status: number, body: unknown) {
     const text = JSON.stringify(body);
     res.statusCode = status;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -15,10 +92,17 @@ function sendJson(res, status, body) {
     res.end(text);
 }
 
-function readJsonBody(req, limitBytes = 15_000_000) {
+/**
+ * Read a JSON body. Node emits `Buffer` chunks when no encoding is set.
+ *
+ * @param {IncomingMessage} req Request stream. `destroy` aborts an oversized body.
+ * @param {number} [limitBytes=15000000] Max accepted bytes.
+ * @returns {object} Parsed JSON, or `{}` when the body is empty.
+ */
+function readJsonBody(req: IncomingMessage, limitBytes = 15_000_000) {
     return new Promise<any>((resolve, reject) => {
         let size = 0;
-        const chunks = [];
+        const chunks: Buffer[] = [];
         req.on('data', (chunk) => {
             size += chunk.length;
             if (size > limitBytes) {
@@ -40,7 +124,8 @@ function readJsonBody(req, limitBytes = 15_000_000) {
         req.on('error', reject);
     });
 }
-function pathname(req) {
+/** Pathname of `req.url`, or the raw url when it is not a URL. */
+function pathname(req: { url?: string }) {
     try {
         return new URL(req.url ?? '', 'http://localhost').pathname;
     }
@@ -48,7 +133,8 @@ function pathname(req) {
         return req.url ?? '';
     }
 }
-function searchParam(req, name) {
+/** One query parameter, or null when the url cannot be parsed. `name` is the parameter key. */
+function searchParam(req: { url?: string }, name: string) {
     try {
         return new URL(req.url ?? '', 'http://localhost').searchParams.get(name);
     }
@@ -66,7 +152,7 @@ function searchParam(req, name) {
  * @param {import('node:http').IncomingMessage} req Incoming dev-server request.
  * @returns {string | null} Request origin suitable for echoing into CORS headers, or null.
  */
-function readOrigin(req) {
+function readOrigin(req: import('node:http').IncomingMessage) {
     const origin = req.headers.origin;
     return typeof origin === 'string' && origin ? origin : null;
 }
@@ -80,7 +166,7 @@ function readOrigin(req) {
  * @param {import('node:http').ServerResponse} res Dev-server response.
  * @returns {void}
  */
-function appendOriginVary(res) {
+function appendOriginVary(res: import('node:http').ServerResponse) {
     const current = res.getHeader('Vary');
     if (!current) {
         res.setHeader('Vary', 'Origin');
@@ -105,7 +191,7 @@ function appendOriginVary(res) {
  * @param {string} token Per-process dev token.
  * @returns {boolean} True when CORS headers were emitted for a valid token-bearing origin request.
  */
-function setTokenCorsHeaders(req, res, token) {
+function setTokenCorsHeaders(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, token: string) {
     const origin = readOrigin(req);
     if (!origin || !tokenMatches(token, readToken(req))) {
         return false;
@@ -132,12 +218,12 @@ function setTokenCorsHeaders(req, res, token) {
  * `clientCode`, `registry`, `projectRoot`, `outputDirAbs`, …) makes the matching route fail at request time rather than
  * at setup. Note this no longer takes a `server`; the caller mounts the handler.
  *
- * @param {{ options: Record<string, unknown>, token: string, registry: Record<string, unknown>, sessionStore: Record<string, unknown>, logger: Record<string, Function>, clientCode: string, projectRoot: string, outputDirAbs: string }} deps Inspector route dependencies.
- * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void} Connect-style inspector request handler.
+ * @param {InspectorRouteDeps} deps Inspector route dependencies. A missing `session` skips the Angular handoff.
+ * @returns {(req: IncomingMessage, res: ServerResponse, next: () => void) => void} Connect-style inspector request handler.
  */
-export function createInspectorRequestHandler(deps) {
+export function createInspectorRequestHandler(deps: InspectorRouteDeps) {
     const { options, token, registry, sessionStore, logger } = deps;
-    const guard = (req, res) => {
+    const guard = (req: IncomingMessage, res: ServerResponse) => {
         const hasValidToken = tokenMatches(token, readToken(req));
         const hasTokenCors = readOrigin(req) != null && hasValidToken;
 
@@ -152,7 +238,7 @@ export function createInspectorRequestHandler(deps) {
         }
         return true;
     };
-    const handler = (req, res, next) => {
+    const handler = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
         const url = pathname(req);
         if (!url.startsWith(ROUTE_PREFIX)) {
             next();
@@ -306,14 +392,14 @@ export function createInspectorRequestHandler(deps) {
                         pathStyle: options.pathStyle,
                         artifactPathStyle: options.artifactPathStyle,
                     });
-                    const events = [];
+                    const events: unknown[] = [];
                     const context = {
                         projectRoot: deps.projectRoot,
                         outputDir: deps.outputDirAbs,
                         prompt,
                         sessionStore,
                         logger,
-                        emit: (event) => events.push(event),
+                        emit: (event: unknown) => events.push(event),
                         ...(targetGate.session ? { targetSession: targetGate.session } : {}),
                     };
                     logger.audit({

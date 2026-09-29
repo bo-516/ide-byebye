@@ -109,8 +109,8 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc && node --import tsx scripts/build-single-file.ts",
     "test": "node scripts/ensure-demo-deps.mjs && node scripts/ensure-dist.mjs && node --import tsx --test --test-reporter=tap src/**/*.test.ts src/**/**/*.test.ts src/**/**/**/*.test.ts demo/matrix/matrix.test.ts",
-    "typecheck": "tsc -p tsconfig.test.json --noEmit",
-    "prepublishOnly": "npm test",
+    "typecheck": "tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test",
     "release": "node --import tsx scripts/publish.ts",
     "release:dry": "node --import tsx scripts/publish.ts --dry-run"
   },

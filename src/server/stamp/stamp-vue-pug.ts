@@ -14,7 +14,45 @@
 
 import { requireFromProject, resolveFromProject } from '../ast/project-module.js';
 import { buildLineStartOffsets } from '../ast/line-offsets.js';
+import type { VueCompilerNode } from '../ast/vue-sfc.js';
 import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion } from './stamp-edits.js';
+
+/** Pug AST node the template walk reads. A missing child list means that branch is empty. */
+interface PugNode {
+    type?: string;
+    name: string;
+    line: number;
+    column: number;
+    attrs?: PugAttr[];
+    nodes?: PugNode[];
+    block?: PugNode | null;
+    consequent?: PugNode | null;
+    alternate?: PugNode | null;
+}
+
+/** One attribute on a pug tag. `line` / `column` are template-relative, same as the tag. */
+interface PugAttr {
+    name?: string;
+    mustEscape?: boolean;
+    line: number;
+    column: number;
+    val?: unknown;
+}
+
+/** Line/column span `inside` compares. Compiler-dom's `end` only types `offset`, so the call asserts. */
+interface PugLoc {
+    start: { line: number, column: number };
+    end: { line: number, column: number };
+}
+
+/** Inputs for one `<template lang="pug">` block. `template` is the compiler-dom element. */
+interface PugStampInput {
+    code: string;
+    file: string;
+    template: VueCompilerNode;
+    escapeTags?: Array<string | RegExp>;
+    warnOnce?: (key: string, message: string) => void;
+}
 
 const PUG_WARN = '[code-intent-inspector] Pug template stamping needs pug (pug-lexer / pug-parser). Run: npm i -D pug';
 
@@ -23,10 +61,10 @@ const WALK_BLOCKS = new Set(['Case', 'Code', 'When', 'Each', 'While']);
 /**
  * Insertions for one pug template element.
  *
- * @param {object} input `template` is the compiler-dom `<template>` node. `code` is the full SFC.
+ * @param {PugStampInput} input `template` is the compiler-dom `<template>` node. `code` is the full SFC.
  * @returns {Insertion[] | null} Null when pug is missing or the template does not parse.
  */
-export function stampPugTemplate(input): Insertion[] | null {
+export function stampPugTemplate(input: PugStampInput): Insertion[] | null {
     const loaded = loadPug(input.file);
     if (!loaded) {
         input.warnOnce?.('pug-compiler', PUG_WARN);
@@ -35,22 +73,22 @@ export function stampPugTemplate(input): Insertion[] | null {
     const start = input.template.loc.start.offset;
     const end = input.template.loc.end.offset;
     const padded = ' '.repeat(start) + input.code.slice(start, end) + ' '.repeat(input.code.length - end);
-    let ast;
+    let ast: PugNode;
     try {
-        ast = loaded.parse(loaded.lex(padded));
+        ast = loaded.parse(loaded.lex(padded)) as PugNode;
     }
     catch {
         return null;
     }
     const lineStarts = buildLineStartOffsets(input.code);
-    const lineOffset = input.template.loc.start.line - 1;
+    const lineOffset = input.template.loc.start.line! - 1;
     const insertions: Insertion[] = [];
     walk(ast, (node) => {
         if (node.type !== 'Tag')
             return;
         const line = node.line + lineOffset;
         const column = node.column;
-        if (!inside(line, column, input.template.loc) || isEscapedTag(node.name, input.escapeTags ?? []))
+        if (!inside(line, column, input.template.loc as unknown as PugLoc) || isEscapedTag(node.name, input.escapeTags ?? []))
             return;
         if ((node.attrs ?? []).some((attr) => attr?.name === PATH_ATTR))
             return;
@@ -73,7 +111,7 @@ export function stampPugTemplate(input): Insertion[] | null {
     return insertions;
 }
 
-function walk(node, visit: (node) => void) {
+function walk(node: PugNode | null | undefined, visit: (node: PugNode) => void) {
     if (!node)
         return;
     visit(node);
@@ -83,7 +121,7 @@ function walk(node, visit: (node) => void) {
     }
     else if (node.type === 'Tag')
         walk(node.block, visit);
-    else if (WALK_BLOCKS.has(node.type)) {
+    else if (WALK_BLOCKS.has(node.type as string)) {
         for (const child of node.block?.nodes ?? [])
             walk(child, visit);
     }
@@ -95,7 +133,7 @@ function walk(node, visit: (node) => void) {
     }
 }
 
-function inside(line: number, column: number, loc): boolean {
+function inside(line: number, column: number, loc: PugLoc): boolean {
     const start = loc.start;
     const end = loc.end;
     return (line > start.line && line < end.line)
@@ -113,14 +151,17 @@ function loadPug(file: string) {
     const pugJson = resolveFromProject(file, 'pug/package.json');
     if (!pugJson)
         return null;
-    const lexer = asFn(requireFromProject(pugJson, 'pug-lexer'));
-    const parser = asFn(requireFromProject(pugJson, 'pug-parser'));
+    const lexer = asFn(requireFromProject<PugModule>(pugJson, 'pug-lexer'));
+    const parser = asFn(requireFromProject<PugModule>(pugJson, 'pug-parser'));
     if (!lexer || !parser)
         return null;
     return { lex: lexer, parse: parser };
 }
 
-function asFn(mod) {
+/** `pug-lexer` / `pug-parser` export, either the function itself or a CJS `{ default }` wrapper. */
+type PugModule = ((...args: unknown[]) => unknown) | { default?: unknown };
+
+function asFn(mod: PugModule | null | undefined) {
     const fn = typeof mod === 'function' ? mod : mod?.default;
-    return typeof fn === 'function' ? fn : null;
+    return typeof fn === 'function' ? fn as (...args: unknown[]) => unknown : null;
 }

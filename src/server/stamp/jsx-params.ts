@@ -10,21 +10,34 @@
  */
 
 import { PATH_ATTR, PATH_BINDING, PROPS_BINDING } from './stamp-edits.js';
+import type { StampNode } from './stamp-edits.js';
+
+/** Parameter edit: text inserted at `at` inside the original source. */
+interface ParamEdit {
+    at: number;
+    text: string;
+}
+
+/** How a component reads the callsite path, plus the edit that injects a binding when needed. */
+interface ParamPlanResult {
+    expr: string;
+    insert: (insertions: ParamEdit[]) => void;
+}
 
 /**
- * @param {object} fn Function node with `params` and `body`.
+ * @param {StampNode} fn Function node with `params` and `body`.
  * @param {string} code Source `fn` was parsed from, used to find the empty parameter list.
- * @returns {{ expr: string, insert: (insertions: Array<{ at: number, text: string }>) => void } | null}
+ * @returns {ParamPlanResult | null}
  *   Null when the parameter shape cannot carry a path (array pattern, or no `)` to edit).
  */
-export function paramPlan(fn, code: string) {
+export function paramPlan(fn: StampNode, code: string): ParamPlanResult | null {
     const first = fn.params?.[0];
     if (!first) {
         const at = emptyParamsAt(fn, code);
         if (at == null)
             return null;
         const expr = `${PROPS_BINDING} && ${PROPS_BINDING}[${JSON.stringify(PATH_ATTR)}]`;
-        return { expr, insert: (insertions) => insertions.push({ at, text: PROPS_BINDING }) };
+        return { expr, insert: (insertions: ParamEdit[]) => insertions.push({ at, text: PROPS_BINDING }) };
     }
     return paramExpr(first);
 }
@@ -32,10 +45,10 @@ export function paramPlan(fn, code: string) {
 /**
  * Property or method name for an identifier or string key. Computed keys return `''`.
  *
- * @param {object} node Key node.
+ * @param {StampNode | null | undefined} node Key node.
  * @returns {string}
  */
-export function propertyName(node): string {
+export function propertyName(node: StampNode | null | undefined): string {
     if (node?.type === 'Identifier')
         return node.name ?? '';
     if ((node?.type === 'Literal' || node?.type === 'StringLiteral') && typeof node.value === 'string')
@@ -43,38 +56,38 @@ export function propertyName(node): string {
     return '';
 }
 
-function paramExpr(param) {
+function paramExpr(param: StampNode): ParamPlanResult | null {
     if (param.type === 'Identifier') {
         const expr = `${param.name} && ${param.name}[${JSON.stringify(PATH_ATTR)}]`;
         return { expr, insert() {} };
     }
     if (param.type === 'AssignmentPattern')
-        return paramExpr(param.left);
+        return paramExpr(param.left as StampNode);
     if (param.type === 'ObjectPattern') {
         const existing = objectPathBinding(param);
         if (existing)
             return { expr: existing, insert() {} };
         const comma = param.properties?.length ? ', ' : '';
         const text = `${JSON.stringify(PATH_ATTR)}: ${PATH_BINDING}${comma}`;
-        return { expr: PATH_BINDING, insert: (insertions) => insertions.push({ at: param.start + 1, text }) };
+        return { expr: PATH_BINDING, insert: (insertions: ParamEdit[]) => insertions.push({ at: param.start + 1, text }) };
     }
     return null;
 }
 
-function objectPathBinding(param): string {
+function objectPathBinding(param: StampNode): string {
     for (const property of param.properties ?? []) {
         if (property?.type !== 'Property' || property.computed || propertyName(property.key) !== PATH_ATTR)
             continue;
-        const value = property.value;
+        const value = property.value as StampNode | null | undefined;
         if (value?.type === 'Identifier')
-            return value.name;
+            return value.name as string;
         if (value?.type === 'AssignmentPattern' && value.left?.type === 'Identifier')
-            return value.left.name;
+            return value.left.name as string;
     }
     return '';
 }
 
-function emptyParamsAt(fn, code: string): number | null {
+function emptyParamsAt(fn: StampNode, code: string): number | null {
     const bodyStart = fn.body?.start;
     if (typeof fn.start !== 'number' || typeof bodyStart !== 'number')
         return null;

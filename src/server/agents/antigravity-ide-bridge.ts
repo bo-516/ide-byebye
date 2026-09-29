@@ -45,7 +45,7 @@ export function antigravityIdeBridgeExtensionDir(home = os.homedir()) {
  * @param {string} [platform=process.platform] Node platform id.
  * @returns {boolean} True when both resolve to the same location.
  */
-export function sameFilesystemPath(left, right, platform = process.platform) {
+export function sameFilesystemPath(left: string, right: string, platform = process.platform) {
     const a = path.resolve(left);
     const b = path.resolve(right);
     if (platform === 'darwin' || platform === 'win32')
@@ -82,7 +82,7 @@ export function installAntigravityIdeBridge(home = os.homedir()) {
  * @param {string} expected Desired contents.
  * @returns {boolean} True when the file matches.
  */
-function sameFile(file, expected) {
+function sameFile(file: string, expected: string) {
     try {
         return fs.readFileSync(file, 'utf8') === expected;
     }
@@ -99,7 +99,7 @@ function sameFile(file, expected) {
  * @param {string} id Proposed id.
  * @returns {string} Safe id.
  */
-export function safeBridgeRequestId(id) {
+export function safeBridgeRequestId(id: string) {
     return /^[A-Za-z0-9-]{8,80}$/.test(String(id ?? '')) ? String(id) : randomUUID();
 }
 
@@ -112,7 +112,7 @@ export function safeBridgeRequestId(id) {
  * @param {{ id: string, workspacePath: string, message: string, files?: string[], home?: string, now?: number }} input Request fields.
  * @returns {string} Absolute request path.
  */
-export function writeAntigravityIdeBridgeRequest(input) {
+export function writeAntigravityIdeBridgeRequest(input: { id: string, workspacePath: string, message: string, files?: string[], home?: string, now?: number }) {
     const paths = antigravityIdeBridgePaths(input.home);
     fs.mkdirSync(paths.requests, { recursive: true });
     const id = safeBridgeRequestId(input.id);
@@ -135,7 +135,7 @@ export function writeAntigravityIdeBridgeRequest(input) {
  * @param {string} [home] User home directory.
  * @returns {{ id: string, ok: boolean, error?: string } | null} Ack, or null when it is not written yet.
  */
-export function readAntigravityIdeBridgeAck(id, home = os.homedir()) {
+export function readAntigravityIdeBridgeAck(id: string, home = os.homedir()) {
     const file = path.join(antigravityIdeBridgePaths(home).acks, `${safeBridgeRequestId(id)}.json`);
     try {
         const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -158,7 +158,7 @@ export function readAntigravityIdeBridgeAck(id, home = os.homedir()) {
  * @param {{ home?: string, now?: number, pidAlive?: (pid: number) => boolean }} [options] Clock and pid probe.
  * @returns {boolean} True when the extension is running in that window.
  */
-export function antigravityIdeBridgeIsRunning(workspacePath, options: any = {}) {
+export function antigravityIdeBridgeIsRunning(workspacePath: string, options: any = {}) {
     const dir = antigravityIdeBridgePaths(options.home).windows;
     let names = [];
     try {
@@ -168,7 +168,7 @@ export function antigravityIdeBridgeIsRunning(workspacePath, options: any = {}) 
         return false;
     }
     const now = options.now ?? Date.now();
-    const pidAlive = options.pidAlive ?? ((pid) => {
+    const pidAlive = options.pidAlive ?? ((pid: number) => {
         try {
             process.kill(pid, 0);
             return true;
@@ -184,7 +184,7 @@ export function antigravityIdeBridgeIsRunning(workspacePath, options: any = {}) 
             const beat = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
             if (!beat || now - Number(beat.at) > HEARTBEAT_TTL_MS || !pidAlive(Number(beat.pid)))
                 continue;
-            if ((beat.folders ?? []).some((folder) => sameFilesystemPath(folder, workspacePath)))
+            if ((beat.folders ?? []).some((folder: string) => sameFilesystemPath(folder, workspacePath)))
                 return true;
         }
         catch {
@@ -208,7 +208,7 @@ export function antigravityIdeBridgeIsRunning(workspacePath, options: any = {}) 
  * @param {string} [home] User home directory.
  * @returns {Promise<{ id: string, ok: boolean, error?: string } | null>} Ack, or null on timeout.
  */
-function waitForAck(id, timeoutMs, home) {
+function waitForAck(id: string, timeoutMs: number, home: string): Promise<{ id: string, ok: boolean, error?: string } | null> {
     const deadline = Date.now() + timeoutMs;
     return new Promise((resolve) => {
         const poll = () => {
@@ -230,7 +230,7 @@ function waitForAck(id, timeoutMs, home) {
  * @param {string} id Request id.
  * @param {string} [home] User home directory.
  */
-function discardRequest(id, home) {
+function discardRequest(id: string, home: string) {
     const safe = safeBridgeRequestId(id);
     const dir = antigravityIdeBridgePaths(home).requests;
     fs.rmSync(path.join(dir, `${safe}.json`), { force: true });
@@ -245,7 +245,7 @@ function discardRequest(id, home) {
  * @param {string} home User home directory.
  * @returns {void}
  */
-function finishAck(ack, id, home) {
+function finishAck(ack: { id: string, ok: boolean, error?: string } | null, id: string, home: string) {
     if (!ack) {
         discardRequest(id, home);
         throw new Error('Antigravity IDE opened the folder, but the agent input did not accept the prompt. Reload that IDE window and try again.');
@@ -268,7 +268,20 @@ function finishAck(ack, id, home) {
  * @param {{ id: string, workspacePath: string, message: string, files?: string[], home?: string, openWorkspace: () => Promise<void>, hooks?: BridgeHostHooks }} input Delivery inputs.
  * @returns {Promise<void>} Resolves when the IDE ack says the input was filled.
  */
-export async function deliverAntigravityIdePrompt(input) {
+export async function deliverAntigravityIdePrompt(input: {
+    id: string,
+    workspacePath: string,
+    message: string,
+    files?: string[],
+    home?: string,
+    openWorkspace: () => Promise<void>,
+    hooks?: {
+        pidAlive?: (pid: number) => boolean,
+        listProcesses?: () => Array<{ pid: number, command: string }>,
+        listenerPids?: (port: number) => number[],
+        restart?: (pid: number) => boolean,
+    },
+}) {
     const home = input.home ?? os.homedir();
     const id = safeBridgeRequestId(input.id);
     const hooks = input.hooks ?? {};

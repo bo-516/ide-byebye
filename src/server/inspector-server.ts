@@ -21,7 +21,7 @@ import { createInspectorRequestHandler } from './routes.js';
  * @returns {Promise<{ server: import('node:http').Server, port: number, origin: string, updateDeps: (next: Parameters<typeof createInspectorRequestHandler>[0]) => void, close: () => Promise<void> }>} Resolves once the
  * socket is listening; `origin` is the absolute base URL (e.g. `http://127.0.0.1:51234`) to embed in the page.
  */
-export function createInspectorServer(deps) {
+export function createInspectorServer(deps: Parameters<typeof createInspectorRequestHandler>[0]) {
     let handler = createInspectorRequestHandler(deps);
     const server = http.createServer((req, res) => {
         handler(req, res, () => {
@@ -32,7 +32,7 @@ export function createInspectorServer(deps) {
     });
 
     return new Promise<any>((resolve, reject) => {
-        const onError = (err) => reject(err);
+        const onError = (err: Error) => reject(err);
         server.once('error', onError);
         server.listen(0, '127.0.0.1', () => {
             server.removeListener('error', onError);
@@ -42,7 +42,7 @@ export function createInspectorServer(deps) {
                 server,
                 port,
                 origin: `http://127.0.0.1:${port}`,
-                updateDeps(next) {
+                updateDeps(next: Parameters<typeof createInspectorRequestHandler>[0]) {
                     handler = createInspectorRequestHandler(next);
                 },
                 close() {

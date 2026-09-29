@@ -75,7 +75,7 @@ export const FOOTER_STYLE = `
 .cii-btn-secondary { background: var(--cii-key); color: var(--cii-text); box-shadow: var(--cii-shadow-key); }
 .cii-btn-secondary:hover:not(:disabled) { box-shadow: var(--cii-shadow-key-hover); }
 
-/* `.cii-icon-btn` later sets `display: inline-flex`. Without the element selector the idle and copied labels sit in a
+/* .cii-icon-btn later sets display: inline-flex. Without the element selector the idle and copied labels sit in a
    row, the hidden one still takes 17px, and the visible glyph lands left of the button center. */
 button.cii-agent-clipboard { display: inline-grid; place-items: center; }
 .cii-copy-label { grid-area: 1 / 1; display: inline-flex; font-size: 0; }

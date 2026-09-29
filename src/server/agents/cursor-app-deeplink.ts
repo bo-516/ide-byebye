@@ -37,7 +37,7 @@ const DEFAULT_ROUTE = 'prompt';
  * @param {string | undefined} scheme Optional configured scheme.
  * @returns {string} Valid deeplink scheme, usually `cursor`.
  */
-function normalizeScheme(scheme) {
+function normalizeScheme(scheme: string | undefined) {
     const value = (scheme ?? DEFAULT_SCHEME).replace(/:$/, '');
     if (!/^[a-z][a-z0-9+.-]*$/i.test(value)) {
         throw new Error(`Invalid Cursor URL scheme: ${scheme}`);
@@ -54,7 +54,7 @@ function normalizeScheme(scheme) {
  * @param {string | undefined} authority Optional configured URL authority.
  * @returns {string} URL authority used after `cursor://`.
  */
-function normalizeAuthority(authority) {
+function normalizeAuthority(authority: string | undefined) {
     const value = (authority ?? DEFAULT_AUTHORITY).trim();
     if (!/^[a-z0-9.-]+$/i.test(value)) {
         throw new Error(`Invalid Cursor deeplink authority: ${authority}`);
@@ -71,7 +71,7 @@ function normalizeAuthority(authority) {
  * @param {string | undefined} route Optional configured route name.
  * @returns {string} Route name without leading or trailing slashes.
  */
-function normalizeRoute(route) {
+function normalizeRoute(route: string | undefined) {
     const value = String(route ?? DEFAULT_ROUTE).trim().replace(/^\/+|\/+$/g, '');
     if (!/^[a-z][a-z0-9._-]*$/i.test(value)) {
         throw new Error(`Invalid Cursor deeplink route: ${route}`);
@@ -88,7 +88,7 @@ function normalizeRoute(route) {
  * @param {{ scheme?: string, authority?: string, route?: string, prompt: string, workspace?: string, mode?: string }} input Deeplink fields.
  * @returns {string} Fully encoded Cursor deeplink URL.
  */
-export function buildCursorAppDeepLink(input) {
+export function buildCursorAppDeepLink(input: { scheme?: string, authority?: string, route?: string, prompt: string, workspace?: string, mode?: string }) {
     const url = new URL(`${normalizeScheme(input.scheme)}://${normalizeAuthority(input.authority)}/${normalizeRoute(input.route)}`);
     url.searchParams.set('text', input.prompt);
     if (input.workspace)
@@ -110,11 +110,11 @@ export function buildCursorAppDeepLink(input) {
  * 4. default — walk from the bundler run directory (`context.projectRoot`) up to the nearest git root and use that
  *    folder's basename; if no `.git` exists, use the run directory basename
  *
- * @param {Record<string, unknown>} config Cursor App adapter config.
+ * @param {{ workspace?: unknown, projectRoot?: unknown }} config Cursor App adapter config.
  * @param {{ projectRoot: string }} context Agent context carrying the Vite project root.
  * @returns {string | undefined} Workspace name for Cursor routing, or undefined to omit it.
  */
-export function resolveCursorAppWorkspace(config, context) {
+export function resolveCursorAppWorkspace(config: { workspace?: unknown, projectRoot?: unknown }, context: { projectRoot: string }) {
     if (config.workspace === false)
         return undefined;
     if (typeof config.workspace === 'string' && config.workspace.trim())
@@ -132,11 +132,11 @@ export function resolveCursorAppWorkspace(config, context) {
  * Boundary: the prompt path should come from `writePromptFile`; an empty path would remove the handoff target from the
  * prompt and leave Cursor with only the original intent.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {Parameters<typeof buildPromptReferenceLines>[0]} request Normalized intent request.
  * @param {string} promptPath Absolute prompt file path written under the inspector output directory.
  * @returns {string} Cursor handoff prompt ending with a newline.
  */
-export function buildCursorAppFilePrompt(request, promptPath) {
+export function buildCursorAppFilePrompt(request: Parameters<typeof buildPromptReferenceLines>[0], promptPath: string) {
     const intent = String(request.intent ?? '').trim();
     const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
     return [...refs, promptPath, '', intent].join('\n').trim() + '\n';

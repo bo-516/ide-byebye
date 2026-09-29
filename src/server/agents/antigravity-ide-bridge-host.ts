@@ -8,6 +8,10 @@ import { pathToFileURL } from 'node:url';
  *
  * @typedef {{ pid: number, command: string }} ProcessRow
  */
+interface ProcessRow {
+    pid: number;
+    command: string;
+}
 
 /**
  * Hooks for process lookup. Tests pass fakes; production uses `ps` and `lsof`.
@@ -24,7 +28,7 @@ import { pathToFileURL } from 'node:url';
  * @param {string} workspacePath Absolute folder opened in the IDE.
  * @returns {string} Lowercase hex digest.
  */
-export function antigravityIdeWorkspaceId(workspacePath) {
+export function antigravityIdeWorkspaceId(workspacePath: string) {
     const href = pathToFileURL(path.resolve(workspacePath)).href;
     return createHash('sha256').update(href).digest('hex');
 }
@@ -35,7 +39,7 @@ export function antigravityIdeWorkspaceId(workspacePath) {
  * @param {string} workspacePath Absolute folder.
  * @returns {string} Slug id.
  */
-export function antigravityIdeWorkspaceSlug(workspacePath) {
+export function antigravityIdeWorkspaceSlug(workspacePath: string) {
     const resolved = path.resolve(workspacePath).replace(/^[A-Za-z]:/, (drive) => drive[0]);
     return `file_${resolved.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}`;
 }
@@ -49,7 +53,7 @@ export function antigravityIdeWorkspaceSlug(workspacePath) {
  * @param {string} text Raw `ps` output.
  * @returns {ProcessRow[]} Process rows.
  */
-export function parseProcessTable(text) {
+export function parseProcessTable(text: string) {
     const rows = [];
     for (const line of String(text ?? '').split('\n')) {
         const match = line.match(/^\s*(\d+)\s+(.*\S)\s*$/);
@@ -66,7 +70,7 @@ export function parseProcessTable(text) {
  * @param {string} command Raw command line.
  * @returns {number | null} Port, or null when the flag is missing or not a port.
  */
-export function extensionServerPort(command) {
+export function extensionServerPort(command: string) {
     const match = String(command).match(/--extension_server_port(?:=|\s+)(\d+)/);
     const port = match ? Number(match[1]) : NaN;
     return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
@@ -78,7 +82,7 @@ export function extensionServerPort(command) {
  * @param {string} command Raw command line.
  * @returns {string} Id, or `''` when the flag is absent.
  */
-export function workspaceIdFlag(command) {
+export function workspaceIdFlag(command: string) {
     const match = String(command).match(/--workspace_id(?:=|\s+)(\S+)/);
     return match ? match[1] : '';
 }
@@ -92,7 +96,7 @@ export function workspaceIdFlag(command) {
  * @param {string} command Raw command line.
  * @returns {boolean} True for the IDE extension host.
  */
-export function isAntigravityIdeExtensionHost(command) {
+export function isAntigravityIdeExtensionHost(command: string) {
     const text = String(command);
     return text.includes('Antigravity IDE Helper (Plugin)') && text.includes('node.mojom.NodeService');
 }
@@ -103,7 +107,7 @@ export function isAntigravityIdeExtensionHost(command) {
  * @param {string} command Raw command line.
  * @returns {boolean} True for an IDE language server.
  */
-export function isAntigravityIdeLanguageServer(command) {
+export function isAntigravityIdeLanguageServer(command: string) {
     const text = String(command);
     return /language_server_/.test(text)
         && text.includes('antigravity')
@@ -123,7 +127,11 @@ export function isAntigravityIdeLanguageServer(command) {
  * @param {{ processes: ProcessRow[], workspacePath: string, listenerPidsByPort: ReadonlyMap<number, number[]> }} input Process table and port listeners.
  * @returns {number | null} Extension-host pid.
  */
-export function chooseAntigravityIdeExtensionHost(input) {
+export function chooseAntigravityIdeExtensionHost(input: {
+    processes: ProcessRow[],
+    workspacePath: string,
+    listenerPidsByPort: ReadonlyMap<number, number[]>,
+}) {
     const ids = new Set([
         antigravityIdeWorkspaceId(input.workspacePath),
         antigravityIdeWorkspaceSlug(input.workspacePath),
@@ -173,7 +181,7 @@ function listProcesses() {
  * @param {number} port TCP port.
  * @returns {number[]} Listener pids.
  */
-function listenerPids(port) {
+function listenerPids(port: number) {
     if (process.platform === 'win32')
         return [];
     try {
@@ -195,7 +203,7 @@ function listenerPids(port) {
  * @param {BridgeHostHooks} [hooks] Process lookup overrides.
  * @returns {number | null} Host pid.
  */
-export function findAntigravityIdeExtensionHostPid(workspacePath, hooks: any = {}) {
+export function findAntigravityIdeExtensionHostPid(workspacePath: string, hooks: any = {}) {
     const processes = (hooks.listProcesses ?? listProcesses)();
     const lookup = hooks.listenerPids ?? listenerPids;
     const ports = new Map();
@@ -223,7 +231,7 @@ export function findAntigravityIdeExtensionHostPid(workspacePath, hooks: any = {
  * @param {BridgeHostHooks} [hooks] Process lookup overrides.
  * @returns {boolean} True when the signal was sent.
  */
-export function restartAntigravityIdeExtensionHost(pid, hooks: any = {}) {
+export function restartAntigravityIdeExtensionHost(pid: number, hooks: any = {}) {
     if (hooks.restart)
         return hooks.restart(pid) === true;
     const row = listProcesses().find((item) => item.pid === pid);

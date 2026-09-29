@@ -32,11 +32,13 @@ export function resolveAntigravityPathStyleOptions(config: any = {}) {
  * Boundary: `antigravity.projectRoot` overrides the bundler root only when it is a non-blank string. Relative paths
  * resolve from the Node process cwd. Blank values fall back to `context.projectRoot`.
  *
- * @param {Record<string, unknown>} config Antigravity adapter config.
- * @param {{ projectRoot: string }} context Agent context carrying the bundler project root.
- * @returns {string} Absolute working directory for the launcher `cd`.
+ * @param {{ projectRoot?: unknown } | null | undefined} config Antigravity adapter config.
+ * @param {{ projectRoot?: string }} context Agent context carrying the bundler project root. A string `projectRoot` makes the return a string.
+ * @returns {string | undefined} Absolute working directory for the launcher `cd`, or `context.projectRoot` when no override is set.
  */
-export function resolveAntigravityProjectRoot(config, context) {
+export function resolveAntigravityProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot: string }): string;
+export function resolveAntigravityProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot?: string }): string | undefined;
+export function resolveAntigravityProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot?: string }) {
     const configured = typeof config?.projectRoot === 'string' ? config.projectRoot.trim() : '';
     return configured ? path.resolve(configured) : context.projectRoot;
 }
@@ -47,11 +49,11 @@ export function resolveAntigravityProjectRoot(config, context) {
  * Boundary: only the formatter root changes. Absolute file paths on the request stay as-is. Omitting
  * `request.projectRoot` falls through to the context root and can strip against the wrong directory.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {Parameters<typeof buildPrompt>[0]} request Normalized intent request.
  * @param {Record<string, unknown>} [config] Antigravity adapter config.
- * @returns {Record<string, unknown>} Request view whose `projectRoot` matches the CLI cwd.
+ * @returns {Parameters<typeof buildPrompt>[0]} Request view whose `projectRoot` matches the CLI cwd.
  */
-export function withAntigravityPathRoot(request, config: any = {}) {
+export function withAntigravityPathRoot(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
     const pathRoot = resolveAntigravityProjectRoot(config, { projectRoot: request.projectRoot });
     if (pathRoot === request.projectRoot)
         return request;
@@ -64,11 +66,11 @@ export function withAntigravityPathRoot(request, config: any = {}) {
  * Boundary: path style is agent-local (default relative source, absolute artifacts). Relative paths strip against
  * the CLI cwd, not the bundler package root. Prefer this over reusing `context.prompt` when those differ.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {Parameters<typeof buildPrompt>[0]} request Normalized intent request.
  * @param {Record<string, unknown>} [config] Antigravity adapter config.
  * @returns {string} Prompt text ending with a newline.
  */
-export function buildAntigravityPrompt(request, config: any = {}) {
+export function buildAntigravityPrompt(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
     return buildPrompt(withAntigravityPathRoot(request, config), resolveAntigravityPathStyleOptions(config));
 }
 
@@ -78,12 +80,12 @@ export function buildAntigravityPrompt(request, config: any = {}) {
  * Boundary: an empty `promptPath` drops the handoff target. Path style follows {@link resolveAntigravityPathStyleOptions}.
  * The handoff path itself is plain text, not an `@` chip.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {Parameters<typeof buildPrompt>[0]} request Normalized intent request.
  * @param {string} promptPath Absolute handoff file path.
  * @param {Record<string, unknown>} [config] Antigravity adapter config.
  * @returns {string} Prompt ending with a newline.
  */
-export function buildAntigravityFilePrompt(request, promptPath, config: any = {}) {
+export function buildAntigravityFilePrompt(request: Parameters<typeof buildPrompt>[0], promptPath: string, config: any = {}) {
     const intent = String(request.intent ?? '').trim();
     const rooted = withAntigravityPathRoot(request, config);
     const pathOptions = resolveAntigravityPathStyleOptions(config);
@@ -98,11 +100,11 @@ export function buildAntigravityFilePrompt(request, promptPath, config: any = {}
  * Boundary: `promptMode: "file"` always writes the full request first. In `auto`, prompts longer than the argv budget
  * switch to the pointer so the Terminal command stays under ARG_MAX. Invalid limits fall back to the default budget.
  *
- * @param {Record<string, unknown>} config Antigravity adapter config.
+ * @param {{ promptMode?: unknown, promptArgLimit?: unknown } | null | undefined} config Antigravity adapter config.
  * @param {string} prompt Rendered prompt text.
  * @returns {boolean} True when the request should be written to disk first.
  */
-export function shouldWriteAntigravityPromptFile(config, prompt) {
+export function shouldWriteAntigravityPromptFile(config: { promptMode?: unknown, promptArgLimit?: unknown } | null | undefined, prompt: string) {
     const mode = config?.promptMode ?? 'auto';
     if (mode === 'file')
         return true;
@@ -151,7 +153,7 @@ export function antigravityMissingMessage(config: any = {}) {
  * @param {unknown} mode Raw `antigravity.mode`.
  * @returns {string} Trimmed mode, or empty.
  */
-function optionalMode(mode) {
+function optionalMode(mode: unknown) {
     return typeof mode === 'string' ? mode.trim() : '';
 }
 
@@ -164,7 +166,7 @@ function optionalMode(mode) {
  * @param {{ command: string, cwd: string, promptPath: string, mode?: string }} input Launcher fields.
  * @returns {string} Bash script including the shebang.
  */
-export function buildAntigravityLauncherScript(input) {
+export function buildAntigravityLauncherScript(input: { command: string, cwd: string, promptPath: string, mode?: string }) {
     const command = shellSingleQuote(input.command);
     const cwd = shellSingleQuote(input.cwd);
     const promptPath = shellSingleQuote(input.promptPath);
@@ -188,7 +190,7 @@ export function buildAntigravityLauncherScript(input) {
  * @param {{ command: string, cwd: string, promptPath: string, mode?: string }} input Launcher fields.
  * @returns {string} `.cmd` contents (CRLF).
  */
-export function buildAntigravityWindowsLauncherScript(input) {
+export function buildAntigravityWindowsLauncherScript(input: { command: string, cwd: string, promptPath: string, mode?: string }) {
     const mode = optionalMode(input.mode);
     const modeArgs = mode ? ` --mode ${powershellSingleQuote(mode)}` : '';
     const program = [
@@ -217,7 +219,7 @@ export function antigravityLauncherExtension(platform = process.platform) {
  * @param {string} [platform=process.platform] Node platform id.
  * @returns {string} Script contents.
  */
-export function buildAntigravityLauncherFile(input, platform = process.platform) {
+export function buildAntigravityLauncherFile(input: { command: string, cwd: string, promptPath: string, mode?: string }, platform = process.platform) {
     return platform === 'win32'
         ? buildAntigravityWindowsLauncherScript(input)
         : buildAntigravityLauncherScript(input);

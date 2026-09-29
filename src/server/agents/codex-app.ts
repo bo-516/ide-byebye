@@ -19,7 +19,7 @@ export { buildCodexAppFilePrompt, buildCodexAppPrompt };
  * @param {Date} date Date used to stamp the prompt file name.
  * @returns {string} ISO-like timestamp with colon characters replaced for file-system compatibility.
  */
-function fileStamp(date) {
+function fileStamp(date: Date) {
     return date.toISOString().replace(/:/g, '-').replace(/\..+$/, '');
 }
 
@@ -33,7 +33,7 @@ function fileStamp(date) {
  * @param {string | undefined} scheme Optional configured scheme.
  * @returns {string} Valid deeplink scheme, usually `codex`.
  */
-function normalizeScheme(scheme) {
+function normalizeScheme(scheme: string | undefined) {
     const value = (scheme ?? DEFAULT_SCHEME).replace(/:$/, '');
     if (!/^[a-z][a-z0-9+.-]*$/i.test(value)) {
         throw new Error(`Invalid Codex App URL scheme: ${scheme}`);
@@ -51,7 +51,7 @@ function normalizeScheme(scheme) {
  * @param {{ scheme?: string, prompt: string, path?: string, originUrl?: string }} input Deeplink fields.
  * @returns {string} Fully encoded Codex App deeplink URL.
  */
-export function buildCodexAppDeepLink(input) {
+export function buildCodexAppDeepLink(input: { scheme?: string, prompt: string, path?: string, originUrl?: string }) {
     const url = new URL(`${normalizeScheme(input.scheme)}://new`);
     url.searchParams.set('prompt', input.prompt);
     if (input.path)
@@ -71,7 +71,7 @@ export function buildCodexAppDeepLink(input) {
  * @param {{ scheme?: string, threadId: string, prompt: string }} input Deeplink fields.
  * @returns {string} `codex://threads/<id>?prompt=…` (or the configured scheme).
  */
-export function buildCodexAppThreadDeepLink(input) {
+export function buildCodexAppThreadDeepLink(input: { scheme?: string, threadId: string, prompt: string }) {
     if (!SESSION_ID_PATTERNS['codex-app'].test(String(input.threadId ?? '')))
         throw new Error('Invalid Codex thread id');
     const url = new URL(`${normalizeScheme(input.scheme)}://threads/${input.threadId}`);
@@ -87,11 +87,11 @@ export function buildCodexAppThreadDeepLink(input) {
  * current Node process; passing a non-string or blank value falls back to
  * `context.projectRoot`.
  *
- * @param {Record<string, unknown>} config Codex App adapter config.
+ * @param {{ projectRoot?: unknown } | null | undefined} config Codex App adapter config.
  * @param {{ projectRoot: string }} context Agent context carrying the Vite project root.
  * @returns {string} Absolute or context-provided project directory for the deeplink `path`.
  */
-export function resolveCodexAppProjectRoot(config, context) {
+export function resolveCodexAppProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot: string }) {
     const configuredRoot = typeof config?.projectRoot === 'string' && config.projectRoot.trim()
         ? config.projectRoot.trim()
         : '';
@@ -105,16 +105,16 @@ export function resolveCodexAppProjectRoot(config, context) {
  * project root. Passing a context with an outside output directory throws via
  * `assertPathInsideRoot` before any file is created.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {{ id: string, createdAt: string | number | Date }} request Normalized intent request. Callers may omit the markdown fields; the assertion at the renderer is erased.
  * @param {{ outputDir: string, projectRoot: string, prompt: string }} context Agent context used for storage and rendering.
  * @returns {string} Absolute path to the written prompt file.
  */
-function writePromptFile(request, context) {
+function writePromptFile(request: { id: string, createdAt: string | number | Date }, context: { outputDir: string, projectRoot: string, prompt: string }) {
     const requestsDir = path.join(context.outputDir, 'requests');
     assertPathInsideRoot(requestsDir, context.projectRoot);
     fs.mkdirSync(requestsDir, { recursive: true });
     const target = path.join(requestsDir, `${fileStamp(new Date(request.createdAt))}-${request.id}.md`);
-    fs.writeFileSync(target, renderRequestMarkdown(request, context.prompt), 'utf8');
+    fs.writeFileSync(target, renderRequestMarkdown(request as Parameters<typeof renderRequestMarkdown>[0], context.prompt), 'utf8');
     return target;
 }
 
@@ -125,11 +125,11 @@ function writePromptFile(request, context) {
  * omitted modes keep direct deeplink prompting. Passing a non-string mode is
  * therefore treated like `auto`.
  *
- * @param {Record<string, unknown>} config Codex App adapter config.
+ * @param {{ promptMode?: unknown }} config Codex App adapter config.
  * @param {string} prompt Rendered prompt text, reserved for future size-based auto mode.
  * @returns {boolean} True when the request should be written to disk first.
  */
-function shouldWritePromptFile(config, prompt) {
+function shouldWritePromptFile(config: { promptMode?: unknown }, prompt: string) {
     void prompt;
     const mode = config.promptMode ?? 'auto';
     if (mode === 'file')
@@ -161,10 +161,16 @@ export function createCodexAppAdapter(config: any = {}) {
          * @param {{ projectRoot: string }} ctx Inspector project root.
          * @returns {Promise<{ sessions: Array<Record<string, unknown>>, delivery: string, notice?: string }>}
          */
-        async listSessions(ctx) {
+        async listSessions(ctx: { projectRoot: string }) {
             return listCodexSessions({ projectRoot: ctx.projectRoot, config });
         },
-        async send(request, context) {
+        async send(request: Parameters<typeof buildCodexAppPrompt>[0] & { id: string, createdAt: string | number | Date }, context: {
+            emit: (event: { type: string, text?: string }) => void,
+            outputDir: string,
+            projectRoot: string,
+            prompt: string,
+            targetSession?: { id: string, cwd: string } | null,
+        }) {
             const target = context.targetSession;
             const events = [{ type: 'started', text: target ? 'Opening Codex App thread' : 'Opening Codex App' }];
             context.emit(events[0]);
@@ -172,7 +178,7 @@ export function createCodexAppAdapter(config: any = {}) {
                 // Thread cwd is the link root so `@` paths match the conversation the user is already in.
                 const promptRequest = target ? { ...request, projectRoot: target.cwd } : request;
                 let prompt = buildCodexAppPrompt(promptRequest);
-                let writtenPromptPath;
+                let writtenPromptPath: string | undefined;
                 if (shouldWritePromptFile(config, context.prompt)) {
                     // The route's prompt is relative to the inspector root. A thread handoff must embed the prompt
                     // rebuilt against the thread cwd, or repo-root threads keep package-relative links.

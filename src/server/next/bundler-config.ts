@@ -15,6 +15,44 @@ import { serializeStampOptions } from '../stamp/stamp-options.js';
 import type { NextInspector } from './next-inspector.js';
 import { detectNextVersion, nextMajor, usesStableTurbopackKey } from './next-project.js';
 
+/** Plugin options {@link serializeStampOptions} accepts (`IdeByebyeOptions`, possibly omitted). */
+type StampOptions = Parameters<typeof serializeStampOptions>[0];
+
+/** One Turbopack config object (`turbopack` or `experimental.turbo`). User keys besides `rules` are kept. */
+type TurbopackHolder = {
+    rules?: Record<string, unknown>;
+    [key: string]: unknown;
+};
+
+/**
+ * Next config fields the bundler wiring reads.
+ * Boundary: an index signature keeps `reactStrictMode`, `basePath`, and other user keys on the spread result.
+ */
+type NextConfigShape = {
+    webpack?: Function;
+    turbopack?: TurbopackHolder;
+    experimental?: {
+        turbo?: TurbopackHolder;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+};
+
+/** `webpack(config, context)` config. `cache` is preserved and not rewritten. */
+type NextWebpackConfig = {
+    plugins?: unknown;
+    module?: { rules?: unknown[] | null };
+    cache?: { type?: unknown; version?: unknown };
+    [key: string]: unknown;
+};
+
+/** Next's second webpack argument. Only `dev` and `dir` are read. */
+type NextWebpackContext = {
+    dev?: unknown;
+    isServer?: unknown;
+    dir?: string;
+};
+
 /** Next ≥ 16 stamps every JS-like file, matching code-inspector 1.6.2's broad glob. */
 const BROAD_CODE_GLOB = '**/*.{jsx,tsx,js,ts,mjs,mts}';
 
@@ -65,12 +103,12 @@ function stampLoaderPath() {
  * Boundary: with `typedRules` (Next 14) one rule per JSX extension carries a matching `as`. Next ≥ 16 uses the
  * broad glob. Older Next uses the convention glob plus {@link ENTRY_JS_GLOB}.
  *
- * @param {Record<string, unknown>} options Plugin options, serialized into the stamp loader.
+ * @param {StampOptions} options Plugin options, serialized into the stamp loader. `{}` is a valid empty config.
  * @param {NextInspector} inspector Running inspector (provides the bootstrap module path and project root).
  * @param {{ typedRules?: boolean }} [shape] Rule shape for the installed Next version.
  * @returns {Record<string, unknown>} Rules object for `turbopack.rules` / `experimental.turbo.rules`.
  */
-export function buildTurbopackRules(options, inspector: NextInspector, { typedRules = false } = {}) {
+export function buildTurbopackRules(options: StampOptions, inspector: NextInspector, { typedRules = false } = {}) {
     const entry = { loader: entryLoaderPath(), options: { bootstrapFile: inspector.bootstrapFile, projectDir: inspector.root } };
     const stamp = { loader: stampLoaderPath(), options: serializeStampOptions(options) };
     const chain = [entry, stamp];
@@ -104,12 +142,12 @@ export function turbopackShape(root: string) {
 /**
  * Merge our rules under the right config key; user rules win on an identical glob (with a warning).
  *
- * @param {Record<string, any>} nextConfig User Next config.
+ * @param {NextConfigShape} nextConfig User Next config. Not mutated.
  * @param {Record<string, unknown>} rules Rules from {@link buildTurbopackRules}.
  * @param {boolean} stableKey `true` → `turbopack.rules`, `false` → `experimental.turbo.rules`.
- * @returns {Record<string, any>} New config object (input not mutated).
+ * @returns {NextConfigShape} New config object (input not mutated).
  */
-export function mergeTurbopackRules(nextConfig, rules, stableKey: boolean) {
+export function mergeTurbopackRules(nextConfig: NextConfigShape, rules: Record<string, unknown>, stableKey: boolean): NextConfigShape {
     const holder = stableKey ? (nextConfig.turbopack ?? {}) : (nextConfig.experimental?.turbo ?? {});
     const userRules = holder.rules ?? {};
     for (const glob of Object.keys(userRules)) {
@@ -132,12 +170,12 @@ const WEBPACK_STAMP_TEST = /\.(?:jsx|tsx|js|ts|mjs|mts|vue|svelte|html)$/;
  * rule so it runs after stamping.
  *
  * @param {Function | undefined} userWebpack User hook (called first, result preserved).
- * @param {Record<string, unknown>} options Plugin options.
+ * @param {StampOptions} options Plugin options.
  * @param {NextInspector} inspector Running inspector.
- * @returns {Function} Next `webpack(config, context)` hook.
+ * @returns {Function} Next `webpack(config, context)` hook. The result keeps the user's config; dev compilations gain two rules.
  */
-export function wrapWebpack(userWebpack, options, inspector: NextInspector) {
-    return function webpack(config, context) {
+export function wrapWebpack(userWebpack: Function | undefined, options: StampOptions, inspector: NextInspector) {
+    return function webpack(config: NextWebpackConfig, context: NextWebpackContext) {
         const result = typeof userWebpack === 'function' ? userWebpack(config, context) : config;
         if (!context?.dev)
             return result;

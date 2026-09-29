@@ -13,6 +13,7 @@
 
 import { requireFromProject } from '../ast/project-module.js';
 import { innerContent, staticAttr, VUE_ELEMENT } from '../ast/vue-sfc.js';
+import type { VueCompilerNode } from '../ast/vue-sfc.js';
 import { buildLineStartOffsets } from '../ast/line-offsets.js';
 import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion } from './stamp-edits.js';
 import { stampJsx } from './stamp-jsx.js';
@@ -41,7 +42,7 @@ export function stampVue(input: StampVueInput): Insertion[] | null {
         input.warnOnce?.('vue-compiler', VUE_WARN);
         return null;
     }
-    let ast;
+    let ast: VueCompilerNode;
     try {
         ast = parse(input.code, { comments: true });
     }
@@ -58,12 +59,12 @@ export function stampVue(input: StampVueInput): Insertion[] | null {
     }
     else {
         walkElements(ast, (node) => {
-            if (!node.loc?.source || node.loc.source.includes(PATH_ATTR) || isEscapedTag(node.tag, escapeTags))
+            if (!node.loc?.source || node.loc.source.includes(PATH_ATTR) || isEscapedTag(node.tag!, escapeTags))
                 return;
-            const value = formatInspValue(input.file, node.loc.start.line, node.loc.start.column, node.tag);
+            const value = formatInspValue(input.file, node.loc.start.line!, node.loc.start.column!, node.tag!);
             const gap = node.props?.length ? ' ' : '';
             insertions.push({
-                at: node.loc.start.offset + node.tag.length + 1,
+                at: node.loc.start.offset + node.tag!.length + 1,
                 text: ` ${PATH_ATTR}="${value}"${gap}`,
             });
         });
@@ -98,7 +99,7 @@ function loadVueParse(file: string) {
     return typeof parse === 'function' ? parse : null;
 }
 
-function walkElements(node, visit: (node) => void) {
+function walkElements(node: VueCompilerNode | null | undefined, visit: (node: VueCompilerNode) => void) {
     if (!node || typeof node !== 'object')
         return;
     if (node.type === VUE_ELEMENT)

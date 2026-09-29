@@ -18,7 +18,7 @@
  * @param {string} code Full source text.
  * @returns {number[]} `lineStartOffsets[line - 1]` is the start offset of that line.
  */
-export function buildLineStartOffsets(code) {
+export function buildLineStartOffsets(code: string) {
     const offsets = [0];
     for (let i = 0; i < code.length; i++) {
         if (code.charCodeAt(i) === 10 /* \n */) {
@@ -40,7 +40,7 @@ export function buildLineStartOffsets(code) {
  * @param {number} column 0-based column.
  * @returns {number} Offset into the source string.
  */
-export function offsetFromLineColumn(lineStartOffsets, line, column) {
+export function offsetFromLineColumn(lineStartOffsets: number[], line: number, column: number) {
     const idx = Math.max(0, line - 1);
     if (idx >= lineStartOffsets.length) {
         const last = lineStartOffsets[lineStartOffsets.length - 1] ?? 0;
@@ -56,7 +56,7 @@ export function offsetFromLineColumn(lineStartOffsets, line, column) {
  * @param {number} offset UTF-16 code unit offset.
  * @returns {{ line: number, column: number }}
  */
-export function lineColumnFromOffset(lineStartOffsets, offset) {
+export function lineColumnFromOffset(lineStartOffsets: number[], offset: number) {
     let lo = 0;
     let hi = lineStartOffsets.length - 1;
     while (lo < hi) {

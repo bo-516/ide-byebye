@@ -16,7 +16,7 @@ import { walkAst } from '../ast/jsx-locator.js';
 import { buildLineStartOffsets, lineColumnFromOffset } from '../ast/line-offsets.js';
 import { buildScopes } from './jsx-bindings.js';
 import { componentPropagations } from './jsx-components.js';
-import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion } from './stamp-edits.js';
+import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion, type StampNode } from './stamp-edits.js';
 
 export interface StampJsxInput {
     code: string;
@@ -53,7 +53,7 @@ export function stampJsx(input: StampJsxInput): Insertion[] | null {
     const base = input.offsetBase ?? 0;
     const starts = input.fileLineStarts ?? buildLineStartOffsets(input.code);
     const escapeTags = input.escapeTags ?? [];
-    const scopes = buildScopes(parsed.program);
+    const scopes = buildScopes(parsed.program as unknown as StampNode);
     const dynamic = new Map<number, string>();
     const plans = componentPropagations({ scopes, code: input.code }, dynamic);
     const insertions: Insertion[] = [];
@@ -61,9 +61,9 @@ export function stampJsx(input: StampJsxInput): Insertion[] | null {
 
     walkAst(parsed.program, (node) => {
         if (node.type === 'JSXElement')
-            stampElement(node, input, base, starts, escapeTags, dynamic, insertions, used);
-        else if (node.type === 'CallExpression' && callName(node.callee) === 'createElement')
-            stampCall(node, input, base, starts, escapeTags, dynamic, insertions, used);
+            stampElement(node as StampNode, input, base, starts, escapeTags, dynamic, insertions, used);
+        else if (node.type === 'CallExpression' && callName(node.callee as StampNode | null | undefined) === 'createElement')
+            stampCall(node as StampNode, input, base, starts, escapeTags, dynamic, insertions, used);
     });
 
     // Parameter edits are offsets into `input.code`; element edits already include `base`.
@@ -78,10 +78,10 @@ export function stampJsx(input: StampJsxInput): Insertion[] | null {
     return insertions;
 }
 
-function stampElement(node, input, base, starts, escapeTags, dynamic, insertions, used) {
+function stampElement(node: StampNode, input: StampJsxInput, base: number, starts: number[], escapeTags: Array<string | RegExp>, dynamic: Map<number, string>, insertions: Insertion[], used: Set<number>) {
     const opening = node.openingElement;
-    const tag = jsxName(opening?.name);
-    if (!opening || !tag || isEscapedTag(tag, escapeTags) || hasJsxPath(opening.attributes))
+    const tag = jsxName(opening?.name as unknown as StampNode | null | undefined);
+    if (!opening || !tag || isEscapedTag(tag, escapeTags) || hasJsxPath(opening.attributes as Parameters<typeof hasJsxPath>[0]))
         return;
     const expr = dynamic.get(opening.start);
     const fallback = pathAt(input.file, starts, base + node.start, tag);
@@ -95,7 +95,7 @@ function stampElement(node, input, base, starts, escapeTags, dynamic, insertions
         used.add(opening.start);
 }
 
-function stampCall(node, input, base, starts, escapeTags, dynamic, insertions, used) {
+function stampCall(node: StampNode, input: StampJsxInput, base: number, starts: number[], escapeTags: Array<string | RegExp>, dynamic: Map<number, string>, insertions: Insertion[], used: Set<number>) {
     const tag = exprName(node.arguments?.[0]);
     if (!tag || isEscapedTag(tag, escapeTags))
         return;
@@ -124,7 +124,7 @@ function stampCall(node, input, base, starts, escapeTags, dynamic, insertions, u
         used.add(node.start);
 }
 
-function pathAt(file, starts, offset, tag) {
+function pathAt(file: string, starts: number[], offset: number, tag: string) {
     const { line, column } = lineColumnFromOffset(starts, offset);
     return formatInspValue(file, line, column + 1, tag);
 }
@@ -143,17 +143,17 @@ function parseModule(file: string, code: string, lang: StampJsxInput['lang'], ra
     return parseSync(file, code, options);
 }
 
-function hasJsxPath(attributes): boolean {
-    return (attributes ?? []).some((attr) => attr.type !== 'JSXSpreadAttribute' && attr.name?.name === PATH_ATTR);
+function hasJsxPath(attributes: Array<{ type?: string, name?: { name?: string } | null } | null | undefined> | null | undefined): boolean {
+    return (attributes ?? []).some((attr) => attr!.type !== 'JSXSpreadAttribute' && attr!.name?.name === PATH_ATTR);
 }
 
-function hasCallPath(props): boolean {
+function hasCallPath(props: StampNode | null | undefined): boolean {
     if (props?.type !== 'ObjectExpression')
         return false;
     return (props.properties ?? []).some((prop) => prop?.type === 'Property' && !prop.computed && propertyName(prop.key) === PATH_ATTR);
 }
 
-function jsxName(node): string {
+function jsxName(node: StampNode | null | undefined): string {
     if (!node)
         return '';
     if (node.type === 'JSXIdentifier')
@@ -161,11 +161,11 @@ function jsxName(node): string {
     if (node.type === 'JSXMemberExpression')
         return `${jsxName(node.object)}.${jsxName(node.property)}`;
     if (node.type === 'JSXNamespacedName')
-        return `${jsxName(node.namespace)}:${jsxName(node.name)}`;
+        return `${jsxName(node.namespace)}:${jsxName(node.name as unknown as StampNode | null | undefined)}`;
     return '';
 }
 
-function exprName(node): string {
+function exprName(node: StampNode | null | undefined): string {
     if (!node)
         return '';
     if ((node.type === 'Literal' || node.type === 'StringLiteral') && typeof node.value === 'string')
@@ -177,7 +177,7 @@ function exprName(node): string {
     return '';
 }
 
-function propertyName(node): string {
+function propertyName(node: StampNode | null | undefined): string {
     if (node?.type === 'Identifier')
         return node.name ?? '';
     if ((node?.type === 'Literal' || node?.type === 'StringLiteral') && typeof node.value === 'string')
@@ -185,7 +185,7 @@ function propertyName(node): string {
     return '';
 }
 
-function callName(callee): string {
+function callName(callee: StampNode | null | undefined): string {
     if (callee?.type === 'Identifier')
         return callee.name ?? '';
     if (callee?.type === 'MemberExpression' && !callee.computed && callee.property?.type === 'Identifier')

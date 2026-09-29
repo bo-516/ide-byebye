@@ -3,33 +3,98 @@ import path from 'node:path';
 import { resolvePromptPathStyleOptions } from './config.js';
 import { buildStyleContextLines } from './styles.js';
 
+/** Inclusive line span. Missing ends mean a single line; a missing start still renders. */
+type PromptLineRange = {
+    startLine?: number;
+    endLine?: number;
+};
+
+/** Selection fields this formatter reads. Other client fields are ignored. */
+type PromptSelection = {
+    line?: number;
+};
+
+/** Source-context fields this formatter reads. `filePath` is omitted only for a partial request. */
+type PromptSource = {
+    filePath?: string;
+    selectedNodeRange?: PromptLineRange | null;
+    containingComponentRange?: PromptLineRange | null;
+    startLine?: number;
+    endLine?: number;
+};
+
+/** One extra source chip. Both halves are present on pipeline output. */
+type PromptReference = {
+    selection?: PromptSelection | null;
+    source?: PromptSource | null;
+};
+
+/** Screenshot or recording still. `filePath` is absolute on disk when the writer succeeded. */
+type PromptArtifact = {
+    filePath?: string;
+};
+
+/** Recording metadata. Only the still frame is turned into an `@` reference. */
+type PromptRecording = {
+    stillFramePath?: string;
+};
+
+/**
+ * Intent fields the plain prompt reads.
+ * Boundary: `projectRoot` and `planMode` are optional. Callers that only have an intent still render;
+ * `planMode` is accepted and ignored so a stale client flag is not a type error.
+ */
+type PromptRequest = {
+    projectRoot?: string;
+    intent?: unknown;
+    planMode?: unknown;
+    selection?: PromptSelection | null;
+    source?: PromptSource | null;
+    references?: readonly (PromptReference | null | undefined)[] | null;
+    screenshots?: readonly PromptArtifact[] | null;
+    screenshot?: PromptArtifact | null;
+    recordings?: readonly (PromptRecording | null | undefined)[] | null;
+    styles?: {
+        scope: 'self' | 'children' | 'ancestors' | 'both';
+        nodes: Array<{
+            label?: string;
+            inspPath?: string;
+            styles?: Record<string, string> | null;
+            parent?: number;
+            selected?: boolean;
+        }>;
+        properties?: string[];
+    } | null;
+};
+
 /**
  * Convert an absolute project file path into a POSIX-style path relative to the project root.
  *
  * Boundary: files outside `projectRoot` fall back to their original path because this helper formats references only;
  * path trust is enforced earlier by source and screenshot writers. Passing a wrong root keeps absolute paths in prompts.
  *
- * @param {string} filePath Absolute or relative file path to reference.
- * @param {string} projectRoot Project root that should be stripped from in-repo paths.
+ * @param {string | undefined} filePath Absolute or relative file path to reference. Missing paths are passed through to `path`.
+ * @param {string | undefined} projectRoot Project root that should be stripped from in-repo paths. Missing roots are passed through to `path`.
  * @returns {string} Project-relative POSIX path, or the original path when it is outside the root.
  */
-function repoRelativePath(filePath, projectRoot) {
+function repoRelativePath(filePath: string | undefined, projectRoot: string | undefined) {
     // Realpath both sides so a session cwd that went through /private/var still strips a /var/folders source path.
     const root = canonical(projectRoot);
     const file = canonical(filePath);
     const rel = path.relative(root, file);
-    const value = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : filePath;
+    const value: string = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : filePath!;
+    // `filePath` may be omitted; `path` still receives a string at runtime when a chip is rendered.
     return value.split(path.sep).join('/');
 }
 
 /**
  * Best-effort canonical path. Missing fixture paths stay resolved so unit tests that use fake directories keep working.
  *
- * @param {string} input File or directory path.
+ * @param {string | undefined} input File or directory path. `path.resolve` still requires a string, so a missing value is asserted.
  * @returns {string} Realpath when the path exists, otherwise `path.resolve`.
  */
-function canonical(input) {
-    const resolved = path.resolve(input);
+function canonical(input: string | undefined) {
+    const resolved = path.resolve(input as string);
     try {
         return fs.realpathSync.native(resolved);
     }
@@ -45,11 +110,11 @@ function canonical(input) {
  * absolute paths from screenshot / source writers. Prefer rewriting `request.projectRoot` to the agent cwd (Grok Build
  * does this via `withGrokBuildPathRoot`) so relative `@` refs stay short; absolute is only for files outside that root.
  *
- * @param {string} filePath Absolute or relative filesystem path.
+ * @param {string | undefined} filePath Absolute or relative filesystem path. A missing path is asserted for `path.resolve`.
  * @returns {string} Absolute POSIX path (forward slashes).
  */
-function absolutePosixPath(filePath) {
-    return path.resolve(filePath).split(path.sep).join('/');
+function absolutePosixPath(filePath: string | undefined) {
+    return path.resolve(filePath as string).split(path.sep).join('/');
 }
 
 /**
@@ -58,12 +123,12 @@ function absolutePosixPath(filePath) {
  * Boundary: `absolute` always wins with a resolved path. `relative` strips `projectRoot` when the file is inside it;
  * outside paths stay absolute so callers still get a usable reference.
  *
- * @param {string} filePath Absolute or relative filesystem path.
- * @param {string} projectRoot Project root used when `pathStyle` is `relative`.
+ * @param {string | undefined} filePath Absolute or relative filesystem path.
+ * @param {string | undefined} projectRoot Project root used when `pathStyle` is `relative`.
  * @param {'relative' | 'absolute'} pathStyle How to present the path in the prompt.
  * @returns {string} Path text after `@` (no leading `@`).
  */
-function formatRefPath(filePath, projectRoot, pathStyle) {
+function formatRefPath(filePath: string | undefined, projectRoot: string | undefined, pathStyle: 'relative' | 'absolute') {
     if (pathStyle === 'absolute')
         return absolutePosixPath(filePath);
     return repoRelativePath(filePath, projectRoot);
@@ -75,14 +140,14 @@ function formatRefPath(filePath, projectRoot, pathStyle) {
  * Boundary: line numbers are trusted from source resolution. Missing or wrong ranges still render a prompt reference,
  * but downstream agents may open the wrong location.
  *
- * @param {string} filePath Source file path.
- * @param {string} projectRoot Project root used for relative `@` references.
- * @param {number} startLine First source line to reference.
+ * @param {string | undefined} filePath Source file path.
+ * @param {string | undefined} projectRoot Project root used for relative `@` references.
+ * @param {number | undefined} startLine First source line to reference. A missing line still renders.
  * @param {number | undefined} endLine Last source line to reference, if different.
  * @param {'relative' | 'absolute'} [pathStyle='relative'] How to present the file path.
  * @returns {string} Prompt source reference such as `@src/App.jsx #10-20`.
  */
-function lineRef(filePath, projectRoot, startLine, endLine, pathStyle = 'relative') {
+function lineRef(filePath: string | undefined, projectRoot: string | undefined, startLine: number | undefined, endLine: number | undefined, pathStyle: 'relative' | 'absolute' = 'relative') {
     const formatted = formatRefPath(filePath, projectRoot, pathStyle);
     return endLine != null && endLine !== startLine
         ? `@${formatted} #${startLine}-${endLine}`
@@ -96,12 +161,12 @@ function lineRef(filePath, projectRoot, startLine, endLine, pathStyle = 'relativ
  * Pass `pathStyle: 'relative'` only when the artifact lives under the same root as source chips and you want short
  * `@.intent-inspector/…` refs.
  *
- * @param {{ filePath: string }} screenshot Persisted screenshot metadata (`filePath` should be absolute on disk).
- * @param {string} projectRoot Project root used when `pathStyle` is `relative`.
+ * @param {{ filePath?: string }} screenshot Persisted screenshot metadata (`filePath` should be absolute on disk).
+ * @param {string | undefined} projectRoot Project root used when `pathStyle` is `relative`.
  * @param {'relative' | 'absolute'} [pathStyle='absolute'] How to present the artifact path.
  * @returns {string} Prompt screenshot reference such as `@/abs/project/.intent-inspector/screenshots/a1b2c3d.webp`.
  */
-function screenshotRef(screenshot, projectRoot, pathStyle = 'absolute') {
+function screenshotRef(screenshot: PromptArtifact, projectRoot: string | undefined, pathStyle: 'relative' | 'absolute' = 'absolute') {
     return `@${formatRefPath(screenshot.filePath, projectRoot, pathStyle)}`;
 }
 
@@ -113,11 +178,11 @@ function screenshotRef(screenshot, projectRoot, pathStyle = 'absolute') {
  * then the containing component / context window, then the clicked line so prompt generation never emits an empty
  * reference.
  *
- * @param {Record<string, unknown>} selection Resolved browser selection with line information.
- * @param {Record<string, unknown>} source Extracted source context for that selection.
- * @returns {{ startLine: number, endLine: number }} Inclusive source line range.
+ * @param {PromptSelection} selection Resolved browser selection with line information. Callers pass a selection that exists.
+ * @param {PromptSource} source Extracted source context for that selection. Callers pass a source object that exists.
+ * @returns {PromptLineRange} Inclusive source line range. `startLine` may be missing when the selection had no line.
  */
-function pickSourceRange(selection, source) {
+function pickSourceRange(selection: PromptSelection, source: PromptSource) {
     const selected = source.selectedNodeRange;
     if (selected) {
         return selected;
@@ -140,13 +205,13 @@ function pickSourceRange(selection, source) {
  * Boundary: `source.filePath` must already be validated inside the project root. Passing unresolved selections can emit
  * wrong paths or line numbers, so callers should only use data returned by `resolveSelection`.
  *
- * @param {Record<string, unknown>} selection Resolved browser selection.
- * @param {Record<string, unknown>} source Extracted source context.
- * @param {string} projectRoot Absolute Vite project root.
+ * @param {PromptSelection} selection Resolved browser selection.
+ * @param {PromptSource} source Extracted source context.
+ * @param {string | undefined} projectRoot Absolute Vite project root. Omitted when the caller has no root.
  * @param {'relative' | 'absolute'} [pathStyle='relative'] How to present the source file path.
  * @returns {string} Compact prompt reference line.
  */
-function sourceReferenceLine(selection, source, projectRoot, pathStyle = 'relative') {
+function sourceReferenceLine(selection: PromptSelection, source: PromptSource, projectRoot: string | undefined, pathStyle: 'relative' | 'absolute' = 'relative') {
     const range = pickSourceRange(selection, source);
     return lineRef(source.filePath, projectRoot, range.startLine, range.endLine, pathStyle);
 }
@@ -159,15 +224,15 @@ function sourceReferenceLine(selection, source, projectRoot, pathStyle = 'relati
  * to **absolute** so images stay openable when the agent cwd differs from the Vite package root. Override either via
  * `pathStyle` / `artifactPathStyle` (same knobs as the top-level plugin and Grok Build agent config).
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {PromptRequest} request Normalized intent request. `projectRoot` may be omitted when there are no paths.
  * @param {{ pathStyle?: 'relative' | 'absolute', artifactPathStyle?: 'relative' | 'absolute' }} [options] Path formatting.
  *   - `pathStyle`: source-file refs (default `relative`).
  *   - `artifactPathStyle`: screenshots / recording stills (default `absolute`).
  * @returns {string[]} Prompt reference lines.
  */
-export function buildPromptReferenceLines(request, options: any = {}) {
+export function buildPromptReferenceLines(request: PromptRequest, options: any = {}) {
     const { pathStyle, artifactPathStyle } = resolvePromptPathStyleOptions(options);
-    const refs = [];
+    const refs: string[] = [];
     if (request.selection && request.source) {
         refs.push(sourceReferenceLine(request.selection, request.source, request.projectRoot, pathStyle));
     }
@@ -180,7 +245,8 @@ export function buildPromptReferenceLines(request, options: any = {}) {
             ? [request.screenshot]
             : [];
     refs.push(...screenshots.map((screenshot) => screenshotRef(screenshot, request.projectRoot, artifactPathStyle)));
-    const recordings = Array.isArray(request.recordings) ? request.recordings : [];
+    // `Array.isArray` widens the element type; keep the still-frame field the filter reads.
+    const recordings: readonly PromptRecording[] = Array.isArray(request.recordings) ? request.recordings : [];
     refs.push(...recordings
         .filter((recording) => recording && recording.stillFramePath)
         .map((recording) => screenshotRef({ filePath: recording.stillFramePath }, request.projectRoot, artifactPathStyle)));
@@ -198,7 +264,7 @@ export function buildPromptReferenceLines(request, options: any = {}) {
  * @param {string} intent User intent text that may already contain inline references.
  * @returns {string[]} Reference lines that are not already inline in the intent.
  */
-export function filterInlineReferenceLines(refs, intent) {
+export function filterInlineReferenceLines(refs: string[], intent: string) {
     const text = String(intent ?? '');
     return refs.filter((ref) => !(ref && text.includes(ref)));
 }
@@ -216,11 +282,11 @@ export function filterInlineReferenceLines(refs, intent) {
  * style defaults to relative against `request.projectRoot` (Grok Build rewrites that
  * root to its `--cwd` before calling this); screenshot / still paths default to absolute.
  *
- * @param {Record<string, unknown>} request Intent request with source references, screenshots, and user intent.
+ * @param {PromptRequest} request Intent request with source references, screenshots, and user intent.
  * @param {{ pathStyle?: 'relative' | 'absolute', artifactPathStyle?: 'relative' | 'absolute' }} [options] Path formatting for `@` refs.
  * @returns {string} Final prompt text ending with a trailing newline.
  */
-export function buildPrompt(request, options: any = {}) {
+export function buildPrompt(request: PromptRequest, options: any = {}) {
     const intent = String(request.intent ?? '').trim();
     const refs = filterInlineReferenceLines(buildPromptReferenceLines(request, options), intent);
     const styleLines = buildStyleContextLines(request);

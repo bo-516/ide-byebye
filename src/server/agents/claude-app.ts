@@ -6,17 +6,24 @@ import { openTarget } from './opener.js';
 import { buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
 const DEFAULT_SCHEME = 'claude';
 const DEFAULT_ROUTE = 'code';
-function fileStamp(date) {
+function fileStamp(date: Date) {
     return date.toISOString().replace(/:/g, '-').replace(/\..+$/, '');
 }
-function normalizeScheme(scheme) {
+function normalizeScheme(scheme: string | undefined) {
     const value = (scheme ?? DEFAULT_SCHEME).replace(/:$/, '');
     if (!/^[a-z][a-z0-9+.-]*$/i.test(value)) {
         throw new Error(`Invalid Claude App URL scheme: ${scheme}`);
     }
     return value;
 }
-export function buildClaudeAppDeepLink(input) {
+export function buildClaudeAppDeepLink(input: {
+    route?: string,
+    scheme?: string,
+    prompt: string,
+    folder?: string,
+    folders?: readonly (string | undefined)[],
+    files?: readonly (string | undefined)[],
+}) {
     const route = input.route ?? DEFAULT_ROUTE;
     const url = new URL(`${normalizeScheme(input.scheme)}://${route}/new`);
     url.searchParams.set('q', input.prompt);
@@ -45,10 +52,10 @@ export function buildClaudeAppDeepLink(input) {
  * @param {{ includeScreenshots?: boolean }} [options] Whether to append screenshot paths.
  * @returns {string[]} Unique absolute file paths to attach to the deeplink.
  */
-export function collectClaudeAppFiles(request, options: any = {}) {
+export function collectClaudeAppFiles(request: Parameters<typeof buildPromptReferenceLines>[0], options: any = {}) {
     const { includeScreenshots = true } = options;
-    const files = [];
-    const add = (filePath) => {
+    const files: string[] = [];
+    const add = (filePath: unknown) => {
         if (typeof filePath === 'string' && filePath && !files.includes(filePath))
             files.push(filePath);
     };
@@ -81,9 +88,9 @@ export function collectClaudeAppFiles(request, options: any = {}) {
  * @param {{ projectRoot: string }} context Agent context carrying the Vite project root.
  * @returns {string[]} Absolute folder paths for repeatable `folder` deeplink params.
  */
-export function resolveClaudeAppFolders(config, context) {
-    const folders = [];
-    const add = (folderPath) => {
+export function resolveClaudeAppFolders(config: { folders?: unknown }, context: { projectRoot: string }) {
+    const folders: string[] = [];
+    const add = (folderPath: unknown) => {
         if (typeof folderPath === 'string' && folderPath && !folders.includes(folderPath))
             folders.push(folderPath);
     };
@@ -95,12 +102,19 @@ export function resolveClaudeAppFolders(config, context) {
     }
     return folders;
 }
-export function buildClaudeAppFilePrompt(request, promptPath) {
+export function buildClaudeAppFilePrompt(request: Parameters<typeof buildPromptReferenceLines>[0] & { intent: string }, promptPath: string) {
     const intent = request.intent.trim();
     const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
     return [...refs, promptPath, '', intent].join('\n').trim() + '\n';
 }
-function writePromptFile(request, context) {
+function writePromptFile(request: {
+    id: string,
+    createdAt: string,
+    agent: string,
+    applyMode: string,
+    pageUrl: string,
+    selection: { file: string, line: number, column: number },
+}, context: { outputDir: string, projectRoot: string, prompt: string }) {
     const requestsDir = path.join(context.outputDir, 'requests');
     assertPathInsideRoot(requestsDir, context.projectRoot);
     fs.mkdirSync(requestsDir, { recursive: true });
@@ -108,7 +122,7 @@ function writePromptFile(request, context) {
     fs.writeFileSync(target, renderRequestMarkdown(request, context.prompt), 'utf8');
     return target;
 }
-function shouldWritePromptFile(config, prompt) {
+function shouldWritePromptFile(config: { promptMode?: unknown }, prompt: string) {
     void prompt;
     const mode = config.promptMode ?? 'auto';
     if (mode === 'file')
@@ -121,7 +135,20 @@ export function createClaudeAppAdapter(config: any = {}) {
         async isAvailable() {
             return { available: true };
         },
-        async send(request, context) {
+        async send(request: Parameters<typeof buildPromptReferenceLines>[0] & {
+            id: string,
+            createdAt: string,
+            intent: string,
+            agent: string,
+            applyMode: string,
+            pageUrl: string,
+            selection: { file: string, line: number, column: number },
+        }, context: {
+            emit: (event: { type: string, text?: string }) => void,
+            prompt: string,
+            outputDir: string,
+            projectRoot: string,
+        }) {
             const events = [{ type: 'started', text: 'Opening Claude App' }];
             context.emit(events[0]);
             try {

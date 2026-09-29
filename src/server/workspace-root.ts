@@ -23,7 +23,7 @@ export const WORKSPACE_FILE_SUFFIX = '.code-workspace';
  * @param {string} startDir Directory to start from (usually the bundler project root / run directory).
  * @returns {string | null} Absolute path of the nearest git root, or `null` when none exists.
  */
-export function findNearestGitRoot(startDir) {
+export function findNearestGitRoot(startDir: string) {
     let current = path.resolve(startDir);
     const { root } = path.parse(current);
 
@@ -64,7 +64,7 @@ export function findNearestGitRoot(startDir) {
  * @param {string} startDir Directory to start from (e.g. Vite `config.root`).
  * @returns {string} Absolute package root, or the resolved `startDir`.
  */
-export function resolvePackageRoot(startDir) {
+export function resolvePackageRoot(startDir: string) {
     const start = path.resolve(startDir);
     let current = start;
     while (true) {
@@ -93,7 +93,7 @@ export function resolvePackageRoot(startDir) {
  * @param {string} runDir Bundler / process run directory (Vite `config.root`, webpack `compiler.context`, cwd).
  * @returns {string} Absolute workspace directory.
  */
-export function resolveDefaultWorkspaceDir(runDir) {
+export function resolveDefaultWorkspaceDir(runDir: string) {
     const start = path.resolve(runDir);
     return findNearestGitRoot(start) ?? start;
 }
@@ -107,7 +107,7 @@ export function resolveDefaultWorkspaceDir(runDir) {
  * @param {string} dir Absolute or relative directory path.
  * @returns {string} Workspace name for routing.
  */
-export function workspaceNameFromDir(dir) {
+export function workspaceNameFromDir(dir: string) {
     const basename = path.basename(path.resolve(dir));
     return basename.endsWith(WORKSPACE_FILE_SUFFIX)
         ? basename.slice(0, -WORKSPACE_FILE_SUFFIX.length)
@@ -120,6 +120,6 @@ export function workspaceNameFromDir(dir) {
  * @param {string} runDir Bundler / process run directory.
  * @returns {string} Workspace name suitable for Cursor `workspace=` routing.
  */
-export function resolveDefaultWorkspaceName(runDir) {
+export function resolveDefaultWorkspaceName(runDir: string) {
     return workspaceNameFromDir(resolveDefaultWorkspaceDir(runDir));
 }

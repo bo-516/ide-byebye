@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
 import {
@@ -42,7 +43,7 @@ export {
  * @param {Date} date Date used to stamp the prompt / launcher file name.
  * @returns {string} ISO-like timestamp with colon characters replaced.
  */
-function fileStamp(date) {
+function fileStamp(date: Date) {
     return date.toISOString().replace(/:/g, '-').replace(/\..+$/, '');
 }
 
@@ -56,16 +57,16 @@ function fileStamp(date) {
  * @param {number} [timeoutMs=5000] Kill timeout for the version probe.
  * @returns {Promise<boolean>} True when `--version` exits 0.
  */
-function probeCommandVersion(command, timeoutMs = 5000) {
-    return new Promise<any>((resolve) => {
+function probeCommandVersion(command: string, timeoutMs = 5000) {
+    return new Promise<boolean>((resolve) => {
         let settled = false;
-        const finish = (ok) => {
+        const finish = (ok: boolean) => {
             if (settled)
                 return;
             settled = true;
             resolve(ok);
         };
-        let child;
+        let child: ChildProcess;
         try {
             child = spawn(command, ['--version'], { stdio: 'ignore' });
         }
@@ -94,10 +95,10 @@ function probeCommandVersion(command, timeoutMs = 5000) {
  * Boundary: returns the first candidate whose `--version` succeeds. Callers must treat `null` as unavailable — do not
  * fall back to spawning an unverified name after this helper fails.
  *
- * @param {Record<string, unknown>} config Grok Build adapter config.
+ * @param {{ command?: unknown }} config Grok Build adapter config.
  * @returns {Promise<string | null>} Absolute path or PATH name of a working `grok`, or null.
  */
-export async function resolveGrokBuildCommand(config) {
+export async function resolveGrokBuildCommand(config: { command?: unknown }) {
     for (const candidate of resolveGrokBuildCommandCandidates(config)) {
         if (await probeCommandVersion(candidate))
             return candidate;
@@ -111,16 +112,16 @@ export async function resolveGrokBuildCommand(config) {
  * Boundary: the target `requests` directory must stay inside the trusted project root. Outside paths throw before any
  * file is created.
  *
- * @param {Record<string, unknown>} request Normalized intent request.
+ * @param {{ id: string, createdAt: string | number | Date }} request Normalized intent request. Callers may omit the markdown fields; the assertion at the renderer is erased.
  * @param {{ outputDir: string, projectRoot: string, prompt: string }} context Agent context used for storage and rendering.
  * @returns {string} Absolute path to the written prompt file.
  */
-function writePromptFile(request, context) {
+function writePromptFile(request: { id: string, createdAt: string | number | Date }, context: { outputDir: string, projectRoot: string, prompt: string }) {
     const requestsDir = path.join(context.outputDir, 'requests');
     assertPathInsideRoot(requestsDir, context.projectRoot);
     fs.mkdirSync(requestsDir, { recursive: true });
     const target = path.join(requestsDir, `${fileStamp(new Date(request.createdAt))}-${request.id}.md`);
-    fs.writeFileSync(target, renderRequestMarkdown(request, context.prompt), 'utf8');
+    fs.writeFileSync(target, renderRequestMarkdown(request as Parameters<typeof renderRequestMarkdown>[0], context.prompt), 'utf8');
     return target;
 }
 
@@ -131,11 +132,19 @@ function writePromptFile(request, context) {
  * passed to `grok --verbatim`; the launcher never embeds that text, only its path. Windows writes a `.cmd` wrapper;
  * other platforms write a bash `.command` file.
  *
- * @param {{ request: Record<string, unknown>, context: { outputDir: string, projectRoot: string }, command: string, cwd: string, prompt: string, permissionMode?: string, resumeSessionId?: string }} input Write inputs.
+ * @param {{ request: { id: string, createdAt: string | number | Date }, context: { outputDir: string, projectRoot: string }, command: string, cwd: string, prompt: string, permissionMode?: string, resumeSessionId?: string }} input Write inputs.
  *        `resumeSessionId` is set only after the live recheck. A bad id throws inside the script builder before the launcher file is written.
  * @returns {{ launchPath: string, promptPath: string }} Absolute paths of the launcher and prompt files.
  */
-function writeLauncherFiles(input) {
+function writeLauncherFiles(input: {
+    request: { id: string, createdAt: string | number | Date },
+    context: { outputDir: string, projectRoot: string },
+    command: string,
+    cwd: string,
+    prompt: string,
+    permissionMode?: string,
+    resumeSessionId?: string,
+}) {
     const launchesDir = path.join(input.context.outputDir, 'launches');
     assertPathInsideRoot(launchesDir, input.context.projectRoot);
     fs.mkdirSync(launchesDir, { recursive: true });
@@ -185,10 +194,16 @@ export function createGrokBuildAdapter(config: any = {}) {
          * @param {{ projectRoot: string }} ctx Inspector project root.
          * @returns {Promise<{ sessions: Array<Record<string, unknown>>, delivery: string, notice?: string }>}
          */
-        async listSessions(ctx) {
+        async listSessions(ctx: { projectRoot: string }) {
             return listGrokSessions({ projectRoot: ctx.projectRoot, config });
         },
-        async send(request, context) {
+        async send(request: Parameters<typeof buildGrokBuildPrompt>[0] & { id: string, createdAt: string | number | Date }, context: {
+            emit: (event: { type: string, text?: string }) => void,
+            outputDir: string,
+            projectRoot: string,
+            prompt: string,
+            targetSession?: { id: string, cwd: string, targetable?: boolean } | null,
+        }) {
             const target = context.targetSession;
             const events = [{ type: 'started', text: target ? 'Resuming Grok Build session' : 'Opening Grok Build' }];
             context.emit(events[0]);
@@ -218,7 +233,7 @@ export function createGrokBuildAdapter(config: any = {}) {
                 const pathConfig = target ? { ...config, projectRoot: target.cwd } : config;
                 // Rebuild with agent pathStyle (default relative); do not assume context.prompt matches Grok config.
                 let prompt = buildGrokBuildPrompt(request, pathConfig);
-                let writtenPromptPath;
+                let writtenPromptPath: string | undefined;
                 if (shouldWriteGrokBuildPromptFile(pathConfig, prompt)) {
                     // Persist the same path-style prompt so the handoff markdown matches what Grok sees.
                     writtenPromptPath = writePromptFile(request, { ...context, prompt });
