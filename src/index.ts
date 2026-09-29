@@ -13,6 +13,7 @@
 export type {
     PathStyle,
     Locale,
+    Theme,
     AgentId,
     ApplyMode,
     ClickModifier,

@@ -356,6 +356,7 @@ export default {
 | 后端 Agent | clipboard（**复制 Prompt** 按钮）+ file（无 UI 入口）— 开启；都不是 Enter 目标 |
 | 录制 | 关闭；可设 `recording: true` 开启（需 `@rrweb/record` + `@rrweb/replay`） |
 | UI 语言 | auto（`navigator.language` → 否则 `zh`） |
+| 弹窗主题 | 浅色；`theme: 'auto'` 跟随系统，`'dark'` 固定深色 |
 | 交接文件目录 | `.intent-inspector/`（**请加入 gitignore** — 见 [产物](#产物)） |
 | 源码 `@` 路径 | 相对路径；截图 / 静帧用绝对路径 |
 | 打点 | 默认开启（绝对路径）。`sourceStamp: false` 可关闭 |
@@ -391,6 +392,14 @@ ideByebye({
 | **类型** | `'zh' \| 'en'` |
 | **默认** | auto — `config.locale` → `navigator.language` → `zh` |
 | **可配** | `'zh'` / `'en'`，或以 `zh` 开头 → 中文，否则英文。Prompt 文案与品牌名**不**本地化。 |
+
+#### `theme`
+
+| | |
+| --- | --- |
+| **类型** | `'light' \| 'auto' \| 'dark'` |
+| **默认** | `'light'` |
+| **可配** | `'auto'` 跟随系统深浅色，`'dark'` 固定深色。作用于弹窗、弹窗里的菜单和录屏编辑器。未配置（或取值不是这三个之一）时，页面加载完会在控制台打印一条带颜色的提示，说明这个配置项。 |
 
 #### `hotkey`
 

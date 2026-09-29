@@ -34,6 +34,9 @@ function customAgentActions(resolved, registry) {
 /**
  * Creates the browser-facing inspector configuration injected into the page.
  *
+ * Boundary: `theme` is forwarded as resolved, `null` included, because the browser both picks the default theme and
+ * decides whether to print the "theme not configured" console hint from it.
+ *
  * @param {ReturnType<typeof resolveOptions>} resolved Resolved plugin options.
  * @param {ReturnType<typeof buildRegistry>} registry Enabled agent registry.
  * @param {string} token Per-process dev token.
@@ -49,6 +52,7 @@ function makeClientConfig(resolved, registry, token, origin) {
         token,
         routePrefix: ROUTE_PREFIX,
         locale: resolved.locale,
+        theme: resolved.theme,
         hotkey: resolved.hotkey,
         clickModifier: resolved.clickModifier,
         defaultAgent,

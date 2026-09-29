@@ -110,7 +110,7 @@ button:focus-visible, [role="button"]:focus-visible {
 @media (forced-colors: active) {
   .cii-code-ref-icon, .cii-shot-icon, .cii-style-icon, .cii-style-chip-icon, .cii-mention-icon, .cii-pin-orb-icon,
   .cii-rec-icon, .cii-agent-kind, .cii-agent-pill-caret, .cii-agent-row-selected .cii-agent-row-check,
-  .cii-agent-row-sessions::before, .cii-agent-row-session::before, .cii-copy-label::before,
+  .cii-agent-row-sessions::after, .cii-agent-row-session::before, .cii-copy-label::before,
   .cii-choice-active .cii-choice-mark::before, .cii-session-new::before, .cii-session-refresh::before,
   .cii-session-back::before, .cii-mention-remove::before, .cii-thumb-remove::before, .cii-style-chip-remove::before,
   .cii-image-close::before, .cii-rv-close::before, .cii-rv-seg-x::before, .cii-recording-thumb .cii-thumb-media::before {

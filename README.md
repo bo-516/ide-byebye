@@ -383,6 +383,7 @@ Empty call is enough. You get:
 | Backend agents | clipboard (**Copy prompt** button) + file (no UI entry point) — on; neither is an Enter target |
 | Recording | off; enable with `recording: true` (needs `@rrweb/record` + `@rrweb/replay`) |
 | UI locale | auto (`navigator.language` → else `zh`) |
+| Dialog theme | light; `theme: 'auto'` follows the system, `'dark'` pins dark |
 | Handoff files | `.intent-inspector/` (**gitignore this** — see [Artifacts](#artifacts)) |
 | Source `@` paths | relative; screenshot / still paths absolute |
 | Source stamps | on by default (absolute paths). Set `sourceStamp: false` to turn them off |
@@ -418,6 +419,14 @@ ideByebye({
 | **Type** | `'zh' \| 'en'` |
 | **Default** | auto — `config.locale` → `navigator.language` → `zh` |
 | **Set to** | `'zh'` / `'en'`, or any string starting with `zh` → Chinese, else English. Prompt text and brand names are **not** localized. |
+
+#### `theme`
+
+| | |
+| --- | --- |
+| **Type** | `'light' \| 'auto' \| 'dark'` |
+| **Default** | `'light'` |
+| **Set to** | `'auto'` to follow the system light / dark setting, or `'dark'` to always use the dark theme. Covers the dialog, its menus and the recording editor. When it is unset (or not one of the three), the page logs a colored console hint naming this option after it loads. |
 
 #### `hotkey`
 

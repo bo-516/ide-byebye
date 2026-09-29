@@ -45,6 +45,7 @@ test('resolveOptions fills safe defaults and preserves explicit overrides', () =
     const defaults = resolveOptions({});
     assert.equal(defaults.enabled, true);
     assert.equal(defaults.locale, null);
+    assert.equal(defaults.theme, null);
     assert.equal(defaults.hotkey, DEFAULT_HOTKEY);
     assert.equal(defaults.clickModifier, 'auto');
     assert.equal(defaults.defaultAgent, 'claude-app');
@@ -65,6 +66,7 @@ test('resolveOptions fills safe defaults and preserves explicit overrides', () =
     const custom = resolveOptions({
         enabled: false,
         locale: 'zh-CN',
+        theme: 'dark',
         hotkey: 'Ctrl+I',
         clickModifier: 'meta',
         defaultAgent: 'clipboard',
@@ -80,6 +82,7 @@ test('resolveOptions fills safe defaults and preserves explicit overrides', () =
     });
     assert.equal(custom.enabled, false);
     assert.equal(custom.locale, 'zh');
+    assert.equal(custom.theme, 'dark');
     assert.equal(custom.hotkey, 'Ctrl+I');
     assert.equal(custom.clickModifier, 'meta');
     assert.equal(custom.defaultAgent, 'clipboard');
@@ -96,6 +99,12 @@ test('resolveOptions fills safe defaults and preserves explicit overrides', () =
         maxDurationMs: 5000,
         mask: { allInputs: true, blockClass: 'secret' },
     });
+});
+
+test('resolveOptions keeps an unknown theme as not configured', () => {
+    assert.equal(resolveOptions({ theme: 'system' }).theme, null);
+    assert.equal(resolveOptions({ theme: ' Light ' }).theme, 'light');
+    assert.equal(resolveOptions({ theme: 'auto' }).theme, 'auto');
 });
 
 test('resolveOptions normalizes apiOrigin and recording edges', () => {

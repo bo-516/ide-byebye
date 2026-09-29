@@ -12,6 +12,9 @@ export type PathStyle = 'relative' | 'absolute';
 /** UI locale for the inspector chrome (prompt text stays language-neutral). */
 export type Locale = 'zh' | 'en' | (string & {});
 
+/** Colour theme of the inspector UI; `'auto'` follows the OS `prefers-color-scheme`. */
+export type Theme = 'light' | 'auto' | 'dark';
+
 /**
  * Agent adapter id (`agents.custom` names too). As `defaultAgent`, only footer agents drive Enter:
  * `'clipboard'` / `'file'` are valid adapter ids but never Enter targets.
@@ -311,6 +314,11 @@ export interface IdeByebyeOptions {
   enabled?: boolean;
   /** UI locale; any string starting with `zh` → Chinese, else English. */
   locale?: Locale;
+  /**
+   * Colour theme of the dialog, menus and recording editor. Default `'light'`; `'auto'` follows the OS
+   * light/dark setting. Left unset (or invalid), the page logs a console hint naming this option once it loads.
+   */
+  theme?: Theme;
   /** Picker toggle hotkey, `+`-joined (e.g. `'Alt+Shift+I'`). */
   hotkey?: string;
   /**
