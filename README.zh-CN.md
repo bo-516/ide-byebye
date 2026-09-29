@@ -17,15 +17,16 @@ Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。�
 支持 **React**、**Vue**、**Svelte**、**Solid**、**Preact** 与 **Angular**，包括
 **Next.js**、**Nuxt**、**SvelteKit** 等 SSR 框架。详见 [框架支持](#框架支持)。
 
-![⌘-点击元素、描述改动、交给 Agent](./demo-recording.gif)
+[![⌘-点击元素、描述改动、交给 Claude App 或已打开的 Codex 会话](./media/demo-handoff.zh-CN.gif)](./media/demo-handoff.zh-CN.mp4)
 
-**录屏演示**（React demo → Codex App）：
+**演示**（Vue demo 的动画演示；[MP4](./media/demo-handoff.zh-CN.mp4)）：
 
 1. **选取** — 按住 ⌘ 点击渲染节点；浮层把 `data-insp-path` 解析到源码
-   （录屏中为 `react/src/components/AddTask.jsx #27-38`）。
+   （演示中为 `src/App.vue #85-87`）。
 2. **描述** — 在弹窗里用自然语言写意图（可选 `@code`、截图、样式或录制）。
 3. **交接** — 选择 **Codex App / Claude App / Cursor / Grok Build**；
-   loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。
+   loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。演示里 prompt 先交给
+   Claude App，再把筛选栏（`#99-129`）发进一个已经打开的 Codex 会话（见 [发送到已有会话](#发送到已有会话)）。
 
 ![⌘-点击标签列表、描述改动、交给 Claude App](./demo-recording-claude.gif)
 
