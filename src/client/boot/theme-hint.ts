@@ -21,15 +21,24 @@ const BADGE_STYLE = [
 const MESSAGE_STYLE = 'color: #7c6dff; font-weight: 600';
 
 /**
+ * Window surface the theme hint waits on. Tests pass a stand-in; the real `Window` satisfies this.
+ * A missing `addEventListener` would throw when the document is still loading.
+ */
+interface ThemeHintWindow {
+    document: { readyState: string };
+    addEventListener(type: string, listener: () => void, options?: boolean | AddEventListenerOptions): void;
+}
+
+/**
  * themeHintArgs(message): `console.info` arguments that print `message` behind the plugin's badge.
  *
  * Boundary: pure. `message` goes into the format string, so it must not contain `%` directives (localized copy from
  * `console.themeHint` does not).
  *
- * @param {string} message Hint text to print.
+ * @param {string} message Hint text to print. `%` in `message` would be read as a console format directive.
  * @returns {string[]} Format string with two `%c` directives, then the badge and message styles.
  */
-export function themeHintArgs(message) {
+export function themeHintArgs(message: string): string[] {
     return [`%cide-byebye%c ${message}`, BADGE_STYLE, MESSAGE_STYLE];
 }
 
@@ -41,10 +50,11 @@ export function themeHintArgs(message) {
  * Boundary: side effects only — one `load` listener and one `console.info`. Logs right away when the document has
  * already finished loading. The caller decides whether the option is unset; this never reads the config.
  *
- * @param {Window} [win] Window whose load to wait for; defaults to the current one.
+ * @param {ThemeHintWindow} [win] Window whose load to wait for; defaults to the current one. A stand-in only needs
+ *   `document.readyState` and `addEventListener` — omitting it uses the real window.
  * @returns {void}
  */
-export function logThemeHintAfterLoad(win = window) {
+export function logThemeHintAfterLoad(win: ThemeHintWindow = window) {
     const log = () => console.info(...themeHintArgs(t('console.themeHint')));
     if (win.document.readyState === 'complete')
         log();

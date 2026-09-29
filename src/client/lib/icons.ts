@@ -8,7 +8,7 @@
  *
  * @type {Record<string, string>} SVG child markup keyed by icon name.
  */
-const ICON_PATHS = {
+const ICON_PATHS: Record<string, string> = {
     x: "<path d='M17 7 7 17M7 7l10 10'/>",
     check: "<path d='m5 12.5 4.5 4.5L19 7.5'/>",
     'chevron-down': "<path d='m7 10 5 5 5-5'/>",
@@ -48,7 +48,7 @@ const MASK_ICONS = Object.keys(ICON_PATHS);
  * @param {string} [extra] Extra attributes for the root element (size, class, aria).
  * @returns {string} SVG markup.
  */
-function svgDocument(body, stroke, extra = '') {
+function svgDocument(body: string, stroke: string, extra = ''): string {
     return `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'${extra}>${body}</svg>`;
 }
 
@@ -63,7 +63,7 @@ function svgDocument(body, stroke, extra = '') {
  * @param {string} svg SVG markup.
  * @returns {string} CSS `url()` token.
  */
-export function svgDataUri(svg) {
+export function svgDataUri(svg: string): string {
     const encoded = svg.replace(/[%#<>]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
     return `url("data:image/svg+xml,${encoded}")`;
 }
@@ -78,7 +78,7 @@ export function svgDataUri(svg) {
  * @param {number} [size=16] Rendered width and height in CSS pixels.
  * @returns {string} SVG markup for `innerHTML`.
  */
-export function iconSvg(name, size = 16) {
+export function iconSvg(name: string, size = 16): string {
     const body = ICON_PATHS[name];
     if (!body)
         return '';

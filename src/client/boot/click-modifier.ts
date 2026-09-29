@@ -1,3 +1,32 @@
+/** Configured click modifier before alias normalization. `false` / `null` opt out; omitted means `'auto'`. */
+type ClickModifierRaw = string | false | null | undefined;
+
+/** Mouse-like modifier bits. A missing bit is not held. */
+interface ClickModifierFlags {
+    altKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    shiftKey?: boolean;
+}
+
+/** Held Command/Ctrl tracker. Every bit is always present so a reset cannot leave one unset. */
+interface HeldModifiers {
+    alt: boolean;
+    ctrl: boolean;
+    meta: boolean;
+    shift: boolean;
+}
+
+/**
+ * Carrier for `pointerType`. Other fields are ignored — touch fixtures pass `changedTouches` and must stay assignable.
+ * Reading a non-string `pointerType` is coerced with `String`.
+ */
+interface ClickPointerCarrier {
+    pointerType?: string;
+    touches?: unknown;
+    changedTouches?: unknown;
+}
+
 /**
  * Map an OS platform string to the default click modifier.
  *
@@ -7,10 +36,10 @@
  * legacy `navigator.platform`); an empty / non-mac string yields `'ctrl'`. Returns DOM-friendly names (`'meta'`/`'ctrl'`)
  * that `normalizeClickModifier` already understands.
  *
- * @param {string} platform OS platform string.
+ * @param {string | undefined} platform OS platform string. Omitted, empty, and non-mac values yield `'ctrl'`.
  * @returns {'meta' | 'ctrl'} Default modifier for that platform.
  */
-export function platformDefaultModifier(platform: string): 'meta' | 'ctrl' {
+export function platformDefaultModifier(platform: string | undefined): 'meta' | 'ctrl' {
     return /mac/i.test(String(platform || '')) ? 'meta' : 'ctrl';
 }
 
@@ -27,7 +56,7 @@ export function platformDefaultModifier(platform: string): 'meta' | 'ctrl' {
  * @param {string} platform OS platform string, used only for the `'auto'` case.
  * @returns {string | null} Resolved modifier name, or `null` to disable click-picking.
  */
-export function resolveClickModifier(raw: any, platform: string): string | null {
+export function resolveClickModifier(raw: ClickModifierRaw, platform: string): string | null {
     if (raw === false || raw === null) {
         return null;
     }
@@ -49,7 +78,7 @@ export function resolveClickModifier(raw: any, platform: string): string | null 
  * @param {string | false | null | undefined} raw Configured `clickModifier`.
  * @returns {boolean} True when matching should accept both Command and Ctrl.
  */
-export function isAutoClickModifier(raw: any): boolean {
+export function isAutoClickModifier(raw: ClickModifierRaw): boolean {
     if (raw === false || raw === null) {
         return false;
     }
@@ -71,7 +100,7 @@ export function isAutoClickModifier(raw: any): boolean {
  *   signature; passing a spoofed mobile platform must not change the `'auto'` result.
  * @returns {string | null} `'auto'`, an explicit modifier name, or `null` to disable modifier-picking.
  */
-export function matchingClickModifier(raw: any, platform: string): string | null {
+export function matchingClickModifier(raw: ClickModifierRaw, platform: string): string | null {
     const resolved = resolveClickModifier(raw, platform);
     if (resolved == null) {
         return null;
@@ -120,7 +149,7 @@ export function normalizeClickModifier(modifier: string | null | undefined): 'au
  * @param {string | null | undefined} modifier Configured / matching modifier name.
  * @returns {boolean} Whether the flags currently satisfy the normalized modifier.
  */
-export function matchesClickModifier(e, modifier: string | null | undefined): boolean {
+export function matchesClickModifier(e: ClickModifierFlags, modifier: string | null | undefined): boolean {
     switch (normalizeClickModifier(modifier)) {
         case 'auto':
             return !!(e.metaKey || e.ctrlKey);
@@ -172,7 +201,7 @@ export function isClickModifierKey(key: string, modifier: string | null | undefi
  *
  * @returns {{ alt: boolean, ctrl: boolean, meta: boolean, shift: boolean }} Fresh all-false modifier state.
  */
-export function emptyHeldModifiers() {
+export function emptyHeldModifiers(): HeldModifiers {
     return { alt: false, ctrl: false, meta: false, shift: false };
 }
 
@@ -190,7 +219,7 @@ export function emptyHeldModifiers() {
  * @param {{ pointerType?: string } | null | undefined} event Pointer / mouse / touch event.
  * @returns {boolean} True when the event's flags should overwrite the tracker before matching.
  */
-export function hasLiveModifierFlags(event): boolean {
+export function hasLiveModifierFlags(event: ClickPointerCarrier | null | undefined): boolean {
     const type = String(event?.pointerType || '').toLowerCase();
     return type === 'mouse' || type === 'pen';
 }
@@ -209,7 +238,7 @@ export function hasLiveModifierFlags(event): boolean {
  *   mouse / pen pointer event whose flags are live.
  * @returns {{ alt: boolean, ctrl: boolean, meta: boolean, shift: boolean }} The same `held` object, mutated.
  */
-export function applyKeyboardModifierEvent(held, event) {
+export function applyKeyboardModifierEvent(held: HeldModifiers, event: ClickModifierFlags): HeldModifiers {
     held.alt = !!event.altKey;
     held.ctrl = !!event.ctrlKey;
     held.meta = !!event.metaKey;
@@ -232,7 +261,7 @@ export function applyKeyboardModifierEvent(held, event) {
  *   `applyKeyboardModifierEvent`.
  * @returns {{ altKey: boolean, ctrlKey: boolean, metaKey: boolean, shiftKey: boolean }} Merged flags.
  */
-export function mergeModifierFlags(event, held) {
+export function mergeModifierFlags(event: ClickModifierFlags | null | undefined, held: Partial<HeldModifiers> | null | undefined): ClickModifierFlags {
     return {
         altKey: !!(event?.altKey || held?.alt),
         ctrlKey: !!(event?.ctrlKey || held?.ctrl),

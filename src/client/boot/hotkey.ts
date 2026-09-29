@@ -35,7 +35,18 @@ export function parseHotkey(input: string): {
         hk.code = 'Digit' + hk.key;
     return hk;
 }
-export function matchHotkey(e, hk) {
+/**
+ * Whether a keydown matches a parsed hotkey.
+ *
+ * Boundary: every modifier bit must agree, including bits the hotkey left off. When `hk.code` is set it wins over
+ * `key`, so a layout-shifted character still matches the physical key. Passing a non-keyboard event reads empty
+ * `code` / `key` and misses.
+ *
+ * @param {KeyboardEvent} e Keydown (or keyup) to test.
+ * @param {ReturnType<typeof parseHotkey>} hk Result of {@link parseHotkey}. An empty `key` matches only an empty event key.
+ * @returns {boolean} True when the modifiers and the key or code agree.
+ */
+export function matchHotkey(e: KeyboardEvent, hk: ReturnType<typeof parseHotkey>): boolean {
     if (e.altKey !== hk.alt)
         return false;
     if (e.shiftKey !== hk.shift)

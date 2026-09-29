@@ -5,18 +5,48 @@ import { INSP_PATH_ATTR } from '../../shared/constants.js';
 
 // The promotion walk reads border widths through the browser-global `getComputedStyle`; node has none, so route it to
 // the mock element's declared borders. Each test file runs in its own process, so the global never leaks elsewhere.
-globalThis.getComputedStyle = (el) => el.__computedStyle;
+globalThis.getComputedStyle = ((el: { __computedStyle?: FakeComputedStyle }) => el.__computedStyle) as unknown as typeof getComputedStyle;
 
 /**
  * Minimal element stand-in: the promotion walk only touches `parentElement`, `getBoundingClientRect()`,
  * `getAttribute(INSP_PATH_ATTR)` and computed border widths, so plain objects can model a wrapper chain without a DOM
  * environment. `border` is the wrapper's own border width on every edge.
  */
-function makeEl({ left = 0, top = 0, width = 100, height = 50, border = 0, inspPath = null, parent = null }) {
+interface FakeComputedStyle {
+    borderTopWidth: string;
+    borderRightWidth: string;
+    borderBottomWidth: string;
+    borderLeftWidth: string;
+}
+
+interface FakeEl {
+    parentElement: FakeEl | null;
+    getBoundingClientRect(): { left: number; top: number; width: number; height: number; right: number; bottom: number };
+    getAttribute(name: string): string | null;
+    __computedStyle: FakeComputedStyle;
+}
+
+function makeEl({
+    left = 0,
+    top = 0,
+    width = 100,
+    height = 50,
+    border = 0,
+    inspPath = null,
+    parent = null,
+}: {
+    left?: number;
+    top?: number;
+    width?: number;
+    height?: number;
+    border?: number;
+    inspPath?: string | null;
+    parent?: FakeEl | null;
+} = {}): FakeEl {
     return {
         parentElement: parent,
         getBoundingClientRect: () => ({ left, top, width, height, right: left + width, bottom: top + height }),
-        getAttribute: (name) => (name === INSP_PATH_ATTR ? inspPath : null),
+        getAttribute: (name: string) => (name === INSP_PATH_ATTR ? inspPath : null),
         __computedStyle: {
             borderTopWidth: `${border}px`,
             borderRightWidth: `${border}px`,
@@ -30,9 +60,9 @@ function makeEl({ left = 0, top = 0, width = 100, height = 50, border = 0, inspP
  * Build a chain from the outermost box inward; every wrapper has `border` px of border on each edge and its child
  * exactly fills the inside-border area. Returns the innermost element.
  */
-function makeChain(levels, { border = 1, size = 100 } = {}) {
-    let parent = null;
-    const chain = [];
+function makeChain(levels: number, { border = 1, size = 100 }: { border?: number; size?: number } = {}) {
+    let parent: FakeEl | null = null;
+    const chain: FakeEl[] = [];
     for (let i = 0; i < levels; i += 1) {
         const inset = i * border;
         parent = makeEl({
@@ -91,7 +121,8 @@ test('promotes through a chain of border-only wrappers to the outermost one', ()
 test('caps the climb at 5 ancestor levels', () => {
     const inner = makeChain(8); // 7 border-only ancestors above the innermost
     let expected = inner;
-    for (let i = 0; i < 5; i += 1) expected = expected.parentElement;
+    // Assertion erases. The chain has the parents; a missing one still assigns null and throws on the next step.
+    for (let i = 0; i < 5; i += 1) expected = expected.parentElement as FakeEl;
     assert.equal(promoteToOuterSameSizeElement(inner), expected);
 });
 

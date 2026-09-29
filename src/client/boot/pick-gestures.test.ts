@@ -18,29 +18,29 @@ import {
 function createClock() {
     let current = 0;
     let nextId = 0;
-    const timers = new Map();
+    const timers = new Map<number, { fn: () => void; due: number }>();
     return {
         now: () => current,
-        schedule(fn, ms) {
+        schedule(fn: () => void, ms: number) {
             nextId += 1;
             timers.set(nextId, { fn, due: current + ms });
             return nextId;
         },
-        cancel(id) {
+        cancel(id: number) {
             timers.delete(id);
         },
-        advance(ms) {
+        advance(ms: number) {
             current += ms;
-            const due = [];
-            for (const [id, t] of timers) {
-                if (t.due <= current) {
+            const due: { fn: () => void; due: number }[] = [];
+            for (const [id, timer] of timers) {
+                if (timer.due <= current) {
                     timers.delete(id);
-                    due.push(t);
+                    due.push(timer);
                 }
             }
             due.sort((a, b) => a.due - b.due);
-            for (const t of due)
-                t.fn();
+            for (const timer of due)
+                timer.fn();
         },
     };
 }
@@ -54,20 +54,25 @@ function pluginNode() {
 }
 
 function mockPicker() {
-    const calls = { select: [], preview: 0, previewTargets: [], hide: 0 };
+    const calls: {
+        select: { target: unknown; point: { x: number; y: number } }[];
+        preview: number;
+        previewTargets: unknown[];
+        hide: number;
+    } = { select: [], preview: 0, previewTargets: [], hide: 0 };
     const picker = {
         active: false,
         open: false,
         dialog: { isOpen: () => picker.open },
         isActive: () => picker.active,
-        previewTarget(target) {
+        previewTarget(target: unknown) {
             calls.preview += 1;
             calls.previewTargets.push(target);
         },
         hidePreview() {
             calls.hide += 1;
         },
-        selectTarget(target, point) {
+        selectTarget(target: unknown, point: { x: number; y: number }) {
             if (picker.active || picker.open)
                 return false;
             calls.select.push({ target, point });
@@ -80,14 +85,21 @@ function mockPicker() {
 }
 
 function capturingNode() {
-    const node = {
+    const node: {
+        closest: () => null;
+        captured: number[];
+        released: number[];
+        setPointerCapture(id: number): void;
+        releasePointerCapture(id: number): void;
+        hasPointerCapture(): boolean;
+    } = {
         closest: () => null,
         captured: [],
         released: [],
-        setPointerCapture(id) {
+        setPointerCapture(id: number) {
             node.captured.push(id);
         },
-        releasePointerCapture(id) {
+        releasePointerCapture(id: number) {
             node.released.push(id);
         },
         hasPointerCapture() {
@@ -97,7 +109,7 @@ function capturingNode() {
     return node;
 }
 
-function makeController(matchModifier = 'auto') {
+function makeController(matchModifier: string | null = 'auto') {
     const clock = createClock();
     const picker = mockPicker();
     const controller = createPickGestureController({
@@ -110,11 +122,33 @@ function makeController(matchModifier = 'auto') {
     return { clock, picker, controller };
 }
 
-function keyEvent(flags) {
+function keyEvent(flags: { altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}) {
     return { key: 'Meta', ...flags };
 }
 
-function pointerEvent(overrides = {}) {
+/** Fields the gesture machine reads, plus the flags tests assert after `preventDefault`. */
+interface PointerFixture {
+    pointerId?: number;
+    button?: number;
+    isPrimary?: boolean;
+    pointerType?: string;
+    clientX: number;
+    clientY: number;
+    target: unknown;
+    altKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    shiftKey?: boolean;
+    preventDefault(): void;
+    stopPropagation(): void;
+    stopImmediatePropagation(): void;
+    /** Absent until `preventDefault` runs, so tests can still see `undefined`. */
+    prevented?: boolean;
+    stopped?: boolean;
+    immediate?: boolean;
+}
+
+function pointerEvent(overrides: Partial<PointerFixture> = {}): PointerFixture {
     return {
         pointerId: 1,
         button: 0,
@@ -126,17 +160,17 @@ function pointerEvent(overrides = {}) {
         ctrlKey: false,
         metaKey: false,
         shiftKey: false,
-        preventDefault() {
+        preventDefault(this: PointerFixture) {
             this.prevented = true;
         },
-        stopPropagation() {
+        stopPropagation(this: PointerFixture) {
             this.stopped = true;
         },
-        stopImmediatePropagation() {
+        stopImmediatePropagation(this: PointerFixture) {
             this.immediate = true;
         },
         ...overrides,
-    };
+    } as PointerFixture;
 }
 
 test('longPressDurationMs is 1s on touch and 4s on mouse', () => {
@@ -369,7 +403,9 @@ test('Chrome long-press conversion (contextmenu + pointercancel) still opens at 
     const menu = pointerEvent({ button: 2, target: node });
     controller.onContextMenu(menu);
     assert.equal(menu.prevented, true);
-    controller.onPointerCancel(pointerEvent({ pointerId: 1 }));
+    // The handler ignores its event; its type takes none, and the cast keeps passing the fixture through.
+    const onPointerCancel: (event?: PointerFixture) => void = controller.onPointerCancel;
+    onPointerCancel(pointerEvent({ pointerId: 1 }));
     clock.advance(LONG_PRESS_DURATION_MS);
     assert.equal(picker.calls.select.length, 1);
     assert.equal(picker.calls.select[0].target, node);

@@ -25,7 +25,7 @@ const card = new Card();
  * @param {object} [props] `parent`, `owner`, `classes`, `attrs`, `text`.
  * @returns {object} Element-like object.
  */
-function el(tag, { parent = null, owner = null, classes = [], attrs = {}, text = '' }: any = {}) {
+function el(tag: string, { parent = null, owner = null, classes = [], attrs = {}, text = '' }: any = {}) {
     const node: any = {
         localName: tag,
         id: attrs.id ?? '',
@@ -33,7 +33,7 @@ function el(tag, { parent = null, owner = null, classes = [], attrs = {}, text =
         textContent: text,
         parentElement: parent,
         previousElementSibling: parent?.lastChild ?? null,
-        getAttribute: (name) => attrs[name] ?? null,
+        getAttribute: (name: string) => attrs[name] ?? null,
         __owner: owner,
     };
     if (parent)
@@ -43,8 +43,8 @@ function el(tag, { parent = null, owner = null, classes = [], attrs = {}, text =
 
 /** `window.ng` double resolving owners from the mock tree. */
 const ng = {
-    getOwningComponent: (node) => node.__owner,
-    getHostElement: (component) => (component === app ? appRoot : cardHost),
+    getOwningComponent: (node: any) => node.__owner,
+    getHostElement: (component: any) => (component === app ? appRoot : cardHost),
 };
 
 // <app-root> (host of App) > main.shell > app-card (host of Card, declared by App) > article.card (Card) > em (App)
@@ -65,8 +65,10 @@ test('angularDebugApi only accepts a window exposing ng.getOwningComponent', () 
 
 test('projected content resolves to the declaring component and skips the child component view', () => {
     const selection = angularSelection(em, ng);
-    assert.deepEqual(selection.hint.path.map((step) => step.tag), ['main', 'app-card', 'em']);
-    assert.equal(selection.hint.path[1].index, 1, 'second app-card declared by App');
+    assert.ok(selection);
+    const path = selection.hint.path as Array<{ tag: string; index: number; classes?: string[]; attrs?: Record<string, string> }>;
+    assert.deepEqual(path.map((step) => step.tag), ['main', 'app-card', 'em']);
+    assert.equal(path[1].index, 1, 'second app-card declared by App');
     assert.equal(selection.hint.className, 'App');
     assert.equal(selection.hint.text, 'projected beta');
     assert.equal(selection.inspPath, 'src/app/app.ts:9:1:em@main0>app-card1>em0');
@@ -74,9 +76,11 @@ test('projected content resolves to the declaring component and skips the child 
 
 test('child component elements map to the child template and keep static-looking attributes only', () => {
     const selection = angularSelection(strong, ng);
+    assert.ok(selection);
+    const path = selection.hint.path as Array<{ tag: string; index: number; classes?: string[]; attrs?: Record<string, string> }>;
     assert.equal(selection.inspPath, 'src/app/card/card.ts:12:1:strong@article0>strong0');
-    assert.deepEqual(selection.hint.path[0].classes, ['card'], 'ng-* state classes are dropped');
-    assert.deepEqual(selection.hint.path[1].attrs, { role: 'note' });
+    assert.deepEqual(path[0].classes, ['card'], 'ng-* state classes are dropped');
+    assert.deepEqual(path[1].attrs, { role: 'note' });
 });
 
 test('hover labels are cheap component locations; unknown elements are not Angular', () => {

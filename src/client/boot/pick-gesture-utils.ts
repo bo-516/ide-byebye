@@ -9,6 +9,28 @@ export const LONG_PRESS_MOVE_PX = 16;
 /** Swallow the synthesized click/pointerup that follows a successful pick. */
 export const PICK_CONSUME_MS = 500;
 
+/** One finger's viewport point on a touch list. A missing list means "not a touch event". */
+interface TouchPoint {
+    clientX: number;
+    clientY: number;
+}
+
+/**
+ * Pointer, mouse, or touch event the pure helpers read. Every field is optional because `touchend`, compat
+ * `mouseup`, and unit-test fixtures each omit a different subset; a missing event is "not a touch / not primary".
+ */
+interface GestureProbe {
+    pointerType?: string;
+    pointerId?: number;
+    button?: number;
+    isPrimary?: boolean;
+    clientX?: number;
+    clientY?: number;
+    target?: unknown;
+    touches?: ArrayLike<TouchPoint> | null;
+    changedTouches?: ArrayLike<TouchPoint> | null;
+}
+
 /**
  * Whether this pointer event should use the short (touch) long-press duration.
  *
@@ -20,7 +42,7 @@ export const PICK_CONSUME_MS = 500;
  * @param {{ pointerType?: string, touches?: unknown, changedTouches?: unknown } | null | undefined} event Pointer or touch event.
  * @returns {boolean} True when the 1s mobile duration should apply.
  */
-export function isTouchLikePointer(event) {
+export function isTouchLikePointer(event: GestureProbe | null | undefined): boolean {
     const type = String(event?.pointerType || '').toLowerCase();
     if (type === 'touch')
         return true;
@@ -40,7 +62,7 @@ export function isTouchLikePointer(event) {
  * @param {{ pointerType?: string, touches?: unknown, changedTouches?: unknown } | null | undefined} event Pointerdown-like event.
  * @returns {number} Duration in milliseconds.
  */
-export function longPressDurationMs(event) {
+export function longPressDurationMs(event: GestureProbe | null | undefined): number {
     return isTouchLikePointer(event) ? LONG_PRESS_DURATION_TOUCH_MS : LONG_PRESS_DURATION_MS;
 }
 
@@ -59,7 +81,7 @@ export function longPressDurationMs(event) {
  * @param {number} [tolerancePx] Max travel in CSS pixels; defaults to `LONG_PRESS_MOVE_PX`.
  * @returns {boolean} True when the pointer has moved far enough to cancel.
  */
-export function pointerMovementExceeded(startX, startY, x, y, tolerancePx = LONG_PRESS_MOVE_PX) {
+export function pointerMovementExceeded(startX: number, startY: number, x: number, y: number, tolerancePx = LONG_PRESS_MOVE_PX): boolean {
     const dx = x - startX;
     const dy = y - startY;
     return (dx * dx) + (dy * dy) > (tolerancePx * tolerancePx);
@@ -76,7 +98,7 @@ export function pointerMovementExceeded(startX, startY, x, y, tolerancePx = LONG
  * @param {{ isPrimary?: boolean, button?: number }} event Pointer-like event.
  * @returns {boolean} True when this event should start or finish a pick gesture.
  */
-export function isPrimaryPress(event) {
+export function isPrimaryPress(event: Pick<GestureProbe, 'isPrimary' | 'button'>): boolean {
     if (event.isPrimary === false)
         return false;
     if (typeof event.button === 'number' && event.button !== 0)
@@ -95,11 +117,12 @@ export function isPrimaryPress(event) {
  * @param {{ clientX?: number, clientY?: number, changedTouches?: Array<{ clientX: number, clientY: number }>, touches?: Array<{ clientX: number, clientY: number }> } | null | undefined} event
  * @returns {{ x: number, y: number }} Viewport point.
  */
-export function pointFromEvent(event) {
+export function pointFromEvent(event: GestureProbe | null | undefined): { x: number; y: number } {
     const touch = event?.changedTouches?.[0] || event?.touches?.[0];
     const hasClient = event && typeof event.clientX === 'number';
     if (hasClient && (event.clientX !== 0 || event.clientY !== 0 || !touch))
-        return { x: event.clientX, y: event.clientY };
+        // Assertions erase. `hasClient` is a boolean, so it does not narrow these fields; a missing coordinate stays missing.
+        return { x: event.clientX as number, y: event.clientY as number };
     if (touch)
         return { x: touch.clientX, y: touch.clientY };
     return { x: 0, y: 0 };
@@ -117,7 +140,7 @@ export function pointFromEvent(event) {
  * @param {{ pointerId?: number } | null | undefined} event Later pointer/mouse/touch event.
  * @returns {boolean} True when `event` should finish or update `press`.
  */
-export function isMatchingPress(press, event) {
+export function isMatchingPress(press: Pick<GestureProbe, 'pointerId'> | null | undefined, event: Pick<GestureProbe, 'pointerId'> | null | undefined): boolean {
     if (!press)
         return false;
     if (typeof press.pointerId !== 'number' || typeof event?.pointerId !== 'number')
@@ -134,12 +157,81 @@ export function isMatchingPress(press, event) {
  * Boundary: a matching press with a `target` always wins. Otherwise this returns `event.target` (`click` without a
  * prior pointerdown, or an unmatched pointer). A missing event yields `undefined`.
  *
- * @param {{ pointerId?: number, target?: EventTarget } | null | undefined} press Active press snapshot.
- * @param {{ pointerId?: number, target?: EventTarget } | null | undefined} event Pointerup/click-like event.
- * @returns {EventTarget | null | undefined} Hit target that should be passed to `selectTarget`.
+ * @param {{ pointerId?: number, target?: unknown } | null | undefined} press Active press snapshot.
+ * @param {{ pointerId?: number, target?: unknown } | null | undefined} event Pointerup/click-like event.
+ * @returns {unknown} Hit target for `selectTarget`. Left unknown so DOM nodes and test doubles both pass through;
+ *   a missing event yields `undefined`.
  */
-export function resolvePickTarget(press, event) {
-    if (isMatchingPress(press, event) && press.target != null)
-        return press.target;
+export function resolvePickTarget(press: Pick<GestureProbe, 'pointerId' | 'target'> | null | undefined, event: Pick<GestureProbe, 'pointerId' | 'target'> | null | undefined): unknown {
+    // `isMatchingPress` does not narrow `press`. `!` erases; a null press already returned false above and is not read.
+    if (isMatchingPress(press, event) && press!.target != null)
+        return press!.target;
     return event?.target;
+}
+
+/** Picker calls the state machine makes. `selectTarget` returns false when the dialog must stay closed. */
+export interface GesturePicker {
+    isActive(): boolean;
+    dialog: { isOpen(): boolean };
+    previewTarget(target: unknown): void;
+    hidePreview(): void;
+    selectTarget(target: unknown, point: { x: number; y: number }): boolean;
+}
+
+/**
+ * `documentElement` or a test double. Only identity and `style` are used; a missing `style` skips the callout block.
+ * `setPointerCapture` is unused here — capture stays on the press target — but a root double that only implements
+ * capture would otherwise fail the weak-type check (every member of this shape is optional).
+ */
+export interface GestureRoot {
+    style?: {
+        setProperty(property: string, value: string): void;
+        removeProperty(property: string): void;
+    };
+    setPointerCapture?(pointerId: number): void;
+}
+
+/** Node that may own pointer capture. Test doubles implement these; DOM nodes do too. */
+export interface PointerCapturer {
+    setPointerCapture?(pointerId: number): void;
+    releasePointerCapture?(pointerId: number): void;
+    hasPointerCapture?(pointerId: number): boolean;
+}
+
+/** Keyboard or pointer event reduced to the modifier bits the gesture controller reads. */
+export interface ModifierGestureEvent {
+    pointerType?: string;
+    altKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    shiftKey?: boolean;
+}
+
+/**
+ * Pointer/mouse/touch/click event the controller handles.
+ * `addEventListener` on `EventTarget` types the argument as `Event`, so install sites cast; these fields are what the
+ * machine actually reads. A missing `clientX` cannot be passed — movement checks subtract coordinates.
+ */
+export interface PointerGestureEvent extends ModifierGestureEvent {
+    pointerId?: number;
+    button?: number;
+    isPrimary?: boolean;
+    clientX: number;
+    clientY: number;
+    target: unknown;
+    touches?: ArrayLike<{ clientX: number; clientY: number }> | null;
+    changedTouches?: ArrayLike<{ clientX: number; clientY: number }> | null;
+    preventDefault(): void;
+    stopPropagation(): void;
+    stopImmediatePropagation(): void;
+}
+
+/** In-flight press. `timer` is whatever `schedule` returned (`Timeout` in production, a number in tests). */
+export interface PressSnapshot<Timer> {
+    pointerId?: number;
+    x: number;
+    y: number;
+    target: unknown;
+    timer: Timer;
+    hintTimer: Timer;
 }

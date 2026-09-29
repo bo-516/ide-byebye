@@ -16,6 +16,19 @@ export const THEMES = ['light', 'auto', 'dark'];
 export const DEFAULT_THEME = 'light';
 
 /**
+ * Whether `theme` is one of {@link THEMES}.
+ *
+ * Boundary: `THEMES` is a mutable string list, so `includes` does not narrow. The predicate keeps callers on the
+ * documented union without copying the list, so a new theme id is accepted here as soon as it is added to `THEMES`.
+ *
+ * @param {string} theme Already trimmed, lowercased theme text.
+ * @returns {boolean} True when `theme` is an accepted id.
+ */
+function isTheme(theme: string): theme is 'light' | 'auto' | 'dark' {
+    return (THEMES as readonly string[]).includes(theme);
+}
+
+/**
  * normalizeTheme(value): classify a raw `theme` option.
  *
  * Boundary: case and surrounding whitespace are ignored. Anything that is not one of {@link THEMES}, including an unset
@@ -25,9 +38,9 @@ export const DEFAULT_THEME = 'light';
  * @param {unknown} value Raw value from the plugin options or the injected client config.
  * @returns {'light' | 'auto' | 'dark' | null} Accepted theme, or null when unset or invalid.
  */
-export function normalizeTheme(value) {
+export function normalizeTheme(value: unknown): 'light' | 'auto' | 'dark' | null {
     if (typeof value !== 'string')
         return null;
     const theme = value.trim().toLowerCase();
-    return THEMES.includes(theme) ? theme : null;
+    return isTheme(theme) ? theme : null;
 }
