@@ -2,11 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { deliverPromptToClient, resolveDeliveryWindow } from './dialog-delivery.js';
 
-/** Build a fake page window plus the embedder windows a delivery may address. */
+/**
+ * Build a fake page window plus the embedder windows a delivery may address.
+ *
+ * @returns {{ win: any, parent: any, top: any, posted: Array<{ target: string, data: unknown, origin: unknown }> }}
+ *          The page window, its embedders, and every `postMessage` the test observed.
+ */
 function makeWindows() {
-    const posted = [];
-    const parent: any = { postMessage: (data, origin) => posted.push({ target: 'parent', data, origin }) };
-    const top: any = { postMessage: (data, origin) => posted.push({ target: 'top', data, origin }) };
+    const posted: Array<{ target: string; data: unknown; origin: unknown }> = [];
+    const parent: any = { postMessage: (data: unknown, origin: unknown) => posted.push({ target: 'parent', data, origin }) };
+    const top: any = { postMessage: (data: unknown, origin: unknown) => posted.push({ target: 'top', data, origin }) };
     const win: any = { parent, top, opener: null };
     return { win, parent, top, posted };
 }

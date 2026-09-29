@@ -11,42 +11,163 @@ import { DialogSessionController } from './dialog-session-picker.js';
 import { DialogAgentPicker } from './dialog-agent-picker.js';
 import { t } from '../lib/i18n.js';
 import { iconSvg } from '../lib/icons.js';
+
+/**
+ * Fields this dialog reads from the injected page config.
+ *
+ * Boundary: the live config object has more keys (`token`, `apiOrigin`, …). This class only indexes `enabledAgents`;
+ * omitting it makes `send` throw when it checks whether the chosen agent is allowed. Other keys are forwarded as-is
+ * to controllers that own them.
+ */
+interface BrowserClientConfig {
+    /** Agent ids the server will accept. An id outside this list is never offered and is rejected on send. */
+    enabledAgents: string[];
+}
+
+/** One row of `GET /agents`: whether that adapter can take a prompt right now. */
+interface AgentAvailability {
+    name: string;
+    available?: boolean;
+    /** Server explanation when `available` is false; the dialog shows it verbatim. */
+    reason?: string;
+}
+
+/** `POST /resolve` JSON. `reference` is whatever the server sends until the dialog checks it is a string. */
+interface ResolveResult {
+    ok: boolean;
+    error?: string;
+    reference?: unknown;
+    source?: { astError?: string } | null;
+}
+
+/** `deliver` instruction a custom client asks the page to post to its embedding window. */
+interface SendDeliver {
+    label?: string;
+    windowTarget?: string;
+    targetOrigin?: string;
+    payload?: Record<string, unknown>;
+}
+
+/** `POST /send` JSON. App agents and the clipboard agent share this shape; `output` is prompt text only for clipboard. */
+interface SendResult {
+    ok: boolean;
+    agent?: string;
+    output?: unknown;
+    error?: string;
+    deliver?: SendDeliver;
+}
+
+/**
+ * Inspector routes the dialog calls.
+ *
+ * Boundary: payloads are JSON objects the server validates. A wrong origin or token fails inside these methods; this
+ * type only names the three calls the dialog makes and the fields it reads back.
+ */
+interface InspectorApi {
+    resolve(payload: object): Promise<ResolveResult>;
+    send(payload: object): Promise<SendResult>;
+    agents(): Promise<{ agents: AgentAvailability[] }>;
+}
+
+/**
+ * DOM summary collected from the picked element.
+ *
+ * Boundary: the picker adds tag, text, and path fields the server understands. This class only reads `inspPath`
+ * (to re-find the node after a reload); everything else is round-tripped untouched. A missing `inspPath` means the
+ * dialog cannot restore the element and degrades to text-only capture.
+ */
+interface ElementSelection {
+    inspPath?: string;
+    [key: string]: unknown;
+}
+
+/** Viewport point the dialog opens beside. Missing anchor centers the dialog. */
+interface DialogAnchor {
+    x: number;
+    y: number;
+}
+
+/**
+ * The box `positionDialog` and `keepDialogInView` measure and move.
+ *
+ * Boundary: a real dialog element satisfies this. Only the rect and the inline `left`/`top` are read, so a stand-in
+ * with those two fields is enough; anything else on `HTMLElement` is ignored.
+ */
+interface DialogBox {
+    getBoundingClientRect(): { left: number; top: number; width: number; height: number };
+    style: { left: string; top: string };
+}
+
+/** Inline `@` mention the reference picker asks the editor to insert at the captured caret. */
+interface ReferenceInsert {
+    label: string;
+    selection: ElementSelection;
+    /** Caret captured when the user clicked “add reference”; omitted inserts at the editor’s saved caret. */
+    range?: Range | null;
+}
+
+/** Light pin draft. Attachments are intentionally absent so it fits in sessionStorage. */
+interface PinnedDraft {
+    selection?: ElementSelection | null;
+    selector?: string | null;
+    anchor?: DialogAnchor | null;
+    lastAgent?: string;
+    primary?: { label?: string | null; selection?: ElementSelection } | null;
+    content?: unknown;
+}
+
+type DialogState = 'idle' | 'resolving' | 'sending' | 'failed' | 'completed';
+
+/**
+ * Clipboard write started inside the click so the browser still counts it as a user gesture.
+ *
+ * Boundary: `written` never rejects. `resolveText` / `rejectText` must be called exactly once; leaving them pending
+ * waits out the browser’s own gesture timeout.
+ */
+interface EagerClipboardWrite {
+    resolveText: (value: string) => void;
+    rejectText: (reason: Error) => void;
+    written: Promise<boolean>;
+}
+
 export class Dialog {
     copyResetTimer: any;
-    parent;
-    config;
-    api;
-    references;
-    screenshots;
-    recordings;
-    styles;
-    pin;
-    backdrop = null;
-    pinnedNode = null;
-    dialogEl = null;
+    parent: ShadowRoot;
+    config: BrowserClientConfig;
+    api: InspectorApi;
+    references: DialogReferenceController;
+    screenshots: DialogScreenshotController;
+    recordings: DialogRecordingController;
+    styles: DialogStyleController;
+    pin: DialogPin;
+    backdrop: HTMLElement | null = null;
+    pinnedNode: HTMLElement | null = null;
+    dialogEl: HTMLElement | null = null;
     editor;
-    editorEl = null;
-    actionButtons = new Map();
-    sessions;
-    picker;
-    lastAgent;
-    selection = null;
-    selectedElement = null;
-    screenshotElement = null;
-    anchor = null;
-    primaryLabel = null;
+    editorEl: HTMLElement | null = null;
+    actionButtons = new Map<string, HTMLButtonElement>();
+    sessions: DialogSessionController;
+    picker: DialogAgentPicker;
+    lastAgent: string;
+    selection: ElementSelection | null = null;
+    selectedElement: Element | null = null;
+    screenshotElement: Element | null = null;
+    anchor: DialogAnchor | null = null;
+    primaryLabel: string | null = null;
     isFocusGuardActive = false;
-    state = 'idle';
-    availability = [];
-    focusGuardHandler = (event) => {
+    state: DialogState = 'idle';
+    availability: AgentAvailability[] = [];
+    focusGuardHandler = (event: FocusEvent) => {
         if (!this.isInspectorFocusEvent(event))
             return;
         event.stopPropagation();
         event.stopImmediatePropagation();
     };
-    keyHandler = (e) => {
-        this.closeFromEscape(e);
-    };
+    // ShadowRoot's addEventListener types the listener as Event (no keydown overload). The assertion erases, so a
+    // non-KeyboardEvent still reaches closeFromEscape, which ignores anything whose key is not Escape.
+    keyHandler = ((event: KeyboardEvent) => {
+        this.closeFromEscape(event);
+    }) as (event: Event) => void;
     resizeHandler = () => {
         this.repositionForContent();
     };
@@ -55,11 +176,11 @@ export class Dialog {
      * Boundary: the dialog owns local intent UI state; extra references reuse the picker, insert textarea labels, and
      * leave source resolution to the server.
      * @param {ShadowRoot} parent Shadow root that hosts plugin UI.
-     * @param {Record<string, unknown>} config Browser config injected by the plugin.
-     * @param {Record<string, Function>} api Inspector API client.
-     * @param {import('../inspect/overlay.js').Overlay} overlay Shared page overlay controller.
+     * @param {BrowserClientConfig} config Browser config injected by the plugin. Only `enabledAgents` is read here.
+     * @param {InspectorApi} api Inspector API client (`resolve`, `send`, `agents`).
+     * @param {object} overlay Shared page overlay (`Overlay` in `inspect/overlay.ts`). Forwarded to the reference picker; this class never calls it.
      */
-    constructor(parent, config, api, overlay) {
+    constructor(parent: ShadowRoot, config: BrowserClientConfig, api: InspectorApi, overlay: object) {
         this.parent = parent;
         this.config = config;
         this.api = api;
@@ -67,15 +188,15 @@ export class Dialog {
         this.sessions = new DialogSessionController({
             api,
             getLastAgent: () => this.lastAgent,
-            rememberAgent: (name) => this.rememberAgent(name),
-            showError: (text) => this.showError(text),
+            rememberAgent: (name: string) => this.rememberAgent(name),
+            showError: (text: string) => this.showError(text),
             onChange: () => this.refreshDestination(),
         });
         this.picker = new DialogAgentPicker({
             config: () => this.config,
             sessions: this.sessions,
             getLastAgent: () => this.lastAgent,
-            rememberAgent: (name) => this.rememberAgent(name),
+            rememberAgent: (name: string) => this.rememberAgent(name),
             onPicked: () => this.restoreIntentFocus(),
         });
         this.editor = createDialogEditor({
@@ -84,37 +205,37 @@ export class Dialog {
         });
         this.references = new DialogReferenceController(config, overlay, {
             captureIntentCursor: () => this.editor.captureCursor(),
-            insertReference: (item) => this.editor.insertReference(item),
-            hasReference: (inspPath) => this.editor.hasReference(inspPath),
-            resolveReferenceText: (selection) => this.resolveReferenceText(selection),
-            setBackdropHidden: (hidden) => {
+            insertReference: (item: ReferenceInsert) => this.editor.insertReference(item),
+            hasReference: (inspPath: string) => this.editor.hasReference(inspPath),
+            resolveReferenceText: (selection: ElementSelection) => this.resolveReferenceText(selection),
+            setBackdropHidden: (hidden: boolean) => {
                 if (this.backdrop)
                     this.backdrop.hidden = hidden;
                 this.setHostInteractive(!hidden);
             },
             focusIntent: () => this.focusIntent(),
             isOpen: () => this.isOpen(),
-            showError: (text) => this.showError(text),
+            showError: (text: string) => this.showError(text),
             reposition: () => this.repositionForContent(),
         });
         this.screenshots = new DialogScreenshotController({
             selectedElement: () => this.screenshotElement ?? this.selectedElement,
             backdrop: () => this.backdrop,
             reposition: () => this.repositionForContent(),
-            showError: (text) => this.showError(text),
+            showError: (text: string) => this.showError(text),
         });
         this.recordings = new DialogRecordingController({
             config: () => this.config,
             backdrop: () => this.backdrop,
             parent: () => this.parent,
             selectedElement: () => this.screenshotElement ?? this.selectedElement,
-            setDialogHidden: (hidden) => {
+            setDialogHidden: (hidden: boolean) => {
                 if (this.backdrop)
                     this.backdrop.hidden = hidden;
                 this.setHostInteractive(!hidden);
             },
             reposition: () => this.repositionForContent(),
-            showError: (text) => this.showError(text),
+            showError: (text: string) => this.showError(text),
             onChange: () => this.repositionForContent(),
         });
         this.styles = new DialogStyleController({
@@ -130,13 +251,13 @@ export class Dialog {
      * Open the intent dialog for the initial page selection.
      * Boundary: each open call resets transient screenshots and extra references. Existing dialogs are closed first so
      * event listeners and pending captures from the previous selection cannot leak into the new request.
-     * @param {Record<string, unknown>} selection Browser selection collected from the picked element.
+     * @param {ElementSelection} selection Browser selection collected from the picked element.
      * @param {Element | null | undefined} selectedElement Source-mapped element used for route resolution and dialog positioning.
-     * @param {{ x: number, y: number } | null | undefined} anchor Optional viewport click point.
+     * @param {DialogAnchor | null | undefined} anchor Optional viewport click point.
      * @param {Element | null | undefined} screenshotElement Real clicked element used as screenshot anchor; omitted values fall back to `selectedElement`.
      * @returns {void}
      */
-    open(selection, selectedElement, anchor, screenshotElement) {
+    open(selection: ElementSelection, selectedElement?: Element | null, anchor?: DialogAnchor | null, screenshotElement?: Element | null) {
         if (this.backdrop)
             this.close();
         this.discardPin();
@@ -199,12 +320,12 @@ export class Dialog {
      * Enter both go to it. The session menu observes `.cii-footer` for placement, so the class must stay. Agents
      * turned off in plugin config are never offered (including `clipboard`, which backs Copy); with no destination at
      * all, the picker and Send hide and Copy becomes the primary action.
-     * @param {Record<string, unknown>} _selection Current primary selection, intentionally unused by static layout.
+     * @param {ElementSelection | null} _selection Current primary selection, intentionally unused by static layout.
      * @returns {void}
      */
-    render(_selection) {
+    render(_selection: ElementSelection | null) {
         const backdrop = el('div', 'cii-backdrop');
-        backdrop.addEventListener('mousedown', (e) => {
+        backdrop.addEventListener('mousedown', (e: MouseEvent) => {
             if (e.target === backdrop)
                 this.close();
         });
@@ -227,8 +348,11 @@ export class Dialog {
         dialog.append(header);
         const body = el('div', 'cii-body');
         const intentField = this.editor.render();
-        this.editorEl = this.editor.getEditorElement();
-        this.editorEl.addEventListener('keydown', (event) => {
+        // The editor closes over `let editorEl = null`, so strict inference types the getter as returning `null`
+        // even though `render()` just created the node. The cast matches that post-render element.
+        const editorNode = this.editor.getEditorElement() as HTMLElement;
+        this.editorEl = editorNode;
+        editorNode.addEventListener('keydown', (event: KeyboardEvent) => {
             if (this.closeFromEscape(event))
                 return;
             if (this.shouldSubmitIntent(event)) {
@@ -283,7 +407,7 @@ export class Dialog {
         footer.append(tools, actions);
         dialog.append(footer);
         this.refreshDestination();
-        dialog.addEventListener('mousedown', (event) => {
+        dialog.addEventListener('mousedown', (event: MouseEvent) => {
             const target = event.target;
             this.screenshots.closeMenuFromOutside(target);
             this.recordings.closeMenuFromOutside(target);
@@ -314,7 +438,7 @@ export class Dialog {
      * @param {boolean} interactive Whether the plugin host should receive pointer events.
      * @returns {void}
      */
-    setHostInteractive(interactive) {
+    setHostInteractive(interactive: boolean) {
         const host = this.parent.host;
         if (host instanceof HTMLElement)
             host.style.pointerEvents = interactive ? 'auto' : 'none';
@@ -330,12 +454,15 @@ export class Dialog {
      * @param {FocusEvent} event Focus event dispatched after focus moved into the inspector.
      * @returns {boolean} True when the event came from the inspector UI.
      */
-    isInspectorFocusEvent(event) {
+    isInspectorFocusEvent(event: FocusEvent) {
         const host = this.parent.host;
         if (!(host instanceof HTMLElement))
             return false;
         const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
-        if (path.includes(host) || path.includes(this.backdrop) || path.includes(this.dialogEl) || path.includes(this.editorEl))
+        // `composedPath()` never contains null. A closed dialog's missing nodes must be skipped, not passed to
+        // `includes`, which only accepts an EventTarget.
+        const hit = (node: EventTarget | null) => node != null && path.includes(node);
+        if (path.includes(host) || hit(this.backdrop) || hit(this.dialogEl) || hit(this.editorEl))
             return true;
         const target = event.target;
         return target === host || target === this.backdrop || target === this.dialogEl || target === this.editorEl;
@@ -392,7 +519,18 @@ export class Dialog {
         window.setTimeout(focus, 80);
     }
 
-    positionDialog(dialog, anchor) {
+    /**
+     * Place the dialog beside the click, or center it when there is no anchor.
+     *
+     * Boundary: top and left are derived from the dialog's current height, so calling this again after the content
+     * grows moves the box. Later content changes go through {@link keepDialogInView}. `dialog` must already be in the
+     * document; a detached node reports an empty box and is positioned as if it had no size.
+     *
+     * @param {DialogBox} dialog Dialog element to position. Must already be in the document for a real size.
+     * @param {DialogAnchor | null} anchor Viewport click point. Null centers the dialog.
+     * @returns {void}
+     */
+    positionDialog(dialog: DialogBox, anchor: DialogAnchor | null) {
         const margin = 12;
         const offset = 14;
         const rect = dialog.getBoundingClientRect();
@@ -435,10 +573,10 @@ export class Dialog {
      * shadow host is a `position: fixed; inset: 0` box) and only pulls it back when its right/bottom edge would cross the
      * margin {@link positionDialog} uses. Growing content therefore expands the box in place — the top stays put — until
      * it reaches the viewport edge, instead of the box hopping to a freshly re-anchored spot on each change.
-     * @param {HTMLElement} dialog Positioned dialog element.
+     * @param {DialogBox} dialog Positioned dialog element.
      * @returns {void}
      */
-    keepDialogInView(dialog) {
+    keepDialogInView(dialog: DialogBox) {
         const margin = 12;
         const rect = dialog.getBoundingClientRect();
         const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
@@ -455,7 +593,7 @@ export class Dialog {
      * @param {KeyboardEvent} event Editor keydown event.
      * @returns {boolean} True when this key should submit the dialog.
      */
-    shouldSubmitIntent(event) {
+    shouldSubmitIntent(event: KeyboardEvent) {
         return (event.key === 'Enter' &&
             this.state !== 'resolving' &&
             this.state !== 'sending' &&
@@ -476,7 +614,7 @@ export class Dialog {
      * @param {KeyboardEvent} event Keydown event from the page, shadow root, or textarea.
      * @returns {boolean} True when Escape closed a menu or the dialog.
      */
-    closeFromEscape(event) {
+    closeFromEscape(event: KeyboardEvent) {
         if (event.key !== 'Escape')
             return false;
         if (this.references?.isPicking())
@@ -532,7 +670,7 @@ export class Dialog {
      * @param {{ lock?: boolean }} [options] `lock: false` skips locking for a busy state; omitted means lock.
      * @returns {void}
      */
-    setState(state, { lock = true } = {}) {
+    setState(state: DialogState, { lock = true }: { lock?: boolean } = {}) {
         this.state = state;
         const busy = lock && (state === 'resolving' || state === 'sending');
         for (const button of this.actionButtons.values())
@@ -570,7 +708,10 @@ export class Dialog {
         button.dataset.ciiTip = `${text}  ↵`;
         button.setAttribute('aria-label', text);
         button.hidden = this.picker?.hasDestinations() === false;
-        button.classList.toggle('cii-send-unavailable', this.picker?.current()?.unavailable === true);
+        // `rows` starts as `[]`, so strict inference collapses `current()` to `never`. The live menu row still
+        // carries `unavailable` from `agentMenuRows`.
+        const current = this.picker?.current() as { unavailable?: boolean } | null | undefined;
+        button.classList.toggle('cii-send-unavailable', current?.unavailable === true);
     }
     /**
      * Persist and display the app agent most recently chosen by the user.
@@ -581,7 +722,7 @@ export class Dialog {
      * @param {string} agent App agent name.
      * @returns {void}
      */
-    rememberAgent(agent) {
+    rememberAgent(agent: string) {
         this.lastAgent = agent;
         saveLastAgent(agent);
         this.refreshDestination();
@@ -595,7 +736,7 @@ export class Dialog {
      * @param {string} agent App agent selected by the user.
      * @returns {Promise<Record<string, unknown>>} JSON payload for the send endpoint.
      */
-    async buildPayload(agent) {
+    async buildPayload(agent: string) {
         const { intent, references } = this.editor.serialize();
         const payload: any = {
             pageUrl: location.href,
@@ -627,10 +768,10 @@ export class Dialog {
      * Boundary: this resolve call does not include extra references because they can be added later and are validated
      * again on send. A failed primary resolve disables app buttons to prevent an unusable prompt.
      *
-     * @param {Record<string, unknown>} selection Primary browser selection.
+     * @param {ElementSelection} selection Primary browser selection.
      * @returns {Promise<void>} Resolves after validation finishes.
      */
-    async resolve(selection) {
+    async resolve(selection: ElementSelection) {
         this.setState('resolving');
         try {
             const res = await this.api.resolve({
@@ -667,10 +808,10 @@ export class Dialog {
     /**
      * Resolve the project-relative `@file #range` text for a newly picked extra code reference.
      *
-     * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
+     * @param {ElementSelection} selection Browser selection collected by the reference picker.
      * @returns {Promise<string | undefined>} Compact source reference returned by the server.
      */
-    async resolveReferenceText(selection) {
+    async resolveReferenceText(selection: ElementSelection) {
         const res = await this.api.resolve({
             pageUrl: location.href,
             intent: '',
@@ -716,7 +857,7 @@ export class Dialog {
      * @param {string} agent App agent name requested by click or Enter (`'clipboard'` for the Copy button).
      * @returns {Promise<void>} Resolves after the adapter response is rendered.
      */
-    async send(agent) {
+    async send(agent: string) {
         if (this.state === 'resolving' || this.state === 'sending')
             return;
         if (!this.selection)
@@ -768,14 +909,16 @@ export class Dialog {
      * `written` promise never rejects; the deferred text must be resolved or rejected exactly once, otherwise the
      * pending write is left to the browser's own gesture timeout.
      *
-     * @returns {{ resolveText: Function, rejectText: Function, written: Promise<boolean> } | null} Deferred write handle.
+     * @returns {EagerClipboardWrite | null} Deferred write handle. Null when the browser cannot defer a clipboard write.
      */
-    beginEagerClipboardWrite() {
+    beginEagerClipboardWrite(): EagerClipboardWrite | null {
         if (!navigator.clipboard?.write || typeof ClipboardItem !== 'function')
             return null;
-        let resolveText;
-        let rejectText;
-        const text = new Promise<any>((resolve, reject) => {
+        // The executor runs synchronously, so both are assigned before this function reads them. The assertion
+        // tells strict null checks that; a browser that throws before the executor would already have thrown above.
+        let resolveText!: (value: string) => void;
+        let rejectText!: (reason: Error) => void;
+        const text = new Promise<string>((resolve, reject) => {
             resolveText = resolve;
             rejectText = reject;
         });
@@ -797,12 +940,12 @@ export class Dialog {
      *
      * Boundary: successful app deeplink sends close the dialog. Failures stay open and surface the adapter error.
      *
-     * @param {Record<string, unknown>} result Agent adapter result from the server.
+     * @param {SendResult} result Agent adapter result from the server.
      * @param {string | undefined} unavailableReason Optional fallback error text.
      * @param {Promise<boolean> | undefined} eagerWritten Outcome of the gesture-time clipboard write, if one started.
      * @returns {void}
      */
-    renderResult(result, unavailableReason, eagerWritten) {
+    renderResult(result: SendResult, unavailableReason?: string, eagerWritten?: Promise<boolean>) {
         // Only the clipboard agent's `output` is prompt text meant for the browser to copy. App agents also return an
         // `output` status string, but they already acted server-side (deeplink) — copying that string would both spam
         // the clipboard and fail whenever the opened app steals focus from the page.
@@ -834,12 +977,15 @@ export class Dialog {
      * not embedded (or a window that refuses the post) keeps the dialog open with the reason, so the typed intent is
      * never lost to a silent no-op.
      *
-     * @param {Record<string, unknown>} result Successful send result carrying a `deliver` instruction.
+     * @param {SendResult} result Successful send result carrying a `deliver` instruction. A missing instruction still
+     *        throws on property access, matching the previous code; `renderResult` only calls this when one is present.
      * @returns {void}
      */
-    deliverResult(result) {
-        const label = result.deliver.label ?? agentLabel(result.agent);
-        const delivered = deliverPromptToClient(result.deliver);
+    deliverResult(result: SendResult) {
+        // Non-null assertion erases. Reading `.label` still throws when `deliver` is missing.
+        const deliver = result.deliver!;
+        const label = deliver.label ?? agentLabel(result.agent);
+        const delivered = deliverPromptToClient(deliver);
         if (delivered.ok) {
             this.setState('completed');
             this.close();
@@ -861,7 +1007,7 @@ export class Dialog {
      * @param {Promise<boolean> | undefined} eagerWritten Outcome of the gesture-time clipboard write, if one started.
      * @returns {Promise<void>} Resolves after the copy attempt and its feedback are applied.
      */
-    async copyOutput(text, eagerWritten) {
+    async copyOutput(text: string, eagerWritten?: Promise<boolean>) {
         // The gesture-time write is the reliable path; retry with the direct APIs only when it failed or never started.
         if ((eagerWritten && (await eagerWritten)) || (await this.writeClipboard(text))) {
             this.flashCopied();
@@ -888,7 +1034,7 @@ export class Dialog {
      * @param {string} text Prompt text to copy.
      * @returns {Promise<boolean>} True if either path reported success.
      */
-    async writeClipboard(text) {
+    async writeClipboard(text: string) {
         try {
             if (navigator.clipboard?.writeText) {
                 await navigator.clipboard.writeText(text);
@@ -909,7 +1055,7 @@ export class Dialog {
      * @param {string} text Prompt text to copy.
      * @returns {boolean} True if the command reported success.
      */
-    execCommandCopy(text) {
+    execCommandCopy(text: string) {
         try {
             const ta = document.createElement('textarea');
             ta.value = text;
@@ -964,7 +1110,7 @@ export class Dialog {
      * @param {string} text Error message.
      * @returns {void}
      */
-    showError(text) {
+    showError(text: string) {
         window.alert(text);
     }
 
@@ -1056,10 +1202,10 @@ export class Dialog {
      * when the element is gone the dialog still opens for text-only editing and selection-scoped screenshots simply fail
      * gracefully. Attachments are not restored on a cold path — they are preserved only across same-session navigation.
      *
-     * @param {Record<string, unknown>} draft Pinned draft from `buildColdDraft`.
+     * @param {PinnedDraft} draft Pinned draft from `buildColdDraft`.
      * @returns {void}
      */
-    coldRestore(draft) {
+    coldRestore(draft: PinnedDraft) {
         if (this.backdrop)
             this.close();
         this.selection = draft.selection ?? null;
@@ -1121,7 +1267,7 @@ export class Dialog {
      * @param {string | null | undefined} inspPath Stored `data-insp-path` selector value.
      * @returns {Element | null} The matching current element, or null.
      */
-    resolveSelector(inspPath) {
+    resolveSelector(inspPath?: string | null): Element | null {
         if (!inspPath)
             return null;
         try {

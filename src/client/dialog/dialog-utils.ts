@@ -24,6 +24,75 @@ export const STYLE_SCOPE_ORDER = ['self', 'children', 'ancestors', 'both'];
 export const SCREENSHOT_SCOPE_ORDER = ['selection', 'parent', 'viewport'];
 
 /**
+ * Page-config fields the destination helpers read.
+ *
+ * Boundary: the live config has more keys. Only these two affect which agents are offered and which one Enter
+ * targets. A missing object, a missing list, or an empty `enabledAgents` keeps every agent. The field is `unknown`
+ * so both the dialog's typed config and a raw record can be passed; non-arrays are treated as "no list".
+ */
+interface AgentVisibilityConfig {
+    enabledAgents?: unknown;
+    defaultAgent?: unknown;
+}
+
+/** Footer action registered from `agents.custom`. `title` is optional; the menu fills in generic copy. */
+interface CustomAgentAction {
+    name: string;
+    label: string;
+    title?: string;
+}
+
+/** Spacing overrides for dropdown placement, in pixels. Omitted fields use the same defaults as the callers. */
+interface DropdownSpacing {
+    gap?: number;
+    margin?: number;
+    minHeight?: number;
+}
+
+/**
+ * Viewport measurements for {@link computeDropdownPlacement}. Numbers are CSS pixels. `anchor` is the trigger's
+ * border box and `wrap` is the panel's offset parent, both as `getBoundingClientRect` reports them.
+ */
+interface DropdownPlacementInput {
+    anchor: { top: number; bottom: number; left: number; right: number };
+    wrap: { top: number; bottom: number; left: number };
+    panelHeight: number;
+    panelWidth: number;
+    viewportWidth: number;
+    viewportHeight: number;
+    gap: number;
+    margin: number;
+    minHeight: number;
+}
+
+/** Persisted style-capture scope. Anything else stored under the preference key is treated as `self`. */
+type StyleScope = 'self' | 'children' | 'ancestors' | 'both';
+
+/**
+ * Preference set passed to the savers.
+ *
+ * Boundary: `choices = new Set()` is `Set<unknown>` under strict checking, and `Set` is invariant, so a `Set<string>`
+ * parameter would reject those fields. Screenshot saving only calls `has` with known scope strings.
+ */
+interface ChoiceSet {
+    has(value: string): boolean;
+}
+
+/**
+ * Whether `value` is one of {@link STYLE_SCOPE_ORDER}.
+ *
+ * Boundary: `localStorage.getItem` returns `string | null`, and `Array.includes` on `string[]` rejects null. The
+ * predicate lets {@link loadStyleScope} return the four-value union instead of `string | null`. The union must stay
+ * in sync with `STYLE_SCOPE_ORDER`.
+ *
+ * @param {string | null} value Stored scope, or null when the key is missing.
+ * @returns {boolean} True when `value` is a supported scope.
+ */
+function isStyleScope(value: string | null): value is StyleScope {
+    return value != null && STYLE_SCOPE_ORDER.includes(value);
+}
+
+/**
  * Human-readable labels for app agents surfaced in errors and result messages.
  *
  * Boundary: keys must match `AGENT_ACTIONS` names. Missing labels fall back to raw agent ids, which is useful for
@@ -99,9 +168,9 @@ export const AGENT_ACTIONS = [
  * places that hold no config. It stays empty until {@link setCustomAgentActions} runs at boot, so a project without
  * `agents.custom` renders exactly the built-in footer.
  *
- * @type {Array<{ name: string, label: string, title?: string }>} Ordered custom footer actions.
+ * @type {CustomAgentAction[]} Ordered custom footer actions.
  */
-let customAgentActions = [];
+let customAgentActions: CustomAgentAction[] = [];
 
 /**
  * Register the custom client footer actions from the injected page config.
@@ -110,10 +179,10 @@ let customAgentActions = [];
  * a name colliding with a built-in action is ignored so a custom client can never replace a shipped button. Passing a
  * non-array (or nothing) clears the list.
  *
- * @param {unknown} actions `customAgents` list from the injected client config.
+ * @param {unknown} [actions] `customAgents` list from the injected client config. Omitted or a non-array clears the list.
  * @returns {void}
  */
-export function setCustomAgentActions(actions) {
+export function setCustomAgentActions(actions?: unknown): void {
     const entries = Array.isArray(actions) ? actions : [];
     customAgentActions = entries
         .filter((action) => action && typeof action.name === 'string' && action.name
@@ -131,11 +200,19 @@ export function setCustomAgentActions(actions) {
  * Boundary: built-in labels win, then registered custom clients; an unknown id falls back to the raw name so a stale
  * stored preference still produces readable copy.
  *
- * @param {string} name Agent id.
+ * @param {string} name Agent id. The `string` overload returns a string for callers that require one.
  * @returns {string} Display label.
  */
-export function agentLabel(name) {
-    return AGENT_LABELS[name] ?? customAgentActions.find((action) => action.name === name)?.label ?? name;
+export function agentLabel(name: string): string;
+/**
+ * @param {string | null | undefined} name Agent id. Nullish is returned as-is so `??` at the call site still falls through.
+ * @returns {string | null | undefined} Display label, or `name` when nothing is registered.
+ */
+export function agentLabel(name: string | null | undefined): string | null | undefined;
+export function agentLabel(name: string | null | undefined): string | null | undefined {
+    // The cast erases. Indexing still stringifies a non-string id, which a `typeof === 'string'` guard would skip.
+    const known = AGENT_LABELS[name as keyof typeof AGENT_LABELS];
+    return known ?? customAgentActions.find((action) => action.name === name)?.label ?? name;
 }
 
 /**
@@ -194,11 +271,11 @@ export function configuredActions() {
  * it — so it is dropped instead of left as a control that can only alert "not enabled". A missing or empty
  * `enabledAgents` (malformed config) keeps every agent rather than rendering no destination at all.
  *
- * @param {Record<string, unknown>} config Browser config injected by the plugin.
+ * @param {AgentVisibilityConfig | null | undefined} config Browser config injected by the plugin. Nullish keeps every agent.
  * @param {string} name Agent id (`'clipboard'` for the Copy button).
  * @returns {boolean} True when the agent should be offered.
  */
-export function isAgentVisible(config, name) {
+export function isAgentVisible(config: AgentVisibilityConfig | null | undefined, name: string): boolean {
     const enabled = Array.isArray(config?.enabledAgents) ? config.enabledAgents : [];
     return !enabled.length || enabled.includes(name);
 }
@@ -211,10 +288,10 @@ export function isAgentVisible(config, name) {
  * binary) stay listed and are marked by the destination menu, because that state is actionable. The Copy button is not
  * in this list (it must never become the Enter target), so the dialog gates it with {@link isAgentVisible} directly.
  *
- * @param {Record<string, unknown>} config Browser config injected by the plugin.
+ * @param {AgentVisibilityConfig | null | undefined} config Browser config injected by the plugin. Nullish keeps every destination.
  * @returns {Array<{ name: string, label: string, title: string, kind: string }>} Destinations to offer, in order.
  */
-export function visibleAgentActions(config) {
+export function visibleAgentActions(config: AgentVisibilityConfig | null | undefined) {
     return configuredActions().filter((action) => isAgentVisible(config, action.name));
 }
 
@@ -228,9 +305,10 @@ export function visibleAgentActions(config) {
  * @param {string} key Storage key.
  * @param {unknown} fallback Value returned when missing or malformed.
  * @param {Storage} [store] Storage area; defaults to `window.localStorage`.
- * @returns {unknown} Parsed value or fallback.
+ * @returns {any} Parsed value or fallback. The return stays `any` (not `unknown`) so existing callers can read fields
+ *          without this annotation introducing errors in files that already narrow the value themselves.
  */
-export function readJsonStore(key, fallback, store = window.localStorage) {
+export function readJsonStore(key: string, fallback: unknown, store: Storage = window.localStorage): any {
     try {
         const raw = store.getItem(key);
         if (!raw)
@@ -251,7 +329,7 @@ export function readJsonStore(key, fallback, store = window.localStorage) {
  * @param {Storage} [store] Storage area; defaults to `window.localStorage`.
  * @returns {void}
  */
-export function writeJsonStore(key, value, store = window.localStorage) {
+export function writeJsonStore(key: string, value: unknown, store: Storage = window.localStorage): void {
     try {
         store.setItem(key, JSON.stringify(value));
     }
@@ -281,10 +359,11 @@ export function loadScreenshotChoices() {
  * Boundary: storage failures are swallowed so private browsing or quota issues do not block the dialog. Passing scopes
  * outside `SCREENSHOT_SCOPE_ORDER` drops them instead of leaking unsupported values into storage.
  *
- * @param {Set<string>} choices Screenshot scope set from the current dialog.
+ * @param {ChoiceSet} choices Screenshot scope set from the current dialog. `Set<unknown>` is accepted because
+ *        `new Set()` infers that, and `Set` is invariant.
  * @returns {void}
  */
-export function saveScreenshotChoices(choices) {
+export function saveScreenshotChoices(choices: ChoiceSet): void {
     writeJsonStore(SCREENSHOT_PREF_KEY, SCREENSHOT_SCOPE_ORDER.filter((scope) => choices.has(scope)));
 }
 
@@ -294,18 +373,24 @@ export function saveScreenshotChoices(choices) {
  * Boundary: a stale localStorage value or a disabled configured default falls back to the first visible app action.
  * Returning an unavailable-but-configured agent is intentional because the send path owns availability errors.
  *
- * @param {Record<string, unknown>} config Browser config injected by the plugin.
+ * @param {AgentVisibilityConfig | null | undefined} config Browser config injected by the plugin. The union is for
+ *        callers whose config type includes null; a nullish value still throws on property access, as before.
  * @returns {string} Agent name to use for Enter and the footer marker.
  */
-export function loadLastAgent(config) {
+export function loadLastAgent(config: AgentVisibilityConfig | null | undefined): string {
     const visibleAgents = configuredActions().map((action) => action.name);
-    const enabledAgents = Array.isArray(config.enabledAgents) ? config.enabledAgents : [];
-    const fallback = visibleAgents.includes(config.defaultAgent) && enabledAgents.includes(config.defaultAgent)
-        ? config.defaultAgent
+    // `!` is erased, so a nullish config still throws on `.enabledAgents` instead of being treated as empty.
+    const source = config!;
+    const enabledAgents: unknown[] = Array.isArray(source.enabledAgents) ? source.enabledAgents : [];
+    const defaultAgent = typeof source.defaultAgent === 'string' ? source.defaultAgent : '';
+    // A non-string default cannot be in `visibleAgents`; treating it as '' matches `includes` returning false.
+    const fallback = defaultAgent && visibleAgents.includes(defaultAgent) && enabledAgents.includes(defaultAgent)
+        ? defaultAgent
         : (visibleAgents.find((agent) => enabledAgents.includes(agent)) ?? visibleAgents[0]);
     try {
         const raw = window.localStorage.getItem(LAST_AGENT_PREF_KEY);
-        return visibleAgents.includes(raw) && enabledAgents.includes(raw) ? raw : fallback;
+        // `includes` rejects null. A missing key is not a stored agent, same as a failed includes check.
+        return raw != null && visibleAgents.includes(raw) && enabledAgents.includes(raw) ? raw : fallback;
     }
     catch {
         return fallback;
@@ -321,7 +406,7 @@ export function loadLastAgent(config) {
  * @param {string} agent Agent name requested by the user.
  * @returns {void}
  */
-export function saveLastAgent(agent) {
+export function saveLastAgent(agent: string): void {
     if (!configuredActions().some((action) => action.name === agent))
         return;
     try {
@@ -338,10 +423,10 @@ export function saveLastAgent(agent) {
  * Boundary: missing or detached elements return null, which makes the dialog center itself. The returned point is in
  * viewport coordinates and should be consumed before layout changes move the element.
  *
- * @param {Element | null} element Element used to position the dialog near the user's click.
+ * @param {Element | null | undefined} element Element used to position the dialog near the user's click. Nullish centers the dialog.
  * @returns {{ x: number, y: number } | null} Center point for dialog placement.
  */
-export function anchorFromElement(element) {
+export function anchorFromElement(element: Element | null | undefined): { x: number; y: number } | null {
     if (!element)
         return null;
     const rect = element.getBoundingClientRect();
@@ -362,7 +447,7 @@ export function anchorFromElement(element) {
  * @param {number} max Inclusive upper bound.
  * @returns {number} Clamped value.
  */
-export function clamp(value, min, max) {
+export function clamp(value: number, min: number, max: number): number {
     if (max < min)
         return min;
     return Math.min(Math.max(value, min), max);
@@ -381,10 +466,10 @@ export function clamp(value, min, max) {
  * wide panel off-screen. The `margin`/`gap` arithmetic guarantees the resulting panel rect stays within `margin` of
  * every viewport edge (down to a `minHeight` floor for pathologically short viewports).
  *
- * @param {{ anchor: { top: number, bottom: number, left: number, right: number }, wrap: { top: number, bottom: number, left: number }, panelHeight: number, panelWidth: number, viewportWidth: number, viewportHeight: number, gap: number, margin: number, minHeight: number }} input Measured rects and spacing.
+ * @param {DropdownPlacementInput} input Measured rects and spacing.
  * @returns {{ openDown: boolean, top: number | null, bottom: number | null, left: number, maxHeight: number | null }} Wrapper-relative placement.
  */
-export function computeDropdownPlacement(input) {
+export function computeDropdownPlacement(input: DropdownPlacementInput): { openDown: boolean; top: number | null; bottom: number | null; left: number; maxHeight: number | null } {
     const { anchor, wrap, panelHeight, panelWidth, viewportWidth, viewportHeight, gap, margin, minHeight } = input;
     // Vertical: prefer opening upward (the design default); flip below only when the room above cannot hold the panel
     // and the room below is larger. Clamp the height to the chosen side so the list scrolls instead of leaving the view.
@@ -415,28 +500,32 @@ export function computeDropdownPlacement(input) {
  * pinned and the other forced to `auto`; the stylesheet default sets `bottom`, so leaving it in place while opening
  * downward would stretch the panel between both edges instead of letting it size to its content.
  *
- * @param {HTMLElement} button Trigger button the panel anchors to.
- * @param {HTMLElement} panel Absolutely-positioned dropdown panel, already visible.
- * @param {{ gap?: number, margin?: number, minHeight?: number }} [options] Spacing overrides (px).
+ * @param {HTMLElement | null} button Trigger button the panel anchors to. Null is accepted because some callers'
+ *        fields stay typed `null` after render assigns the live node; the body still treats it as an element.
+ * @param {HTMLElement | null} panel Absolutely-positioned dropdown panel, already visible. Same null-field caveat.
+ * @param {DropdownSpacing} [options] Spacing overrides (px).
  * @returns {void}
  */
-export function placeDropdownPanel(button, panel, options: any = {}) {
+export function placeDropdownPanel(button: HTMLElement | null, panel: HTMLElement | null, options: DropdownSpacing = {}) {
+    // Strict inference keeps the pre-render `null` on caller fields. The cast does not change the property reads.
+    const trigger = button as HTMLElement;
+    const menu = panel as HTMLElement;
     const gap = options.gap ?? 8;
     const margin = options.margin ?? 8;
     const minHeight = options.minHeight ?? 140;
     // Drop prior overrides so the measurement below reflects the natural, stylesheet-capped size, not last open's clamp.
-    panel.style.top = '';
-    panel.style.bottom = '';
-    panel.style.left = '';
-    panel.style.right = '';
-    panel.style.maxHeight = '';
-    panel.style.overflowY = '';
+    menu.style.top = '';
+    menu.style.bottom = '';
+    menu.style.left = '';
+    menu.style.right = '';
+    menu.style.maxHeight = '';
+    menu.style.overflowY = '';
 
     const placement = computeDropdownPlacement({
-        anchor: button.getBoundingClientRect(),
-        wrap: (panel.offsetParent ?? button).getBoundingClientRect(),
-        panelHeight: panel.offsetHeight,
-        panelWidth: panel.offsetWidth,
+        anchor: trigger.getBoundingClientRect(),
+        wrap: (menu.offsetParent ?? trigger).getBoundingClientRect(),
+        panelHeight: menu.offsetHeight,
+        panelWidth: menu.offsetWidth,
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
         gap,
@@ -445,19 +534,19 @@ export function placeDropdownPanel(button, panel, options: any = {}) {
     });
 
     if (placement.maxHeight != null) {
-        panel.style.maxHeight = `${placement.maxHeight}px`;
-        panel.style.overflowY = 'auto';
+        menu.style.maxHeight = `${placement.maxHeight}px`;
+        menu.style.overflowY = 'auto';
     }
     if (placement.openDown) {
-        panel.style.top = `${placement.top}px`;
-        panel.style.bottom = 'auto';
+        menu.style.top = `${placement.top}px`;
+        menu.style.bottom = 'auto';
     }
     else {
-        panel.style.bottom = `${placement.bottom}px`;
-        panel.style.top = 'auto';
+        menu.style.bottom = `${placement.bottom}px`;
+        menu.style.top = 'auto';
     }
-    panel.style.left = `${placement.left}px`;
-    panel.style.right = 'auto';
+    menu.style.left = `${placement.left}px`;
+    menu.style.right = 'auto';
 }
 
 /**
@@ -469,21 +558,22 @@ export function placeDropdownPanel(button, panel, options: any = {}) {
  * measurable) but unpainted; only after it is placed do we clear `visibility`, so the panel's first painted frame is
  * already at its final spot. Callers own the toggle: this is the open half; closing stays a plain `hidden = true`.
  *
- * @param {HTMLElement} button Trigger button the panel anchors to.
- * @param {HTMLElement} panel Absolutely-positioned dropdown panel to open.
- * @param {{ gap?: number, margin?: number, minHeight?: number }} [options] Spacing overrides forwarded to placement.
+ * @param {HTMLElement | null} button Trigger button the panel anchors to. See {@link placeDropdownPanel} for the null caveat.
+ * @param {HTMLElement | null} panel Absolutely-positioned dropdown panel to open.
+ * @param {DropdownSpacing} [options] Spacing overrides forwarded to placement.
  * @returns {void}
  */
-export function revealDropdownPanel(button, panel, options: any = {}) {
-    panel.style.visibility = 'hidden';
-    panel.hidden = false;
+export function revealDropdownPanel(button: HTMLElement | null, panel: HTMLElement | null, options: DropdownSpacing = {}): void {
+    const menu = panel as HTMLElement;
+    menu.style.visibility = 'hidden';
+    menu.hidden = false;
     try {
-        placeDropdownPanel(button, panel, options);
+        placeDropdownPanel(button, menu, options);
     }
     finally {
         // Always restore visibility, even if measurement threw — a panel stuck at `visibility: hidden` would be open
         // but invisible, worse than an unpositioned one.
-        panel.style.visibility = '';
+        menu.style.visibility = '';
     }
 }
 
@@ -495,7 +585,7 @@ export function revealDropdownPanel(button, panel, options: any = {}) {
  * @param {string} scope Screenshot scope value.
  * @returns {string} Human-readable label.
  */
-export function screenshotScopeLabel(scope) {
+export function screenshotScopeLabel(scope: string): string {
     const key = SCREENSHOT_SCOPE_ORDER.includes(scope) ? scope : 'viewport';
     return t(`screenshot.scope.${key}`);
 }
@@ -509,7 +599,7 @@ export function screenshotScopeLabel(scope) {
  * @param {string} scope Screenshot scope value.
  * @returns {string} Compact title label without the screenshot suffix.
  */
-export function screenshotScopeTitleLabel(scope) {
+export function screenshotScopeTitleLabel(scope: string): string {
     const key = SCREENSHOT_SCOPE_ORDER.includes(scope) ? scope : 'viewport';
     return t(`screenshot.scopeTitle.${key}`);
 }
@@ -534,13 +624,15 @@ export function loadStyleChoices() {
  * Persist style-capture property choices as a best-effort preference.
  *
  * Boundary: storage failures are swallowed so private browsing or quota issues do not block the dialog. Only catalog
- * properties are written so unsupported values cannot leak into storage.
+ * properties are written so unsupported values cannot leak into storage. The parameter stays {@link ChoiceSet} (just
+ * `has`) so a `Set<unknown>` field still typechecks. `validStyleKeys` iterates; callers pass a `Set`, which is iterable
+ * at runtime. `ChoiceSet` and `Iterable` do not overlap, so the value is cast through `unknown` with no runtime change.
  *
- * @param {Set<string>} choices Selected property set from the current dialog.
+ * @param {ChoiceSet} choices Selected property set from the current dialog. See {@link saveScreenshotChoices}.
  * @returns {void}
  */
-export function saveStyleChoices(choices) {
-    writeJsonStore(STYLE_KEYS_PREF_KEY, validStyleKeys(choices));
+export function saveStyleChoices(choices: ChoiceSet): void {
+    writeJsonStore(STYLE_KEYS_PREF_KEY, validStyleKeys(choices as unknown as Iterable<string>));
 }
 
 /**
@@ -551,10 +643,10 @@ export function saveStyleChoices(choices) {
  *
  * @returns {'self' | 'children' | 'ancestors' | 'both'} Persisted scope, defaulting to `self`.
  */
-export function loadStyleScope() {
+export function loadStyleScope(): StyleScope {
     try {
         const value = window.localStorage.getItem(STYLE_SCOPE_PREF_KEY);
-        return STYLE_SCOPE_ORDER.includes(value) ? value : 'self';
+        return isStyleScope(value) ? value : 'self';
     }
     catch {
         return 'self';
@@ -564,12 +656,13 @@ export function loadStyleScope() {
 /**
  * Persist the style-capture scope as a best-effort preference.
  *
- * @param {'self' | 'children' | 'ancestors' | 'both'} scope Scope chosen in the current dialog.
+ * @param {string} scope Scope chosen in the current dialog. Only `'self' | 'children' | 'ancestors' | 'both'` are stored;
+ *        anything else is written as `self`. Callers iterate `STYLE_SCOPE_ORDER` (`string[]`), so the parameter is `string`.
  * @returns {void}
  */
-export function saveStyleScope(scope) {
+export function saveStyleScope(scope: string): void {
     try {
-        window.localStorage.setItem(STYLE_SCOPE_PREF_KEY, STYLE_SCOPE_ORDER.includes(scope) ? scope : 'self');
+        window.localStorage.setItem(STYLE_SCOPE_PREF_KEY, isStyleScope(scope) ? scope : 'self');
     }
     catch {
         // Preference persistence is best effort.
@@ -595,7 +688,7 @@ export function loadStyleNodeLimit() {
  * @param {number} limit Node cap chosen in the current dialog.
  * @returns {void}
  */
-export function saveStyleNodeLimit(limit) {
+export function saveStyleNodeLimit(limit: number): void {
     writeJsonStore(STYLE_NODES_PREF_KEY, clampNodeLimit(limit));
 }
 
@@ -606,11 +699,13 @@ export function saveStyleNodeLimit(limit) {
  * send the original selection so the server can perform authoritative validation. This is only a local fallback; the
  * dialog asks the server for the project-relative `@path #range` label before inserting normal references.
  *
- * @param {Record<string, unknown>} selection Browser selection collected from a page element.
+ * @param {{ inspPath?: unknown } | null | undefined} selection Browser selection collected from a page element.
+ *        Nullish or a missing path uses the numbered fallback. `inspPath` is `unknown` because callers pass both the
+ *        dialog's selection and loosely typed picker results.
  * @param {number} index Zero-based reference index.
  * @returns {string} Compact fallback label such as `@Button.jsx #42`.
  */
-export function sourceReferenceLabel(selection, index) {
+export function sourceReferenceLabel(selection: { inspPath?: unknown } | null | undefined, index: number): string {
     const parsed = parseInspPathLite(selection?.inspPath ?? '');
     if (!parsed.file)
         return t('reference.codeFallback', { n: index + 1 });

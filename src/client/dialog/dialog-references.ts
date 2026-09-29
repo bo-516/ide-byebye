@@ -3,6 +3,44 @@ import { el, sourceReferenceLabel } from './dialog-utils.js';
 import { t } from '../lib/i18n.js';
 
 /**
+ * Page selection for one extra reference. `inspPath` is the dedupe key; the index signature matches the dialog's
+ * `ElementSelection` so the host callback accepts this object.
+ */
+interface PageSelection {
+    inspPath?: string;
+    [key: string]: unknown;
+}
+
+/**
+ * Config forwarded to the picker. `enabledAgents` is unused here; it is declared so the dialog's config object
+ * (which has that field and not `maxDomSnippetLength`) is still assignable.
+ */
+interface ReferenceConfig {
+    enabledAgents?: unknown;
+    maxDomSnippetLength?: number;
+}
+
+/**
+ * Dialog hooks this controller calls.
+ *
+ * Boundary: `reposition` is part of the object the dialog passes but is not called here — the editor's own change
+ * callback repositions. Optional hooks are skipped when missing. `insertReference`'s parameter is exactly the shape
+ * the dialog's `ReferenceInsert` accepts; a wider selection type would fail that callback (function params are
+ * checked contravariantly).
+ */
+interface ReferenceHost {
+    captureIntentCursor?: () => Range | null;
+    insertReference?: (item: { label: string; selection: PageSelection; range?: Range | null }) => void;
+    hasReference?: (inspPath: string) => boolean;
+    resolveReferenceText?: (selection: PageSelection) => Promise<string | undefined>;
+    setBackdropHidden: (hidden: boolean) => void;
+    focusIntent: () => void;
+    isOpen?: () => boolean;
+    showError?: (message: string) => void;
+    reposition?: () => void;
+}
+
+/**
  * Coordinates picking extra `@code` references for the dialog mention editor.
  *
  * Boundary: this owns the footer button and the one-shot page picker. Picked references are handed to the editor via
@@ -11,11 +49,18 @@ import { t } from '../lib/i18n.js';
  * for the final prompt.
  */
 export class DialogReferenceController {
-    picker;
-    host;
-    button;
-    pendingRange = null;
-    constructor(config, overlay, host) {
+    picker: DialogReferencePicker;
+    host: ReferenceHost;
+    /** Footer button. Unset until `renderButton`; the assertion erases so it stays undefined, not null, until then. */
+    button!: HTMLButtonElement | null;
+    /** Caret captured when the user starts a pick, restored as the chip's insertion point. */
+    pendingRange: Range | null = null;
+    /**
+     * @param {ReferenceConfig} config Browser config forwarded to the picker.
+     * @param {object} overlay Shared page overlay. The dialog types it as `object`; the picker casts it.
+     * @param {ReferenceHost} host Dialog callbacks that hide the backdrop and insert the mention.
+     */
+    constructor(config: ReferenceConfig, overlay: object, host: ReferenceHost) {
         this.host = host;
         this.picker = new DialogReferencePicker(config, overlay, {
             onStart: () => this.setPicking(true),
@@ -57,18 +102,19 @@ export class DialogReferenceController {
      * @returns {HTMLButtonElement} Footer icon button.
      */
     renderButton() {
-        this.button = el('button', 'cii-icon-btn cii-reference-btn');
-        this.button.type = 'button';
-        this.button.dataset.ciiTip = t('reference.add.title');
-        this.button.setAttribute('aria-label', t('reference.add.title'));
-        this.button.append(el('span', 'cii-code-ref-icon'));
-        this.button.addEventListener('click', (event) => {
+        const button: HTMLButtonElement = el('button', 'cii-icon-btn cii-reference-btn');
+        this.button = button;
+        button.type = 'button';
+        button.dataset.ciiTip = t('reference.add.title');
+        button.setAttribute('aria-label', t('reference.add.title'));
+        button.append(el('span', 'cii-code-ref-icon'));
+        button.addEventListener('click', (event: MouseEvent) => {
             event.stopPropagation();
             // Remember where the caret is so the picked reference lands inline at that spot after the dialog re-appears.
             this.pendingRange = this.host.captureIntentCursor?.() ?? null;
             this.picker.start();
         });
-        return this.button;
+        return button;
     }
 
     /**
@@ -80,7 +126,7 @@ export class DialogReferenceController {
      * @param {boolean} disabled Whether the reference button should be disabled.
      * @returns {void}
      */
-    setDisabled(disabled) {
+    setDisabled(disabled: boolean) {
         if (this.button)
             this.button.disabled = disabled;
     }
@@ -105,7 +151,7 @@ export class DialogReferenceController {
      * @param {boolean} active True while hidden picking is active.
      * @returns {void}
      */
-    setPicking(active) {
+    setPicking(active: boolean) {
         this.host.setBackdropHidden(active);
         if (this.button) {
             this.button.classList.toggle('cii-icon-btn-active', active);
@@ -126,7 +172,7 @@ export class DialogReferenceController {
      * @param {number} index Zero-based fallback index.
      * @returns {Promise<string>} Prompt-facing reference label inserted into the editor.
      */
-    async resolveLabel(selection, index) {
+    async resolveLabel(selection: PageSelection, index: number): Promise<string> {
         const fallback = sourceReferenceLabel(selection, index);
         const label = await this.host.resolveReferenceText?.(selection);
         const text = String(label || '').trim();
@@ -143,7 +189,7 @@ export class DialogReferenceController {
      * @param {Record<string, unknown>} selection Browser selection collected by the reference picker.
      * @returns {Promise<void>}
      */
-    async addSelection(selection) {
+    async addSelection(selection: PageSelection) {
         if (!selection?.inspPath) {
             this.setPicking(false);
             return;
@@ -152,7 +198,7 @@ export class DialogReferenceController {
             this.setPicking(false);
             return;
         }
-        let label;
+        let label: string;
         try {
             label = await this.resolveLabel(selection, 0);
         }

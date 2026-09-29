@@ -188,7 +188,7 @@ export const DIALOG_REFERENCE_STYLE_TEXT = `
  * @param {ShadowRoot | Element | null | undefined} root UI root that receives the supplemental style element.
  * @returns {HTMLStyleElement | null} The appended style element, or `null` when `root` cannot receive children.
  */
-export function installDialogReferenceStyle(root) {
+export function installDialogReferenceStyle(root: ShadowRoot | Element | null | undefined): HTMLStyleElement | null {
     if (!root || typeof root.appendChild !== 'function') {
         return null;
     }

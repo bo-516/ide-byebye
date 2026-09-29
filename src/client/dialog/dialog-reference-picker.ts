@@ -3,6 +3,40 @@ import { collectSelection, findInspectableElement, isPluginNode } from '../inspe
 const REFERENCE_SWALLOWED_EVENTS = ['mousedown', 'pointerdown', 'mouseup', 'pointerup', 'dblclick', 'contextmenu'];
 
 /**
+ * Page selection handed to the dialog. Only `inspPath` is required for the chip; the rest is round-tripped.
+ * The index signature matches the dialog's `ElementSelection` so the callback object literal type-checks.
+ */
+interface PickedSelection {
+    inspPath?: string;
+    [key: string]: unknown;
+}
+
+/** Injected config fields this picker reads. Other keys stay on the object and are ignored here. */
+interface ReferencePickerConfig {
+    /** Present so the dialog's `{ enabledAgents }` config is assignable; this picker does not read it. */
+    enabledAgents?: unknown;
+    /** Cap forwarded to `collectSelection`. Omitted means the collector's own default. */
+    maxDomSnippetLength?: number;
+}
+
+/**
+ * Highlight overlay. The dialog types the shared instance as `object`, so the constructor casts to this shape.
+ * Only these three methods are called.
+ */
+interface PageOverlay {
+    hide(): void;
+    showFor(el: Element): void;
+    showNoMapping(el: Element): void;
+}
+
+/** Dialog hooks. `onSelect` may ignore the element and point; both are still passed for callers that want them. */
+interface ReferencePickerCallbacks {
+    onStart?: () => void;
+    onCancel?: () => void;
+    onSelect?: (selection: PickedSelection, element?: Element, point?: { x: number; y: number }) => void;
+}
+
+/**
  * One-shot page picker used while the dialog is already open.
  *
  * Boundary: this picker owns only the temporary "add another @code reference" interaction. It hides the dialog through
@@ -10,14 +44,21 @@ const REFERENCE_SWALLOWED_EVENTS = ['mousedown', 'pointerdown', 'mouseup', 'poin
  * responsible for source validation and context extraction.
  */
 export class DialogReferencePicker {
-    config;
-    overlay;
-    callbacks;
+    config: ReferencePickerConfig;
+    overlay: PageOverlay;
+    callbacks: ReferencePickerCallbacks;
     active = false;
-    hovered = null;
-    constructor(config, overlay, callbacks) {
+    /** Last mapped element under the pointer, or null when the hover has no source mapping. */
+    hovered: HTMLElement | null = null;
+    /**
+     * @param {ReferencePickerConfig} config Browser config. Only `maxDomSnippetLength` is read.
+     * @param {object} overlay Shared page overlay. Typed `object` by the dialog; cast to {@link PageOverlay}.
+     * @param {ReferencePickerCallbacks} callbacks Start, cancel, and select hooks. Omitted hooks are skipped.
+     */
+    constructor(config: ReferencePickerConfig, overlay: object, callbacks: ReferencePickerCallbacks) {
         this.config = config;
-        this.overlay = overlay;
+        // The dialog forwards the overlay as `object` so this file cannot see `Overlay`'s untyped methods.
+        this.overlay = overlay as PageOverlay;
         this.callbacks = callbacks;
     }
 
@@ -61,10 +102,10 @@ export class DialogReferencePicker {
      * Boundary: this is safe to call even when inactive. Passing `restore: false` is used during dialog teardown so the
      * hidden dialog is not brought back after it has been closed.
      *
-     * @param {{ restore?: boolean }} options Cancellation behavior flags.
+     * @param {{ restore?: boolean }} [options] Cancellation behavior flags. Omitted means restore the dialog.
      * @returns {void}
      */
-    cancel(options: any = {}) {
+    cancel(options: { restore?: boolean } = {}) {
         if (!this.active)
             return;
         this.deactivate();
@@ -105,7 +146,7 @@ export class DialogReferencePicker {
      * @param {Event} event Captured page event.
      * @returns {void}
      */
-    swallow = (event) => {
+    swallow = (event: Event) => {
         if (isPluginNode(event.target))
             return;
         event.preventDefault();
@@ -121,7 +162,7 @@ export class DialogReferencePicker {
      * @param {MouseEvent} event Mouse move event from the page.
      * @returns {void}
      */
-    onMouseMove = (event) => {
+    onMouseMove = (event: MouseEvent) => {
         const target = event.target;
         if (isPluginNode(target)) {
             this.overlay.hide();
@@ -162,7 +203,7 @@ export class DialogReferencePicker {
      * @param {MouseEvent} event Captured click event.
      * @returns {void}
      */
-    onClick = (event) => {
+    onClick = (event: MouseEvent) => {
         if (isPluginNode(event.target))
             return;
         event.preventDefault();
@@ -186,7 +227,7 @@ export class DialogReferencePicker {
      * @param {KeyboardEvent} event Captured keydown event.
      * @returns {void}
      */
-    onKeyDown = (event) => {
+    onKeyDown = (event: KeyboardEvent) => {
         if (event.key === 'Escape') {
             event.preventDefault();
             event.stopImmediatePropagation();

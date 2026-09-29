@@ -13,7 +13,7 @@
  * @returns {{ dir: string, file: string, lines: string }} `dir` keeps its trailing separator; `lines` is '' without a
  * range and collapses an equal start/end (`#7-7`) to a single line.
  */
-export function splitMentionLabel(label) {
+export function splitMentionLabel(label: unknown): { dir: string; file: string; lines: string } {
     const text = String(label ?? '').trim().replace(/^@/, '');
     const match = /^(.*\S)\s+#(\d+)(?:-(\d+))?$/.exec(text);
     const path = match ? match[1] : text;

@@ -1,5 +1,68 @@
 import { readJsonStore, writeJsonStore } from './dialog-utils.js';
 
+/**
+ * Storage surface the target map reads and writes.
+ * A full `Storage` works. Tests pass an in-memory stand-in, and `undefined` keeps
+ * {@link readJsonStore} / {@link writeJsonStore} on their default (`window.localStorage`).
+ */
+export interface SessionTargetStore {
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+}
+
+/** One persisted per-agent target. Entries without a string id are dropped on read. */
+export interface SessionTarget {
+    id: string;
+    title: string;
+}
+
+/**
+ * Catalog JSON the menu paints. Only the fields the menu reads are named; the server may send more,
+ * and callers that still hold the raw object pass it through unchanged.
+ */
+export interface SessionCatalog {
+    sessions?: unknown[];
+    delivery?: string;
+    notice?: string;
+}
+
+/** Fetch state for one paint. `overlay` keeps `res.sessions` on screen under a loading cover. */
+export interface SessionMenuView {
+    loading?: boolean;
+    overlay?: boolean;
+    error?: string;
+    res?: SessionCatalog;
+}
+
+/**
+ * Row the menu renders. `disabled` rows must not be selectable. `id` stays `unknown` because the catalog
+ * is untrusted JSON; selection still compares it with `===`.
+ */
+export interface SessionMenuRow {
+    id: unknown;
+    title: string;
+    untitled: boolean;
+    marker: string;
+    disabled: boolean;
+    statusKey: string;
+    reasonKey: string;
+    locationKey: string;
+    locationText: string;
+    relativeTime: string;
+}
+
+/**
+ * Keyboard state for the open menu. Index 0 is "new session"; session rows follow. `action` is set by
+ * {@link applySessionMenuKey} and absent on the state the controller stores between keypresses.
+ */
+export interface SessionMenuState {
+    open: boolean;
+    index: number;
+    sessions: Array<{ id?: unknown; disabled?: boolean; title?: unknown }>;
+    action?: 'move' | 'close-menu' | 'select' | 'select-new' | 'blocked' | null;
+    sessionId?: string;
+}
+
 /** localStorage key for per-agent session targets. One origin, one map. */
 export const SESSION_TARGET_PREF_KEY = 'code-intent-inspector:session-targets';
 
@@ -39,7 +102,8 @@ export const SESSION_COPY_KEYS = [
     'session.notice.unsupportedFormat',
 ];
 
-const DELIVERY_KEYS = {
+/** Known catalog `delivery` codes. Any other string falls through to the prefill hint. */
+const DELIVERY_KEYS: Record<string, string> = {
     prefill: 'session.delivery.prefill',
     'resume-submit': 'session.delivery.resumeSubmit',
     submit: 'session.delivery.submit',
@@ -48,10 +112,10 @@ const DELIVERY_KEYS = {
 /**
  * i18n key for a catalog `delivery` code.
  *
- * @param {string} delivery `prefill`, `resume-submit`, or `submit`.
+ * @param {string} delivery `prefill`, `resume-submit`, or `submit`. Any other string uses the prefill hint.
  * @returns {string} Translation key. Unknown codes fall back to the prefill hint.
  */
-export function deliveryCopyKey(delivery) {
+export function deliveryCopyKey(delivery: string): string {
     return DELIVERY_KEYS[delivery] ?? DELIVERY_KEYS.prefill;
 }
 
@@ -60,10 +124,11 @@ export function deliveryCopyKey(delivery) {
  *
  * Boundary: `'.'` and ordinary child paths are not the repo root. `'..'` and `'../…'` are.
  *
- * @param {string} location Catalog `location` (`'.'`, `'src'`, `'..'`, `'../..'`).
+ * @param {unknown} location Catalog `location` (`'.'`, `'src'`, `'..'`, `'../..'`). Non-strings are stringified,
+ * so a missing location is not the repo root.
  * @returns {boolean} True when the menu should say "repo root" instead of the directory name.
  */
-export function isRepoRootLocation(location) {
+export function isRepoRootLocation(location: unknown): boolean {
     return location === '..' || String(location ?? '').startsWith('../');
 }
 
@@ -74,12 +139,13 @@ export function isRepoRootLocation(location) {
  * minutes; under a day is hours; under 7 days is days; older dates are `MM-DD` in the local calendar. An unparseable
  * timestamp returns `''`.
  *
- * @param {string} updatedAt ISO timestamp from the catalog.
+ * @param {string} updatedAt ISO timestamp from the catalog. Non-strings still reach `Date.parse` unchanged when the
+ * caller passes them through; an unparseable value returns `''`.
  * @param {number} [now=Date.now()] Epoch ms to measure from.
  * @param {string} [locale='zh'] `'en'` selects English units; anything else uses Chinese.
  * @returns {string} Short relative time.
  */
-export function formatSessionAge(updatedAt, now = Date.now(), locale = 'zh') {
+export function formatSessionAge(updatedAt: string, now = Date.now(), locale = 'zh'): string {
     const then = Date.parse(updatedAt);
     if (!Number.isFinite(then))
         return '';
@@ -115,18 +181,20 @@ export function formatSessionAge(updatedAt, now = Date.now(), locale = 'zh') {
  * is not live is "closed" (`○`), even when the server status is `idle`. `working` / `waiting` markers are `●` / `◐`.
  * Ancestor locations expose `locationKey` instead of the basename.
  *
- * @param {Record<string, unknown>} session Public catalog row.
+ * @param {Record<string, unknown> | null | undefined} session Public catalog row. A missing row renders as a closed,
+ * untitled session. Non-objects are read the same way (missing fields), so the menu does not throw on a bad element.
  * @param {number} [now=Date.now()] Clock for the relative time.
  * @param {string} [locale='zh'] Locale for the relative time.
- * @returns {Record<string, unknown>} Row the menu renders. `disabled` rows must not be selectable.
+ * @returns {SessionMenuRow} Row the menu renders. `disabled` rows must not be selectable.
  */
-export function sessionMenuRow(session, now = Date.now(), locale = 'zh') {
+export function sessionMenuRow(session: Record<string, unknown> | null | undefined, now = Date.now(), locale = 'zh'): SessionMenuRow {
     const repoRoot = isRepoRootLocation(session?.location);
     let marker = '○';
     let statusKey = 'session.status.idle';
     let reasonKey = '';
     let disabled = false;
-    if (session?.targetable === false) {
+    // `targetable === false` already implies a row; the `&&` only lets strict null checks see `session.reason`.
+    if (session && session.targetable === false) {
         marker = '◌';
         disabled = true;
         if (session.reason === 'open-in-terminal')
@@ -158,8 +226,9 @@ export function sessionMenuRow(session, now = Date.now(), locale = 'zh') {
         statusKey,
         reasonKey,
         locationKey: repoRoot ? 'session.location.repoRoot' : '',
-        locationText: repoRoot ? '' : (session?.projectName ?? ''),
-        relativeTime: formatSessionAge(session?.updatedAt, now, locale),
+        locationText: repoRoot ? '' : (session?.projectName ?? '') as string,
+        // The cast erases. A missing timestamp still reaches `Date.parse` as null or undefined, both of which return ''.
+        relativeTime: formatSessionAge(session?.updatedAt as string, now, locale),
     };
 }
 
@@ -169,15 +238,18 @@ export function sessionMenuRow(session, now = Date.now(), locale = 'zh') {
  * Boundary: malformed storage, a non-object, and entries without a string id are dropped. The returned object is a
  * copy. `store` defaults to `localStorage` inside {@link readJsonStore}; tests pass an in-memory store.
  *
- * @param {Storage} [store] Storage area.
- * @returns {Record<string, { id: string, title: string }>} Targets keyed by agent name.
+ * @param {SessionTargetStore} [store] Storage area. Omitted uses `localStorage` inside {@link readJsonStore}.
+ * @returns {Record<string, SessionTarget>} Targets keyed by agent name.
  */
-export function readSessionTargets(store) {
-    const value = readJsonStore(SESSION_TARGET_PREF_KEY, {}, store);
+export function readSessionTargets(store?: SessionTargetStore): Record<string, SessionTarget> {
+    // `readJsonStore` types its third argument as `Storage` because that parameter defaults to `localStorage`.
+    // Only `getItem` is called, so a partial store (tests) is still valid.
+    const value: unknown = readJsonStore(SESSION_TARGET_PREF_KEY, {}, store as Storage | undefined);
     if (!value || typeof value !== 'object' || Array.isArray(value))
         return {};
-    const targets = {};
-    for (const [agent, entry] of Object.entries(value)) {
+    const targets: Record<string, SessionTarget> = {};
+    // The stored map is untrusted JSON; `id` / `title` are checked before an entry is kept.
+    for (const [agent, entry] of Object.entries(value as Record<string, any>)) {
         if (entry && typeof entry.id === 'string' && entry.id)
             targets[agent] = { id: entry.id, title: typeof entry.title === 'string' ? entry.title : '' };
     }
@@ -187,12 +259,13 @@ export function readSessionTargets(store) {
 /**
  * Persist the whole target map.
  *
- * @param {Storage} store Storage area.
- * @param {Record<string, { id: string, title: string }>} targets Next map.
+ * @param {SessionTargetStore | undefined} store Storage area. `undefined` uses the default inside {@link writeJsonStore}.
+ * @param {Record<string, SessionTarget>} targets Next map.
  * @returns {void}
  */
-export function writeSessionTargets(store, targets) {
-    writeJsonStore(SESSION_TARGET_PREF_KEY, targets, store);
+export function writeSessionTargets(store: SessionTargetStore | undefined, targets: Record<string, SessionTarget>): void {
+    // Same `Storage` default inference as {@link readSessionTargets}; only `setItem` runs.
+    writeJsonStore(SESSION_TARGET_PREF_KEY, targets, store as Storage | undefined);
 }
 
 /**
@@ -200,12 +273,12 @@ export function writeSessionTargets(store, targets) {
  *
  * Boundary: `null` removes only that agent. Other agents are kept. The input map is not mutated.
  *
- * @param {Record<string, { id: string, title: string }>} targets Current map.
+ * @param {Record<string, SessionTarget>} targets Current map.
  * @param {string} agent Agent name.
  * @param {{ id: string, title?: string } | null} target Next target, or null to clear.
- * @returns {Record<string, { id: string, title: string }>} Next map.
+ * @returns {Record<string, SessionTarget>} Next map.
  */
-export function withSessionTarget(targets, agent, target) {
+export function withSessionTarget(targets: Record<string, SessionTarget>, agent: string, target: { id: string; title?: string } | null): Record<string, SessionTarget> {
     const next = { ...targets };
     if (!target)
         delete next[agent];
@@ -219,11 +292,11 @@ export function withSessionTarget(targets, agent, target) {
  *
  * Boundary: another agent's target is not returned. An empty id is treated as no target so the payload omits the field.
  *
- * @param {Record<string, { id: string }>} targets Stored targets.
+ * @param {Record<string, { id?: string } | null | undefined> | null | undefined} targets Stored targets.
  * @param {string} agent Agent about to be sent.
  * @returns {string | undefined} Session id to attach, if any.
  */
-export function payloadTargetId(targets, agent) {
+export function payloadTargetId(targets: Record<string, { id?: string } | null | undefined> | null | undefined, agent: string): string | undefined {
     const id = targets?.[agent]?.id;
     return typeof id === 'string' && id ? id : undefined;
 }
@@ -234,12 +307,12 @@ export function payloadTargetId(targets, agent) {
  * Boundary: `target-missing` clears only that agent (the dialog stays open and the menu returns to a new session).
  * `target-busy` keeps the target. Other codes leave the map unchanged.
  *
- * @param {Record<string, { id: string, title: string }>} targets Current map.
+ * @param {Record<string, SessionTarget>} targets Current map.
  * @param {string} agent Agent that was sent.
- * @param {{ code?: string }} result Send response.
- * @returns {Record<string, { id: string, title: string }>} Next map.
+ * @param {{ code?: string } | null | undefined} result Send response. A missing result leaves the map unchanged.
+ * @returns {Record<string, SessionTarget>} Next map.
  */
-export function applySessionSendResult(targets, agent, result) {
+export function applySessionSendResult(targets: Record<string, SessionTarget>, agent: string, result: { code?: string } | null | undefined): Record<string, SessionTarget> {
     if (result?.code === 'target-missing' || result?.code === 'target-invalid')
         return withSessionTarget(targets, agent, null);
     return targets;
@@ -252,12 +325,11 @@ export function applySessionSendResult(targets, agent, result) {
  * fetch has nothing to keep, so the caller shows the loading note alone. A missing or empty `sessions` array is
  * treated as no list.
  *
- * @param {Record<string, unknown> | null | undefined} previous Last successful catalog for this agent.
- * @returns {{ loading: true, res?: Record<string, unknown>, overlay?: boolean }} Paint input for the menu.
+ * @param {SessionCatalog | null | undefined} previous Last successful catalog for this agent.
+ * @returns {SessionMenuView & { loading: true }} Paint input for the menu.
  */
-export function sessionLoadingView(previous) {
-    const sessions = previous?.sessions;
-    if (Array.isArray(sessions) && sessions.length > 0)
+export function sessionLoadingView(previous: SessionCatalog | null | undefined): SessionMenuView & { loading: true } {
+    if (previous && Array.isArray(previous.sessions) && previous.sessions.length > 0)
         return { loading: true, res: previous, overlay: true };
     return { loading: true };
 }
@@ -269,11 +341,11 @@ export function sessionLoadingView(previous) {
  * second session. Enter on a disabled row does not select. Escape closes the menu and does not select. The dialog
  * itself stays open — this function only describes the menu.
  *
- * @param {{ open: boolean, index: number, sessions: Array<{ id: string, disabled?: boolean }> }} state Menu state.
+ * @param {SessionMenuState} state Menu state. `sessions` is empty when the catalog has no rows.
  * @param {string} key `KeyboardEvent.key`.
- * @returns {Record<string, unknown>} Next state plus `action` (`move`, `close-menu`, `select`, `select-new`, `blocked`, or null).
+ * @returns {SessionMenuState} Next state plus `action` (`move`, `close-menu`, `select`, `select-new`, `blocked`, or null).
  */
-export function applySessionMenuKey(state, key) {
+export function applySessionMenuKey(state: SessionMenuState, key: string): SessionMenuState {
     const sessions = state.sessions ?? [];
     const count = 1 + sessions.length;
     if (key === 'ArrowDown')
@@ -288,7 +360,8 @@ export function applySessionMenuKey(state, key) {
         const session = sessions[state.index - 1];
         if (!session || session.disabled)
             return { ...state, action: 'blocked' };
-        return { ...state, open: false, action: 'select', sessionId: session.id };
+        // Catalog ids are strings; the cast keeps a non-string id on the same `===` path instead of dropping it.
+        return { ...state, open: false, action: 'select', sessionId: session.id as string };
     }
     return { ...state, action: null };
 }

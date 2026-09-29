@@ -14,13 +14,13 @@ const ALL_AGENTS = ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app'
  * @param {Record<string, string>} initial Entries present before `fn` runs.
  * @param {(store: Record<string, string>) => void} fn Test body; receives the backing object so it can assert writes.
  */
-function withStorage(initial, fn) {
+function withStorage(initial: Record<string, string>, fn: (store: Record<string, string>) => void) {
     const prev = globalThis.window;
     const store = { ...initial };
     (globalThis as any).window = {
         localStorage: {
-            getItem: (key) => store[key] ?? null,
-            setItem: (key, value) => { store[key] = String(value); },
+            getItem: (key: string) => store[key] ?? null,
+            setItem: (key: string, value: string) => { store[key] = String(value); },
         },
     };
     try {

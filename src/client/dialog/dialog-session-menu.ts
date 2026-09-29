@@ -1,6 +1,6 @@
 import { el, placeDropdownPanel } from './dialog-utils.js';
 import { getLocale, t } from '../lib/i18n.js';
-import { deliveryCopyKey, sessionMenuRow } from './dialog-session-model.js';
+import { deliveryCopyKey, sessionMenuRow, type SessionMenuRow, type SessionMenuView } from './dialog-session-model.js';
 
 /**
  * Fill an existing session menu element.
@@ -14,23 +14,32 @@ import { deliveryCopyKey, sessionMenuRow } from './dialog-session-model.js';
  *
  * @param {HTMLElement} menuEl Menu node already attached to the dialog.
  * @param {{ name: string, label: string }} action Agent the menu belongs to.
- * @param {{ loading?: boolean, error?: string, overlay?: boolean, res?: Record<string, unknown> }} view Fetch state.
- *        `overlay` keeps `res.sessions` on screen and covers them instead of replacing the list with a loading note.
- * @param {{ busy?: boolean, selectedId?: string, onRefresh: Function, onNew: Function, onChoose: Function,
- *        onBack?: Function | null }} hooks Actions; omit `onBack` for a menu with nowhere to return to.
- * @param {HTMLElement | null} anchor Opening control; omitted/null leaves placement to the caller. A wrong node misanchors the menu.
- * @returns {{ rows: Array<Record<string, unknown>>, buttons: HTMLButtonElement[] }} Rows in keyboard order (index 0 is new).
+ * @param {SessionMenuView} view Fetch state. `overlay` keeps `res.sessions` on screen and covers them instead of
+ *        replacing the list with a loading note.
+ * @param {{ busy?: boolean, selectedId?: string, onRefresh: () => void, onNew: () => void,
+ *        onChoose: (session: unknown, row: SessionMenuRow) => void, onBack?: (() => void) | null }} hooks Actions;
+ *        omit `onBack` for a menu with nowhere to return to.
+ * @param {HTMLElement | null} [anchor=null] Opening control; omitted/null leaves placement to the caller. A wrong node misanchors the menu.
+ * @returns {{ rows: SessionMenuRow[], buttons: HTMLButtonElement[] }} Rows in keyboard order (index 0 is new).
  */
-export function fillSessionMenu(menuEl, action, view, hooks, anchor = null) {
+export function fillSessionMenu(menuEl: HTMLElement, action: { name: string; label: string }, view: SessionMenuView, hooks: {
+    busy?: boolean;
+    selectedId?: string;
+    onRefresh: () => void;
+    onNew: () => void;
+    onChoose: (session: unknown, row: SessionMenuRow) => void;
+    onBack?: (() => void) | null;
+}, anchor: HTMLElement | null = null): { rows: SessionMenuRow[]; buttons: HTMLButtonElement[] } {
     const scrollTop = menuEl.scrollTop;
     menuEl.hidden = false;
     menuEl.replaceChildren();
     const head = el('div', 'cii-session-menu-head');
-    if (hooks.onBack) {
-        const back = el('button', 'cii-session-back');
+    const onBack = hooks.onBack;
+    if (onBack) {
+        const back: HTMLButtonElement = el('button', 'cii-session-back');
         back.type = 'button';
         back.setAttribute('aria-label', t('session.menu.back'));
-        back.addEventListener('click', () => hooks.onBack());
+        back.addEventListener('click', () => onBack());
         head.append(back);
     }
     const hint = view.res?.delivery ? t(deliveryCopyKey(view.res.delivery)) : '';
@@ -49,9 +58,9 @@ export function fillSessionMenu(menuEl, action, view, hooks, anchor = null) {
     fresh.type = 'button';
     fresh.addEventListener('click', () => hooks.onNew());
     menuEl.append(fresh);
-    const buttons = [fresh];
-    const sessions = Array.isArray(view.res?.sessions) ? view.res.sessions : [];
-    const rows = sessions.map((session) => sessionMenuRow(session, Date.now(), getLocale()));
+    const buttons: HTMLButtonElement[] = [fresh];
+    const sessions: unknown[] = Array.isArray(view.res?.sessions) ? view.res.sessions : [];
+    const rows = sessions.map((session) => sessionMenuRow(session as Record<string, unknown>, Date.now(), getLocale()));
     const list = el('div', 'cii-session-menu-list');
     // A refresh already has rows: cover them. Replacing the list with a one-line note changes the menu height.
     if (view.loading && !rows.length)
@@ -72,7 +81,7 @@ export function fillSessionMenu(menuEl, action, view, hooks, anchor = null) {
         list.append(el('div', 'cii-session-empty', notice));
     }
     rows.forEach((row, index) => {
-        const button = el('button', 'cii-session-row');
+        const button: HTMLButtonElement = el('button', 'cii-session-row');
         button.type = 'button';
         button.disabled = row.disabled || hooks.busy === true;
         if (row.reasonKey)

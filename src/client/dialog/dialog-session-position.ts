@@ -9,8 +9,11 @@ import { placeDropdownPanel } from './dialog-utils.js';
  *        returning stale nodes would position an old menu. Null nodes are valid while the menu is closed.
  * @returns {() => void} Cleanup the owner must call before detaching or replacing the dialog.
  */
-export function observeSessionMenuPosition(dialog, getOpenMenu) {
-    let frame = null;
+export function observeSessionMenuPosition(dialog: HTMLElement, getOpenMenu: () => {
+    anchor: HTMLElement | null;
+    menu: HTMLElement | null;
+}): () => void {
+    let frame: number | null = null;
     /** Measure after layout settles; the state reader avoids retaining a previously selected agent's caret. */
     const reposition = () => {
         frame = null;

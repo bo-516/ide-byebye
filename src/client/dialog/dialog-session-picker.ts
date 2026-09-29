@@ -10,7 +10,28 @@ import {
     sessionLoadingView,
     withSessionTarget,
     writeSessionTargets,
+    type SessionCatalog,
+    type SessionMenuState,
+    type SessionMenuView,
+    type SessionTarget,
 } from './dialog-session-model.js';
+
+/**
+ * Dialog hooks. `api.sessions` is optional only because the dialog's api interface does not list it; the live client
+ * provides the method and {@link DialogSessionController.loadMenu} calls it. Omitting `onChange` skips the destination
+ * repaint and nothing else.
+ */
+interface SessionControllerDeps {
+    // `agents` overlaps the dialog's api type, which does not declare `sessions` (a weak type with only `sessions` would reject it).
+    api: {
+        agents?: () => Promise<unknown>;
+        sessions?: (agent: string) => Promise<SessionCatalog>;
+    };
+    getLastAgent: () => string;
+    rememberAgent: (agent: string) => void;
+    showError: (text: string) => void;
+    onChange?: () => void;
+}
 
 /** Agents that list sessions before discovery; opt-in adapters stay off until `GET /agents` advertises them. */
 const DEFAULT_SESSION_AGENTS = new Set(['codex-app', 'grok-build']);
@@ -24,31 +45,30 @@ const DEFAULT_SESSION_AGENTS = new Set(['codex-app', 'grok-build']);
  * usable. Every target change is reported through `deps.onChange` so the destination can repaint.
  */
 export class DialogSessionController {
-    deps;
-    onKey;
-    targets = {};
+    deps: SessionControllerDeps;
+    onKey: (event: KeyboardEvent) => void;
+    targets: Record<string, SessionTarget> = {};
     /** Session support per agent from `GET /agents`; agents not reported yet fall back to DEFAULT_SESSION_AGENTS. */
-    support = new Map();
-    dialogEl = null;
-    menuEl = null;
+    support = new Map<string, boolean>();
+    dialogEl: HTMLElement | null = null;
+    menuEl: HTMLElement | null = null;
     menuAgent = '';
-    menuState = null;
-    menuButtons = [];
-    menuAnchor = null;
-    menuBack = null;
-    stopPositioning = null;
+    menuState: SessionMenuState | null = null;
+    menuButtons: HTMLButtonElement[] = [];
+    menuAnchor: HTMLElement | null = null;
+    menuBack: (() => void) | null = null;
+    stopPositioning: (() => void) | null = null;
     busy = false;
     /** Last successful catalog per agent, so a refresh can keep those rows on screen. */
-    catalogs = new Map();
+    catalogs = new Map<string, SessionCatalog>();
 
     /**
-     * @param {{ api: { sessions?: Function }, getLastAgent: Function, rememberAgent: Function, showError: Function,
-     * onChange?: Function }} deps Dialog hooks. `rememberAgent` makes a chosen agent the Enter target; `onChange` runs
-     * after any stored target changes (omitting it only means the destination is not repainted).
+     * @param {SessionControllerDeps} deps Dialog hooks. `rememberAgent` makes a chosen agent the Enter target; `onChange`
+     * runs after any stored target changes (omitting it only means the destination is not repainted).
      */
-    constructor(deps) {
+    constructor(deps: SessionControllerDeps) {
         this.deps = deps;
-        this.onKey = (event) => this.onMenuKey(event);
+        this.onKey = (event: KeyboardEvent) => this.onMenuKey(event);
     }
 
     /**
@@ -56,7 +76,7 @@ export class DialogSessionController {
      * @param {HTMLElement} dialogEl Required current dialog; a stale node would attach menus to a closed dialog.
      * @returns {void}
      */
-    attach(dialogEl) {
+    attach(dialogEl: HTMLElement): void {
         this.dispose();
         this.dialogEl = dialogEl;
         this.menuEl = null;
@@ -66,7 +86,7 @@ export class DialogSessionController {
     }
 
     /** Release listeners, queued placement, and the open menu; safe before first attach. @returns {void} */
-    dispose() {
+    dispose(): void {
         this.stopPositioning?.();
         this.stopPositioning = null;
         document.removeEventListener('keydown', this.onKey, true);
@@ -78,8 +98,10 @@ export class DialogSessionController {
      * @param {string} agent Agent name.
      * @returns {boolean} The server's `sessions` flag once known, else the built-in default.
      */
-    supports(agent) {
-        return this.support.has(agent) ? this.support.get(agent) : DEFAULT_SESSION_AGENTS.has(agent);
+    supports(agent: string): boolean {
+        // `Map.get` stays `boolean | undefined` after `has`. The assertion erases; `has` still tells a stored
+        // `undefined` from a missing key, which `=== undefined` would collapse onto the default.
+        return this.support.has(agent) ? this.support.get(agent)! : DEFAULT_SESSION_AGENTS.has(agent);
     }
 
     /**
@@ -87,16 +109,17 @@ export class DialogSessionController {
      * @param {string} agent Agent name.
      * @returns {{ id: string, title: string } | null} Stored target.
      */
-    targetFor(agent) {
+    targetFor(agent: string): SessionTarget | null {
         return this.targets[agent] ?? null;
     }
 
     /**
      * Record session support from `GET /agents`; a menu open for an agent that lost support closes.
-     * @param {Array<{ name: string, sessions?: boolean }>} agents Availability list.
+     * @param {Array<{ name: string, sessions?: boolean }> | null | undefined} agents Availability list. A missing list
+     * leaves previously recorded support in place.
      * @returns {void}
      */
-    applyAgentList(agents) {
+    applyAgentList(agents: Array<{ name: string; sessions?: boolean }> | null | undefined): void {
         for (const agent of agents ?? [])
             this.support.set(agent.name, agent.sessions === true);
         if (this.menuAgent && !this.supports(this.menuAgent))
@@ -109,7 +132,7 @@ export class DialogSessionController {
      * @param {boolean} disabled Whether session choices should ignore clicks.
      * @returns {void}
      */
-    setDisabled(disabled) {
+    setDisabled(disabled: boolean): void {
         this.busy = disabled;
     }
 
@@ -118,7 +141,7 @@ export class DialogSessionController {
      * @param {string} agent Agent about to send.
      * @returns {string | undefined}
      */
-    targetIdFor(agent) {
+    targetIdFor(agent: string): string | undefined {
         return payloadTargetId(this.targets, agent);
     }
 
@@ -128,11 +151,15 @@ export class DialogSessionController {
      * Boundary: `target-missing` and `target-invalid` clear only that agent. `target-busy` keeps it. Does not close
      * the dialog.
      *
-     * @param {Record<string, unknown>} result Send response.
+     * @param {{ code?: string, agent?: string } | null | undefined} result Send response. Only `code` and `agent` are
+     * read; other fields stay with the dialog. A missing result is not a session error.
      * @returns {boolean} True when this controller showed the error.
      */
-    handleSendError(result) {
-        const code = result?.code;
+    handleSendError(result: { code?: string; agent?: string } | null | undefined): boolean {
+        // `result?.code` would not narrow `result`, so a missing result returns before `agent` is read.
+        if (!result)
+            return false;
+        const code = result.code;
         if (code !== 'target-missing' && code !== 'target-busy' && code !== 'target-invalid')
             return false;
         const agent = result.agent || this.deps.getLastAgent();
@@ -148,10 +175,12 @@ export class DialogSessionController {
      * @param {EventTarget | null} target Event target.
      * @returns {void}
      */
-    closeMenuFromOutside(target) {
+    closeMenuFromOutside(target: EventTarget | null): void {
         if (!this.isMenuOpen())
             return;
-        if (target instanceof Node && (this.menuEl.contains(target) || this.menuAnchor?.contains(target)))
+        // isMenuOpen already requires a rendered menu; the field stays null only while the menu is closed.
+        const menu = this.menuEl as HTMLElement;
+        if (target instanceof Node && (menu.contains(target) || this.menuAnchor?.contains(target)))
             return;
         this.closeMenu();
     }
@@ -160,7 +189,7 @@ export class DialogSessionController {
      * Escape closes the menu and leaves the dialog open. Returns false when the menu is already closed.
      * @returns {boolean} True when the menu was closed.
      */
-    consumeEscape() {
+    consumeEscape(): boolean {
         if (!this.isMenuOpen())
             return false;
         this.closeMenu();
@@ -168,12 +197,12 @@ export class DialogSessionController {
     }
 
     /** Whether the session menu is showing. @returns {boolean} */
-    isMenuOpen() {
+    isMenuOpen(): boolean {
         return Boolean(this.menuEl && !this.menuEl.hidden);
     }
 
     /** Hide the menu without changing the stored target. @returns {void} */
-    closeMenu() {
+    closeMenu(): void {
         if (this.menuEl)
             this.menuEl.hidden = true;
         this.menuState = null;
@@ -190,11 +219,12 @@ export class DialogSessionController {
      * calls it — the destination picker uses it to return to the agent list.
      *
      * @param {{ name: string, label: string }} action Agent whose sessions to list.
-     * @param {HTMLElement} anchor Element the menu is placed against; a wrong node misplaces the menu.
+     * @param {HTMLElement | null} anchor Element the menu is placed against. Null leaves it unpositioned until a later
+     * paint supplies one; a wrong node misplaces the menu.
      * @param {(() => void) | null} [onBack] Optional back handler.
      * @returns {void}
      */
-    openMenu(action, anchor, onBack = null) {
+    openMenu(action: { name: string; label: string }, anchor: HTMLElement | null, onBack: (() => void) | null = null): void {
         if (this.busy)
             return;
         this.menuAgent = action.name;
@@ -210,11 +240,12 @@ export class DialogSessionController {
      * @param {{ name: string, label: string }} action Agent whose menu is open.
      * @returns {Promise<void>}
      */
-    async loadMenu(action) {
+    async loadMenu(action: { name: string; label: string }): Promise<void> {
         const previous = this.catalogs.get(action.name);
         this.paintMenu(action, sessionLoadingView(previous));
         try {
-            const res = await this.deps.api.sessions(action.name);
+            // The dialog's api interface omits `sessions`; the live client provides it. A missing method still throws.
+            const res = await this.deps.api.sessions!(action.name);
             if (this.menuAgent !== action.name)
                 return;
             this.catalogs.set(action.name, res);
@@ -231,18 +262,23 @@ export class DialogSessionController {
     /**
      * Rebuild and position the menu at its anchor. `view.res` during loading stays under the cover.
      * @param {{ name: string, label: string }} action Agent the menu belongs to.
-     * @param {{ loading?: boolean, overlay?: boolean, error?: string, res?: Record<string, unknown> }} view Fetch state.
+     * @param {SessionMenuView} view Fetch state.
      * @returns {void}
      */
-    paintMenu(action, view) {
-        if (!this.dialogEl)
+    paintMenu(action: { name: string; label: string }, view: SessionMenuView): void {
+        const dialogEl = this.dialogEl;
+        if (!dialogEl)
             return;
-        if (!this.menuEl) {
-            this.menuEl = el('div', 'cii-session-menu');
-            this.dialogEl.append(this.menuEl);
-            this.stopPositioning = observeSessionMenuPosition(this.dialogEl, () => ({ anchor: this.menuAnchor, menu: this.menuEl }));
+        let menuEl = this.menuEl;
+        if (!menuEl) {
+            // `el` is typed loose; a fresh HTMLElement keeps `menuEl` narrowed for append and fill.
+            const created: HTMLElement = el('div', 'cii-session-menu');
+            menuEl = created;
+            this.menuEl = created;
+            dialogEl.append(created);
+            this.stopPositioning = observeSessionMenuPosition(dialogEl, () => ({ anchor: this.menuAnchor, menu: this.menuEl }));
         }
-        const filled = fillSessionMenu(this.menuEl, action, view, {
+        const filled = fillSessionMenu(menuEl, action, view, {
             busy: this.busy,
             selectedId: this.targets[action.name]?.id,
             onRefresh: () => void this.loadMenu(action),
@@ -256,14 +292,14 @@ export class DialogSessionController {
     }
 
     /** Close this menu and return to whoever opened it. @returns {void} */
-    goBack() {
+    goBack(): void {
         const back = this.menuBack;
         this.closeMenu();
         back?.();
     }
 
     /** Highlight the keyboard row. @returns {void} */
-    paintActive() {
+    paintActive(): void {
         const index = this.menuState?.index ?? 0;
         this.menuButtons.forEach((button, buttonIndex) => {
             button.classList.toggle('cii-session-active', buttonIndex === index);
@@ -276,8 +312,9 @@ export class DialogSessionController {
      * @param {KeyboardEvent} event Keydown in the capture phase.
      * @returns {void}
      */
-    onMenuKey(event) {
-        if (!this.menuState?.open || !this.menuAgent || event.key === 'Escape')
+    onMenuKey(event: KeyboardEvent): void {
+        const state = this.menuState;
+        if (!state?.open || !this.menuAgent || event.key === 'Escape')
             return;
         if (event.key === 'ArrowLeft' && this.menuBack) {
             event.preventDefault();
@@ -285,7 +322,7 @@ export class DialogSessionController {
             this.goBack();
             return;
         }
-        const next = applySessionMenuKey(this.menuState, event.key);
+        const next = applySessionMenuKey(state, event.key);
         if (!next.action)
             return;
         event.preventDefault();
@@ -304,26 +341,30 @@ export class DialogSessionController {
     /**
      * Select a session row from a click.
      * @param {string} agent Agent that owns the menu.
-     * @param {Record<string, unknown>} session Catalog row.
-     * @param {{ disabled?: boolean }} row View model; disabled rows are ignored.
+     * @param {unknown} session Catalog row. Non-objects still follow the same property read as a record.
+     * @param {{ disabled?: boolean } | null | undefined} row View model; disabled rows are ignored.
      * @returns {void}
      */
-    chooseRow(agent, session, row) {
+    chooseRow(agent: string, session: unknown, row: { disabled?: boolean } | null | undefined): void {
         if (row?.disabled)
             return;
-        this.chooseStored(agent, { id: session.id, title: session.title || '' });
+        // The cast does not convert; a missing row still throws on the property read, as before.
+        const picked = session as { id?: string; title?: string };
+        this.chooseStored(agent, { id: picked.id, title: picked.title || '' });
     }
 
     /**
      * Store a target, make that agent the Enter target, and close the menu.
      * @param {string} agent Agent name.
-     * @param {{ id: string, title?: string } | undefined} row Selected session; a missing id is ignored.
+     * @param {{ id?: unknown, title?: unknown } | null | undefined} row Selected session; a missing id is ignored.
+     * Non-string ids are stored as-is when truthy — the cast only satisfies the target map's string id.
      * @returns {void}
      */
-    chooseStored(agent, row) {
+    chooseStored(agent: string, row: { id?: unknown; title?: unknown } | null | undefined): void {
         if (!row?.id)
             return;
-        this.targets = withSessionTarget(this.targets, agent, { id: row.id, title: row.title ?? '' });
+        const title = row.title as string | undefined;
+        this.targets = withSessionTarget(this.targets, agent, { id: row.id as string, title: title ?? '' });
         writeSessionTargets(undefined, this.targets);
         this.closeMenu();
         this.deps.rememberAgent(agent);
@@ -335,7 +376,7 @@ export class DialogSessionController {
      * @param {string} agent Agent name; empty is ignored.
      * @returns {void}
      */
-    chooseNew(agent) {
+    chooseNew(agent: string): void {
         if (!agent)
             return;
         this.targets = withSessionTarget(this.targets, agent, null);
@@ -346,7 +387,7 @@ export class DialogSessionController {
     }
 
     /** Report a stored-target change to the destination. @returns {void} */
-    notify() {
+    notify(): void {
         this.deps?.onChange?.();
     }
 }

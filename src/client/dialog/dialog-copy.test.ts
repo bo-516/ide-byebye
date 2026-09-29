@@ -13,7 +13,7 @@ function makeCopyDialog() {
     const classes = new Set();
     const button = {
         textContent: 'Copy prompt✓ Copied',
-        classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) },
+        classList: { add: (name: string) => classes.add(name), remove: (name: string) => classes.delete(name) },
     };
     const dialog = { actionButtons: new Map([['clipboard', button]]), copyResetTimer: null, setState() { } };
     return { dialog, button, isCopied: () => classes.has('cii-agent-copied') };
@@ -49,11 +49,12 @@ test('a repeat copy inside the flash window restarts the delay instead of resett
  */
 function makeSendingDialog() {
     const control = () => {
-        const c = { disabled: false, setDisabled: (disabled) => { c.disabled = disabled; } };
+        const c = { disabled: false, setDisabled: (disabled: boolean) => { c.disabled = disabled; } };
         return c;
     };
-    const sends = [];
-    let respond;
+    const sends: Array<{ agent?: string }> = [];
+    // Assigned synchronously when `api.send` runs, which `dialog.send` does before the test calls `respond`.
+    let respond!: (result: { ok?: boolean; agent?: string; output?: string }) => void;
     const dialog = Object.assign(Object.create(Dialog.prototype), {
         state: 'idle',
         selection: { inspPath: 'src/App.tsx:1:1' },
@@ -65,8 +66,8 @@ function makeSendingDialog() {
         recordings: control(),
         styles: control(),
         editor: control(),
-        api: { send: (payload) => new Promise((resolve) => { sends.push(payload); respond = resolve; }) },
-        buildPayload: async (agent) => ({ agent }),
+        api: { send: (payload: { agent?: string }) => new Promise((resolve) => { sends.push(payload); respond = resolve; }) },
+        buildPayload: async (agent: string) => ({ agent }),
         beginEagerClipboardWrite: () => null,
         rememberAgent() { },
         renderResult() { },
@@ -79,7 +80,7 @@ function makeSendingDialog() {
         sends,
         lockedCount: () => controls.filter((c) => c.disabled).length,
         controlCount: controls.length,
-        respond: async (result) => { await flush(); respond(result); },
+        respond: async (result: { ok?: boolean; agent?: string; output?: string }) => { await flush(); respond(result); },
         flush,
     };
 }

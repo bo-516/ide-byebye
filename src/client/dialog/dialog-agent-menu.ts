@@ -1,5 +1,6 @@
 import { el } from './dialog-utils.js';
 import { t } from '../lib/i18n.js';
+import { type AgentMenuRow } from './dialog-agent-model.js';
 
 /**
  * Tooltip for one destination: why it cannot take a prompt right now, else what sending to it does.
@@ -8,7 +9,7 @@ import { t } from '../lib/i18n.js';
  * `agentMenuRows`.
  * @returns {string} Localized tooltip; the server's own reason wins over generic "unavailable" copy.
  */
-export function agentRowTitle(row) {
+export function agentRowTitle(row: Pick<AgentMenuRow, 'label' | 'title' | 'configured' | 'unavailable' | 'reason'>): string {
     if (!row.configured)
         return t('agent.notEnabledInConfig', { label: row.label });
     if (row.unavailable)
@@ -25,7 +26,7 @@ export function agentRowTitle(row) {
  * @param {string} [name] Agent id; omitted or empty shows the kind glyph (e.g. for a target that is no longer offered).
  * @returns {void}
  */
-export function paintAgentIcon(icon, kind, name = '') {
+export function paintAgentIcon(icon: HTMLElement, kind: string, name = ''): void {
     icon.dataset.kind = kind;
     icon.dataset.agent = name;
 }
@@ -37,7 +38,7 @@ export function paintAgentIcon(icon, kind, name = '') {
  * @param {string} [name] Agent id; omit for the generic kind glyph.
  * @returns {HTMLElement} Icon span.
  */
-export function agentIcon(kind, name = '') {
+export function agentIcon(kind: string, name = ''): HTMLElement {
     const icon = el('span', 'cii-agent-kind');
     paintAgentIcon(icon, kind, name);
     return icon;
@@ -54,21 +55,28 @@ export function agentIcon(kind, name = '') {
  * @returns {{ root: HTMLElement, trigger: HTMLButtonElement, kind: HTMLElement, label: HTMLElement,
  * session: HTMLElement, menu: HTMLElement }} Picker nodes; `menu` starts hidden.
  */
-export function createAgentPickerDom(onToggle) {
-    const root = el('div', 'cii-screenshot-picker cii-agent-picker');
-    const trigger = el('button', 'cii-agent-pill');
+export function createAgentPickerDom(onToggle: () => void): {
+    root: HTMLElement;
+    trigger: HTMLButtonElement;
+    kind: HTMLElement;
+    label: HTMLElement;
+    session: HTMLElement;
+    menu: HTMLElement;
+} {
+    const root: HTMLElement = el('div', 'cii-screenshot-picker cii-agent-picker');
+    const trigger: HTMLButtonElement = el('button', 'cii-agent-pill');
     trigger.type = 'button';
     trigger.setAttribute('aria-haspopup', 'menu');
     const kind = agentIcon('app');
-    const label = el('span', 'cii-agent-pill-label');
-    const session = el('span', 'cii-agent-pill-session');
+    const label: HTMLElement = el('span', 'cii-agent-pill-label');
+    const session: HTMLElement = el('span', 'cii-agent-pill-session');
     trigger.append(kind, label, session, el('span', 'cii-agent-pill-caret'));
     trigger.addEventListener('mousedown', (event) => event.preventDefault());
     trigger.addEventListener('click', (event) => {
         event.stopPropagation();
         onToggle();
     });
-    const menu = el('div', 'cii-screenshot-menu cii-agent-menu');
+    const menu: HTMLElement = el('div', 'cii-screenshot-menu cii-agent-menu');
     menu.hidden = true;
     menu.setAttribute('role', 'menu');
     root.append(trigger, menu);
@@ -85,11 +93,16 @@ export function createAgentPickerDom(onToggle) {
  *
  * @param {{ trigger: HTMLElement, kind: HTMLElement, label: HTMLElement, session: HTMLElement }} dom Nodes from
  * {@link createAgentPickerDom}.
- * @param {Record<string, any> | null} row Current row from `agentMenuRows`.
+ * @param {AgentMenuRow | null} row Current row from `agentMenuRows`. Null shows `fallbackLabel` and the app glyph.
  * @param {string} fallbackLabel Label to show without a row.
  * @returns {void}
  */
-export function paintAgentTrigger(dom, row, fallbackLabel) {
+export function paintAgentTrigger(dom: {
+    trigger: HTMLElement;
+    kind: HTMLElement;
+    label: HTMLElement;
+    session: HTMLElement;
+}, row: AgentMenuRow | null, fallbackLabel: string): void {
     paintAgentIcon(dom.kind, row?.kind ?? 'app', row?.name);
     dom.label.textContent = row?.label ?? fallbackLabel;
     dom.session.textContent = row?.target ? (row.target.title || t('session.untitled')) : '';
@@ -108,23 +121,26 @@ export function paintAgentTrigger(dom, row, fallbackLabel) {
  * `mousedown` so the intent editor keeps focus and caret while the user picks. Replaces all previous children.
  *
  * @param {HTMLElement} menuEl Menu container, already in the dialog.
- * @param {Array<Record<string, any>>} rows Rows from `agentMenuRows`, in display order.
- * @param {{ onSelect: (row: object) => void, onSessions: (row: object) => void }} hooks Row actions; both required.
+ * @param {AgentMenuRow[]} rows Rows from `agentMenuRows`, in display order.
+ * @param {{ onSelect: (row: AgentMenuRow) => void, onSessions: (row: AgentMenuRow) => void }} hooks Row actions; both required.
  * @returns {HTMLButtonElement[]} The main button of each row, in keyboard order.
  */
-export function fillAgentMenu(menuEl, rows, hooks) {
+export function fillAgentMenu(menuEl: HTMLElement, rows: AgentMenuRow[], hooks: {
+    onSelect: (row: AgentMenuRow) => void;
+    onSessions: (row: AgentMenuRow) => void;
+}): HTMLButtonElement[] {
     menuEl.replaceChildren(el('div', 'cii-menu-caption', t('agent.menu.title')));
-    const keepFocus = (event) => event.preventDefault();
+    const keepFocus = (event: Event) => event.preventDefault();
     return rows.map((row) => {
-        const item = el('div', 'cii-agent-row');
+        const item: HTMLElement = el('div', 'cii-agent-row');
         item.classList.toggle('cii-agent-row-selected', row.selected);
         item.classList.toggle('cii-agent-row-unavailable', row.unavailable);
-        const main = el('button', 'cii-agent-row-main');
+        const main: HTMLButtonElement = el('button', 'cii-agent-row-main');
         main.type = 'button';
         main.title = agentRowTitle(row);
         main.setAttribute('role', 'menuitemradio');
         main.setAttribute('aria-checked', row.selected ? 'true' : 'false');
-        const text = el('span', 'cii-agent-row-text');
+        const text: HTMLElement = el('span', 'cii-agent-row-text');
         text.append(el('span', 'cii-agent-row-label', row.label));
         if (row.target)
             text.append(el('span', 'cii-agent-row-sub cii-agent-row-session', row.target.title || t('session.untitled')));
@@ -138,7 +154,7 @@ export function fillAgentMenu(menuEl, rows, hooks) {
         });
         item.append(main);
         if (row.sessions) {
-            const more = el('button', 'cii-agent-row-sessions');
+            const more: HTMLButtonElement = el('button', 'cii-agent-row-sessions');
             more.type = 'button';
             more.title = t('agent.menu.sessions');
             more.setAttribute('aria-label', t('agent.menu.sessions'));

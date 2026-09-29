@@ -6,15 +6,28 @@ import { DialogSessionController } from './dialog-session-picker.js';
 const ACTION = { name: 'codex-app', label: 'Codex App' };
 
 /** Ignore DOM hooks unrelated to geometry; accepts any arguments and returns nothing. */
-function ignore(..._args) {}
+function ignore(..._args: unknown[]) {}
 
 /**
  * Create only the DOM surface used by menu rendering; this intentionally does not simulate CSS or events.
  * @param {string} _tag Required DOM tag, ignored because node identity does not affect these positioning assertions.
- * @returns {any} Mutable node that retains rendered children for measuring the fixture menu.
+ * @returns {FixtureNode} Mutable node that retains rendered children for measuring the fixture menu.
  */
-function makeNode(_tag) {
-    return {
+interface FixtureNode {
+    children: FixtureNode[];
+    className: string;
+    style: Record<string, string>;
+    hidden: boolean;
+    scrollTop: number;
+    classList: { add: (...args: unknown[]) => void; toggle: (...args: unknown[]) => void };
+    addEventListener: (...args: unknown[]) => void;
+    setAttribute: (...args: unknown[]) => void;
+    append: (...children: FixtureNode[]) => void;
+    replaceChildren: (...children: FixtureNode[]) => void;
+}
+
+function makeNode(_tag: string): FixtureNode {
+    const node: FixtureNode = {
         children: [], className: '', style: {}, hidden: false, scrollTop: 0,
         classList: { add: ignore, toggle: ignore }, addEventListener: ignore, setAttribute: ignore,
         /** Append required child nodes in DOM order; wrong children invalidate the fixture measurement. */
@@ -22,17 +35,18 @@ function makeNode(_tag) {
         /** Replace required child nodes, matching a menu repaint without retaining old rows. */
         replaceChildren(...children) { this.children = children; },
     };
+    return node;
 }
 
 /**
  * Install a minimal browser boundary and always restore previous globals, even after a failed assertion.
  * @param {number} width Required viewport width in CSS pixels; invalid values invalidate placement assertions.
  * @param {number} height Required viewport height in CSS pixels.
- * @param {Function} run Required synchronous test body; asynchronous bodies would outlive these globals.
+ * @param {() => void} run Required synchronous test body; asynchronous bodies would outlive these globals.
  * @returns {void}
  */
-function withDOM(width, height, run) {
-    const saved = ['window', 'document'].map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
+function withDOM(width: number, height: number, run: () => void) {
+    const saved = ['window', 'document'].map((key): [string, PropertyDescriptor | undefined] => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
     Object.defineProperty(globalThis, 'window', { configurable: true, value: { innerWidth: width, innerHeight: height } });
     Object.defineProperty(globalThis, 'document', {
         configurable: true, value: { createElement: makeNode, addEventListener: ignore, removeEventListener: ignore },
@@ -41,7 +55,7 @@ function withDOM(width, height, run) {
     finally {
         for (const [key, descriptor] of saved) {
             if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-            else delete globalThis[key];
+            else Reflect.deleteProperty(globalThis, key);
         }
     }
 }
@@ -52,7 +66,7 @@ function withDOM(width, height, run) {
  * @param {object} dialog Optional viewport bounds of the positioned dialog; malformed bounds invalidate offsets.
  * @returns {any} Controller fixture; its anchor is supplied by each test before painting.
  */
-function makeController(width = 380, dialog = { left: 400, top: 150, right: 1040, bottom: 640 }) {
+function makeController(width = 380, dialog: { left: number; top: number; right: number; bottom: number } = { left: 400, top: 150, right: 1040, bottom: 640 }): any {
     const footer = { getBoundingClientRect: () => ({ left: 400, top: 408, right: 1040, bottom: 640 }) };
     const dialogEl = { getBoundingClientRect: () => dialog, querySelector: () => footer };
     const menuEl = Object.assign(makeNode('div'), {
@@ -77,7 +91,7 @@ function makeController(width = 380, dialog = { left: 400, top: 150, right: 1040
  * @param {number} top Required viewport top edge of the 38px anchor.
  * @returns {void}
  */
-function moveAnchor(controller, right, top) {
+function moveAnchor(controller: any, right: number, top: number) {
     controller.menuAnchor = { getBoundingClientRect: () => ({ left: right - 30, right, top, bottom: top + 38 }) };
 }
 
@@ -86,7 +100,7 @@ function moveAnchor(controller, right, top) {
  * @param {any} controller Required painted fixture; omitted or unpainted nodes produce invalid coordinates.
  * @returns {{ left: number, right: number, top: number, bottom: number }} Visual menu bounds.
  */
-function menuBounds(controller) {
+function menuBounds(controller: any) {
     const menu = controller.menuEl;
     const parent = menu.offsetParent.getBoundingClientRect();
     const height = menu.style.maxHeight ? Math.min(menu.offsetHeight, parseFloat(menu.style.maxHeight)) : menu.offsetHeight;
@@ -149,15 +163,21 @@ test('controller keeps an edge-triggered menu inside a narrow, short viewport', 
 
 test('reattaching the controller releases placement and discards the detached menu', () => {
     withDOM(1440, 1000, () => {
-        const controller = new DialogSessionController({});
+        const controller = new DialogSessionController({
+            api: { agents: async () => ({}) },
+            getLastAgent: () => '',
+            rememberAgent: () => {},
+            showError: () => {},
+        });
         const previousMenu = makeNode('div');
         const nextDialog = makeNode('div');
         let stops = 0;
-        controller.menuEl = previousMenu;
+        // Fixture nodes only implement the surface attach/dispose touches; they are not real elements.
+        controller.menuEl = previousMenu as any;
         controller.menuAgent = ACTION.name;
-        controller.menuAnchor = makeNode('button');
+        controller.menuAnchor = makeNode('button') as any;
         controller.stopPositioning = () => { stops++; };
-        controller.attach(nextDialog);
+        controller.attach(nextDialog as any);
         assert.equal(stops, 1);
         assert.equal(previousMenu.hidden, true);
         assert.equal(controller.menuEl, null);

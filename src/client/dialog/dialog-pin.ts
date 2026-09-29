@@ -19,16 +19,24 @@ const ORB_MARGIN = 16;
  * rebuild the dialog; it calls back `onRestore` when the orb is clicked.
  */
 export class DialogPin {
-    parent;
-    onRestore;
-    orbEl = null;
-    pos = null;
+    /** Shadow root (or any parent) the orb is appended to. `Node` alone has no `append`. */
+    parent: ParentNode;
+    /** Click handler. A missing callback is replaced with a no-op so a half-built controller cannot throw. */
+    onRestore: () => void;
+    /** Live orb, or null while the dialog is open / nothing is pinned. */
+    orbEl: HTMLButtonElement | null = null;
+    /**
+     * Last dragged viewport position. Null until a drag or a stored point is read; `= null` would otherwise stick
+     * as the only type and reject the `{ x, y }` written on drag.
+     */
+    pos: { x: number; y: number } | null = null;
 
     /**
-     * @param {Node} parent Plugin shadow root that hosts the orb.
-     * @param {{ onRestore: () => void }} callbacks Invoked when the user clicks the orb to resume the pinned intent.
+     * @param {ParentNode} parent Plugin shadow root that hosts the orb. Must support `append` (a `ShadowRoot` does).
+     * @param {{ onRestore?: () => void } | null | undefined} callbacks Invoked when the user clicks the orb to resume
+     *        the pinned intent. A missing callback makes the orb a no-op.
      */
-    constructor(parent, callbacks) {
+    constructor(parent: ParentNode, callbacks?: { onRestore?: () => void } | null) {
         this.parent = parent;
         this.onRestore = typeof callbacks?.onRestore === 'function' ? callbacks.onRestore : () => {};
         this.pos = readJsonStore(PIN_ORB_POS_KEY, null, window.localStorage);
@@ -54,7 +62,7 @@ export class DialogPin {
      * @param {Record<string, unknown>} draft Lightweight pinned intent draft.
      * @returns {void}
      */
-    writeDraft(draft) {
+    writeDraft(draft: Record<string, unknown>) {
         try {
             window.sessionStorage.setItem(PIN_DRAFT_KEY, JSON.stringify(draft));
         }
@@ -83,8 +91,9 @@ export class DialogPin {
             this.positionOrb();
             return;
         }
-        this.orbEl = this.renderOrb();
-        this.parent.append(this.orbEl);
+        const orb = this.renderOrb();
+        this.orbEl = orb;
+        this.parent.append(orb);
         this.positionOrb();
     }
 
@@ -104,7 +113,7 @@ export class DialogPin {
      * @returns {HTMLButtonElement} Orb button.
      */
     renderOrb() {
-        const orb = el('button', 'cii-pin-orb');
+        const orb: HTMLButtonElement = el('button', 'cii-pin-orb');
         orb.type = 'button';
         orb.title = t('pin.orb.title');
         orb.setAttribute('aria-label', t('pin.orb.title'));
@@ -116,7 +125,8 @@ export class DialogPin {
         let startY = 0;
         let baseX = 0;
         let baseY = 0;
-        const move = (event) => {
+        // `el()` is untyped, so these listeners have no contextual event type.
+        const move = (event: MouseEvent) => {
             if (!dragging)
                 return;
             moved += Math.abs(event.movementX) + Math.abs(event.movementY);
@@ -132,7 +142,7 @@ export class DialogPin {
             if (moved >= DRAG_THRESHOLD)
                 writeJsonStore(PIN_ORB_POS_KEY, this.pos, window.localStorage);
         };
-        orb.addEventListener('mousedown', (event) => {
+        orb.addEventListener('mousedown', (event: MouseEvent) => {
             if (event.button !== 0)
                 return;
             event.preventDefault();
@@ -146,7 +156,7 @@ export class DialogPin {
             document.addEventListener('mousemove', move, true);
             document.addEventListener('mouseup', up, true);
         });
-        orb.addEventListener('click', (event) => {
+        orb.addEventListener('click', (event: MouseEvent) => {
             event.preventDefault();
             event.stopPropagation();
             if (moved >= DRAG_THRESHOLD)

@@ -8,6 +8,9 @@ import {
     visibleAgentActions,
 } from './dialog-utils.js';
 
+type PlacementInput = Parameters<typeof computeDropdownPlacement>[0];
+type Placement = ReturnType<typeof computeDropdownPlacement>;
+
 const GAP = 8;
 const MARGIN = 8;
 const MIN_HEIGHT = 140;
@@ -15,8 +18,28 @@ const MIN_HEIGHT = 140;
 /**
  * Build a placement input for a trigger button at the given viewport position, with the wrapper coincident with the
  * button (the real controllers wrap only the button, so its rect equals the trigger's).
+ *
+ * @param {object} box Viewport position and panel size, in CSS pixels.
+ * @param {number} box.buttonLeft Trigger left edge.
+ * @param {number} box.buttonTop Trigger top edge.
+ * @param {number} [box.buttonW] Trigger width. Defaults to 36.
+ * @param {number} [box.buttonH] Trigger height. Defaults to 36.
+ * @param {number} box.panelWidth Panel width.
+ * @param {number} box.panelHeight Panel height.
+ * @param {number} [box.vw] Viewport width. Defaults to 1200.
+ * @param {number} [box.vh] Viewport height. Defaults to 800.
+ * @returns {PlacementInput} Input for {@link computeDropdownPlacement}.
  */
-function makeInput({ buttonLeft, buttonTop, buttonW = 36, buttonH = 36, panelWidth, panelHeight, vw = 1200, vh = 800 }) {
+function makeInput({ buttonLeft, buttonTop, buttonW = 36, buttonH = 36, panelWidth, panelHeight, vw = 1200, vh = 800 }: {
+    buttonLeft: number;
+    buttonTop: number;
+    buttonW?: number;
+    buttonH?: number;
+    panelWidth: number;
+    panelHeight: number;
+    vw?: number;
+    vh?: number;
+}): PlacementInput {
     const anchor = { left: buttonLeft, right: buttonLeft + buttonW, top: buttonTop, bottom: buttonTop + buttonH };
     return {
         anchor,
@@ -30,20 +53,31 @@ function makeInput({ buttonLeft, buttonTop, buttonW = 36, buttonH = 36, panelWid
 /**
  * Reconstruct the panel's on-screen (viewport) rect from the wrapper-relative placement, so tests can assert where the
  * panel actually lands. Mirrors how the browser resolves the inline `top`/`bottom`/`left` against the offset parent.
+ *
+ * @param {PlacementInput} input The same measurements passed to placement.
+ * @param {Placement} placement Wrapper-relative result. The unused vertical edge is null and is not read. The casts
+ *        erase, so a null edge still goes through numeric addition the way the untyped helper did.
+ * @returns {{ left: number, right: number, top: number, bottom: number }} Viewport rect of the panel.
  */
-function panelRect(input, placement) {
+function panelRect(input: PlacementInput, placement: Placement) {
     const effHeight = placement.maxHeight != null ? placement.maxHeight : input.panelHeight;
     const leftVp = input.wrap.left + placement.left;
-    let topVp;
+    let topVp: number;
     if (placement.openDown)
-        topVp = input.wrap.top + placement.top; // resolves to anchor.bottom + gap
+        topVp = input.wrap.top + (placement.top as number); // resolves to anchor.bottom + gap
     else
-        topVp = (input.wrap.bottom - placement.bottom) - effHeight; // bottom edge is anchor.top - gap
+        topVp = (input.wrap.bottom - (placement.bottom as number)) - effHeight; // bottom edge is anchor.top - gap
     return { left: leftVp, right: leftVp + input.panelWidth, top: topVp, bottom: topVp + effHeight };
 }
 
-/** Assert the panel rect sits fully within the viewport, honouring the intended edge margin. */
-function assertInsideViewport(input, rect) {
+/**
+ * Assert the panel rect sits fully within the viewport, honouring the intended edge margin.
+ *
+ * @param {PlacementInput} input Measurements, including the viewport size.
+ * @param {{ left: number, right: number, top: number, bottom: number }} rect Panel rect from {@link panelRect}.
+ * @returns {void}
+ */
+function assertInsideViewport(input: PlacementInput, rect: { left: number; right: number; top: number; bottom: number }) {
     const e = 0.5;
     assert.ok(rect.left >= MARGIN - e, `left ${rect.left} >= ${MARGIN}`);
     assert.ok(rect.top >= MARGIN - e, `top ${rect.top} >= ${MARGIN}`);
@@ -213,6 +247,8 @@ test('a custom client without a title gets localized generic copy, and cannot sh
         const actions = configuredActions();
         const claude = actions.find((action) => action.name === 'claude-app');
         const custom = actions.find((action) => action.name === 'my-client');
+        assert.ok(claude);
+        assert.ok(custom);
         assert.equal(claude.label, 'Claude App');
         assert.equal(custom.label, 'my-client');
         assert.match(custom.title, /my-client/);
