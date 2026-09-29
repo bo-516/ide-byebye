@@ -28,6 +28,10 @@ export const DARK_TOKENS = `
   --cii-line-strong: rgba(255, 255, 255, 0.15);
   --cii-line-bold: rgba(255, 255, 255, 0.22);
 
+  --cii-field: #151518;
+  --cii-field-line: rgba(255, 255, 255, 0.09);
+  --cii-field-line-hover: rgba(255, 255, 255, 0.16);
+
   --cii-text: #ededf1;
   --cii-text-muted: #a5a5b1;
   --cii-text-faint: #6f6f7c;
@@ -67,9 +71,14 @@ export const DARK_TOKENS = `
 `;
 
 /**
- * Design tokens for the inspector UI: type, neutral surfaces, accent, semantic colours, and elevation, in a light
- * theme plus a dark theme chosen by the host's {@link THEME_ATTR}: always for `dark`, and for `auto` only while the
- * OS `prefers-color-scheme` is dark.
+ * Design tokens for the inspector UI: type, neutral surfaces, text-field wells, accent, semantic colours, and elevation,
+ * in a light theme plus a dark theme chosen by the host's {@link THEME_ATTR}: always for `dark`, and for `auto` only
+ * while the OS `prefers-color-scheme` is dark.
+ *
+ * The `--cii-field*` group is the well a user types into (fill, resting border, hover border). It is white and outlined
+ * in the light theme but sunken below the panel in the dark one, so it cannot reuse a surface token. Focus is not a
+ * field token: it uses the accent pair (`--cii-accent` edge, `--cii-accent-soft` halo), the same as the style-panel
+ * search box.
  *
  * Boundary: tokens live on `:host` because custom properties survive the host's inline `all: initial` reset, whereas
  * inherited real properties (`font-family`, `color-scheme`) do not — those are re-applied on every top-level shadow
@@ -94,6 +103,10 @@ export const TOKENS_STYLE = `
   --cii-line: rgba(22, 22, 30, 0.08);
   --cii-line-strong: rgba(22, 22, 30, 0.15);
   --cii-line-bold: rgba(22, 22, 30, 0.22);
+
+  --cii-field: #ffffff;
+  --cii-field-line: rgba(22, 22, 30, 0.14);
+  --cii-field-line-hover: rgba(22, 22, 30, 0.24);
 
   --cii-text: #18181d;
   --cii-text-muted: #5c5c68;
