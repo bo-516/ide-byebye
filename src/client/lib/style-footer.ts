@@ -2,7 +2,9 @@
  * Action bar (capture tools left; Copy, destination picker, and Send right) and the shared `.cii-btn` buttons.
  *
  * Boundary: Send is the only filled control in the dialog; everything else stays a quiet ghost button so the eye goes
- * to the text and the one action. Both Copy labels share one grid cell and render as icons, so the confirmation only
+ * to the text and the one action. Hover feedback is only a scale to 1.06 over 120ms; the fill stays the resting
+ * gradient. Do not transition `background` onto a solid hover colour: that shorthand resets `background-color` through
+ * transparent and flashes the surface. Both Copy labels share one grid cell and render as icons, so the confirmation only
  * swaps glyphs and never shifts the bar. With no destination offered the dialog hides Send and Copy is promoted to
  * the filled circle (`:has()`; without it Copy simply stays a ghost button). Tips in the send group align to the right
  * edge so they never leave a panel parked at the viewport's right margin. Requires the tokens and icon masks.
@@ -90,12 +92,14 @@ export const FOOTER_STYLE = `
   color: var(--cii-on-ink);
   box-shadow: var(--cii-shadow-ink);
   cursor: pointer;
-  transition: background 120ms ease, transform 120ms ease, opacity 120ms ease;
+  transition: transform 120ms ease, opacity 120ms ease;
 }
+.cii-send-btn:hover:not(:disabled):not(.cii-send-unavailable) { transform: scale(1.06); }
 .cii-send-btn[hidden] { display: none; }
 .cii-send-btn svg { display: block; }
-.cii-send-btn:hover:not(:disabled) { background: var(--cii-ink-hover); }
-.cii-send-btn:active:not(:disabled) { transform: scale(0.94); }
+/* Press wins over the hover scale. The hover rule is more specific, so :active alone would lose while the pointer is still inside. */
+.cii-send-btn:active:not(:disabled),
+.cii-send-btn:hover:active:not(:disabled) { transform: scale(0.94); }
 .cii-send-btn:disabled { opacity: 0.45; cursor: default; }
 .cii-send-btn.cii-send-unavailable { background: var(--cii-fill-strong); color: var(--cii-text-muted); box-shadow: none; }
 /* An app handoff in flight: the arrow gives way to a spinner (drawn on ::before; ::after carries the tooltip). */
