@@ -35,7 +35,7 @@ including SSR frameworks such as **Next.js**, **Nuxt** and **SvelteKit**. See
    then the filter bar (`#99-129`) goes into a Codex thread that is already open
    ([Send to an existing session](#send-to-an-existing-session)).
 
-![⌘-click the tag list, describe the change, hand off to Claude App](./demo-recording-claude.gif)
+![⌘-click the tag list, describe the change, hand off to Claude App](./media/demo-recording-claude.gif)
 
 **Claude App** — the same handoff for `react/src/components/Sidebar.jsx #53-64`, with the intent `remove them` already in the composer.
 

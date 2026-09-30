@@ -28,7 +28,7 @@ Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。�
    loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。演示里 prompt 先交给
    Claude App，再把筛选栏（`#99-129`）发进一个已经打开的 Codex 会话（见 [发送到已有会话](#发送到已有会话)）。
 
-![⌘-点击标签列表、描述改动、交给 Claude App](./demo-recording-claude.gif)
+![⌘-点击标签列表、描述改动、交给 Claude App](./media/demo-recording-claude.gif)
 
 **Claude App** — 同样的交接，源码是 `react/src/components/Sidebar.jsx #53-64`，意图 `remove them` 已填进输入框。
 
