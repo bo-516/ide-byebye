@@ -28,13 +28,11 @@ Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。�
    loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。演示里 prompt 先交给
    Claude App，再把筛选栏（`#99-129`）发进一个已经打开的 Codex 会话（见 [发送到已有会话](#发送到已有会话)）。
 
-![⌘-点击标签列表、描述改动、交给 Claude App](./media/demo-recording-claude.gif)
-
-**Claude App** — 同样的交接，源码是 `react/src/components/Sidebar.jsx #53-64`，意图 `remove them` 已填进输入框。
-
 **为什么要给行号**：给 Agent 一张截图，或者一句「首页那个黑色按钮」，它得先猜代码在哪，
 再 grep、一个个读文件。这些都在烧 token、占上下文；线索越模糊，越容易改到长得像的组件上。
 给出 `@文件 #行号`，它直接从那几行开工。
+
+[![一张截图加一句「首页那个黑按钮」：Agent 只能 grep、一个个读文件，Token 和上下文一路往上涨](./media/demo-pain.zh-CN.gif)](./media/demo-pain.zh-CN.mp4)
 
 用 Grok Build 在一个真实的 React 项目（875 个 TS/TSX 文件）里实测：3 处 UI 改动，分别用
 文字描述、截图 + 一句话、ide-byebye 的 `@文件 #行号` 告诉它改哪，每种跑 3 次。27 次都改到了
