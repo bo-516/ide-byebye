@@ -35,15 +35,13 @@ including SSR frameworks such as **Next.js**, **Nuxt** and **SvelteKit**. See
    then the filter bar (`#99-129`) goes into a Codex thread that is already open
    ([Send to an existing session](#send-to-an-existing-session)).
 
-![⌘-click the tag list, describe the change, hand off to Claude App](./demo-recording-claude.gif)
-
-**Claude App** — the same handoff for `react/src/components/Sidebar.jsx #53-64`, with the intent `remove them` already in the composer.
-
 **Why hand over a line range**: give an agent a screenshot, or "the black button on
 the home page", and it has to guess where the code lives, then grep and read file
 after file. That burns tokens and fills the context, and the vaguer the hint, the
 likelier it edits a look-alike component. With `@file #lines` it starts on the right
 lines.
+
+[![A screenshot plus "the black button on the home page": the agent greps and reads file after file while tokens and context climb](./media/demo-pain.gif)](./media/demo-pain.mp4)
 
 Measured with Grok Build on a real React app (875 TS/TSX files): 3 UI changes, each
 pointed out three ways (a text description, a screenshot plus one sentence, and
