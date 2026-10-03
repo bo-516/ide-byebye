@@ -3,7 +3,7 @@
 [English](./README.md) | [中文](./README.zh-CN.md)
 
 > ⌘-点击任意渲染节点，用自然语言描述改动，把 **源码位置 + 意图** 交给
-> **Codex App / Claude App / Cursor / Grok Build** —— 不用在 IDE 里翻文件。
+> **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode** —— 不用在 IDE 里翻文件。
 
 仅用于开发环境的插件，支持 Vite / webpack / rspack / rsbuild / esbuild / Farm、
 Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。在运行中的应用上
@@ -24,7 +24,7 @@ Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。�
 1. **选取** — 按住 ⌘ 点击渲染节点；浮层把 `data-insp-path` 解析到源码
    （演示中为 `src/App.vue #85-87`）。
 2. **描述** — 在弹窗里用自然语言写意图（可选 `@code`、截图、样式或录制）。
-3. **交接** — 选择 **Codex App / Claude App / Cursor / Grok Build**；
+3. **交接** — 选择 **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode**；
    loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。演示里 prompt 先交给
    Claude App，再把筛选栏（`#99-129`）发进一个已经打开的 Codex 会话（见 [发送到已有会话](#发送到已有会话)）。
 
@@ -99,7 +99,7 @@ https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md
 1. **选取** — 快捷键（默认 `Alt+Shift+I`）或按住 `clickModifier`（⌘ / Ctrl）再点击。
    源码来自内置打点器写入的 `data-insp-path`（Angular 则来自 Angular 开发模式的组件调试信息）。
 2. **描述** — 在元素上打开意图弹窗。可附加 `@code` 引用、截图、计算样式或交互录制。
-3. **交接** — 点击 **Codex App / Claude App / Cursor / Grok Build**。本地 loopback
+3. **交接** — 点击 **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode**。本地 loopback
    服务（`127.0.0.1`、按进程 token）拼好 prompt，再打开 Agent（deeplink 或 Terminal）。
 
 除你主动触发的 deeplink 外，数据不会离开本机。适配器只注入一段 bootstrap：注入 HTML，
@@ -242,7 +242,7 @@ await esbuild.context({
 
 ```js
 ideByebye({
-  defaultAgent: 'codex-app', // Enter → 四个页脚 Agent 之一
+  defaultAgent: 'codex-app', // Enter → 某个页脚 Agent
   agents: {
     cursorApp: { workspace: 'my-app' },
     grokBuild: { permissionMode: 'plan' },
@@ -321,11 +321,12 @@ pnpm dev:angular         # angular + cli         5900
 - **打包器** — Vite `>=4`、webpack `>=5`、rspack、rsbuild、esbuild、Farm、Next.js
   `>=14.2`（Turbopack 或 webpack）或 Angular CLI。Mako 只注入 `data-insp-path`。
   Vue、pug、Svelte 的打点使用你项目里安装的编译器。`.astro` 和 `.mdx` 不打点。
-- **页脚 Agent** — Codex App / Claude App / Cursor / Grok Build 用系统默认 opener
-  打开（macOS `open`，Windows `cmd /c start`，Linux `xdg-open`）。
+- **页脚 Agent** — Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode
+  用系统默认 opener 打开（macOS `open`，Windows `cmd /c start`，Linux `xdg-open`）。
   Windows 多数情况零配置；只有默认 opener 失败时才需要覆盖（见 [Windows](#windows)）。
 - **目标 Agent 已安装** — Codex App / Claude App / Cursor /
-  [Grok Build CLI](https://x.ai/cli)。这些 Agent 无需额外 npm 依赖。
+  [Grok Build CLI](https://x.ai/cli) / [Claude Code](https://code.claude.com) /
+  [OpenCode](https://opencode.ai/download)（桌面版或 CLI）。这些 Agent 无需额外 npm 依赖。
 
 ## 意图弹窗
 
@@ -362,7 +363,7 @@ export default {
 | 插件开启 | `enabled: true`（仅开发环境） |
 | 选取 | 按住 ⌘（macOS）/ Ctrl → 点击；快捷键 `Alt+Shift+I` |
 | Enter 交接 | **Claude App** |
-| 页脚 Agent | Codex App / Claude App / Cursor / Grok Build — 全部开启。Antigravity IDE 与 Antigravity CLI 需配置后才出现 |
+| 页脚 Agent | Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode — 全部开启（没装对应 App 或 CLI 时该行置灰）。Antigravity IDE 与 Antigravity CLI 需配置后才出现 |
 | 后端 Agent | clipboard（**复制 Prompt** 按钮）+ file（无 UI 入口）— 开启；都不是 Enter 目标 |
 | 录制 | 关闭；可设 `recording: true` 开启（需 `@rrweb/record` + `@rrweb/replay`） |
 | UI 语言 | auto（`navigator.language` → 否则 `zh`） |
@@ -433,7 +434,7 @@ ideByebye({
 | --- | --- |
 | **类型** | `string` |
 | **默认** | `'claude-app'` |
-| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'antigravity-ide'` / `'antigravity'`，或 [`agents.custom`](#agentscustom) 里的客户端名。`'clipboard'` / `'file'` 永远不是 Enter 目标 —— 和未知 / 已禁用的值一样，回退到第一个已启用的页脚 Agent（Codex → Claude → Cursor → Grok Build → Antigravity IDE → Antigravity → 自定义）；一个都没启用时，Enter 只会报「未启用」。在发送按钮旁的目标选择器里换了 Agent 后，Enter 改为沿用那次的选择（记在当前浏览器里）。`'antigravity-ide'` / `'antigravity'` 只有在对应 Agent 打开之后才有效。 |
+| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'claude-cli'` / `'opencode'` / `'antigravity-ide'` / `'antigravity'`，或 [`agents.custom`](#agentscustom) 里的客户端名。`'clipboard'` / `'file'` 永远不是 Enter 目标 —— 和未知 / 已禁用的值一样，回退到第一个已启用的页脚 Agent（Codex → Claude → Cursor → Grok Build → Claude Code CLI → OpenCode → Antigravity IDE → Antigravity → 自定义）；一个都没启用时，Enter 只会报「未启用」。在发送按钮旁的目标选择器里换了 Agent 后，Enter 改为沿用那次的选择（记在当前浏览器里）。`'antigravity-ide'` / `'antigravity'` 只有在对应 Agent 打开之后才有效。 |
 
 #### `applyMode`
 
@@ -504,7 +505,7 @@ ideByebye({
 | | |
 | --- | --- |
 | **类型** | `object` |
-| **默认** | `{}`（六个 Agent **全部开启**） |
+| **默认** | `{}`（八个 Agent **全部开启**） |
 | **可配** | 按 Agent 启用 / 覆盖 — 见 [Agents](#agents)。未知 key 忽略。 |
 
 #### `sourceStamp`
@@ -541,7 +542,7 @@ ideByebye({
 
 ### Agents
 
-六个内置 Agent，**默认全部开启**。用 `agents.<name>: false` 或 `{ enabled: false }` 关闭。
+八个内置 Agent，**默认全部开启**。用 `agents.<name>: false` 或 `{ enabled: false }` 关闭。
 `true` 显式开启；对象则保持开启并覆盖选项。**Antigravity IDE** 和 **Antigravity CLI**
 虽然内置，但**不配置就不会出现** —— 不写 `antigravityIde` / `antigravity` 时页脚与以前相同。
 `agents.custom` 还可以加上你自己的页脚 Agent —— 见 [`agents.custom`](#agentscustom)。
@@ -559,6 +560,8 @@ Enter 目标。想从 UI 拿到它那份 Markdown 文件，就给页脚 Agent �
 | `claudeApp` | `claude-app` | 是 | 打开并预填 **Claude App**；可附带文件与文件夹。 |
 | `cursorApp` | `cursor-app` | 是 | 打开并预填 **Cursor**（按 workspace 名路由）。 |
 | `grokBuild` | `grok-build` | 是 | 在 Terminal 打开 **Grok Build** 并预填 prompt。 |
+| `claudeCli` | `claude-cli` | 是 | 打开 **Claude Code CLI**：经 `claude-cli://` 在你的终端里预填，或在 Terminal 运行并直接提交。 |
+| `opencode` | `opencode` | 是 | 打开 **OpenCode**：桌面版新会话预填（macOS 上的 1.x），或在 Terminal 运行 CLI 并直接提交。 |
 | `antigravityIde` | `antigravity-ide` | 是，**默认关闭** | 打开 **Antigravity IDE** 项目，并把 prompt 放进 agent 输入框。 |
 | `antigravity` | `antigravity` | 是，**默认关闭** | 打开 **Antigravity** 桌面应用，并把 prompt 放进输入框。 |
 
@@ -571,6 +574,8 @@ agents: {
     // monorepo：grok --cwd 在仓库根 → @apps/desktop/src/…
     projectRoot: path.resolve(__dirname, '../..'),
   },
+  claudeCli: { permissionMode: 'plan' }, // 只对 Terminal 路线生效
+  opencode: false,                        // 去掉某个默认 Agent
   clipboard: false,
   // 可选。不写就不会注册对应按钮。
   antigravityIde: true,
@@ -579,12 +584,14 @@ agents: {
 ```
 
 找不到 Agent 二进制时按钮变灰（Grok Build：PATH 上没有 `grok`，且不在
-`~/.grok/bin/grok`；Antigravity IDE：`antigravity-ide`；Antigravity CLI：`agy`，
-其次 `~/.local/bin/agy`）。Deeplink Agent 保持可点；本机没装对应 App 时由系统报错。
+`~/.grok/bin/grok`；Claude Code CLI：既没有 `claude-cli://` handler 也没有 `claude`；
+OpenCode：既没有 1.x 桌面版也没有 `opencode` CLI；Antigravity IDE：`antigravity-ide`；
+Antigravity CLI：`agy`，其次 `~/.local/bin/agy`），tooltip 会写明缺什么。Deeplink Agent
+保持可点；本机没装对应 App 时由系统报错。
 
 #### 页脚 Agent 共用选项
 
-Codex / Claude / Cursor 共用以下项；Grok Build 与 Antigravity CLI 复用它们做 Terminal launcher。
+Codex / Claude / Cursor 共用以下项；Grok Build、Claude Code CLI、OpenCode 与 Antigravity CLI 复用它们做 deeplink 和 Terminal launcher。
 Antigravity IDE 忽略 `openCommand` / `openArgs` —— 由它自己的 CLI 启动应用。
 
 | 选项 | 类型 | 默认 | 可配内容 |
@@ -592,13 +599,14 @@ Antigravity IDE 忽略 `openCommand` / `openArgs` —— 由它自己的 CLI 启
 | `enabled` | `boolean` | `true`（使用对象时） | `false` 取消注册。 |
 | `openCommand` | `string` | `open` / `cmd` / `xdg-open` | deeplink / launcher 可执行文件。覆盖平台默认值时再设。 |
 | `openArgs` | `string[]` | 平台前缀 | URL / launcher 路径**之前**的额外参数。未设 `openCommand` 时接在默认前缀后面。 |
-| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` 写 Markdown 交接文件，并发送指向它的精简 prompt。`'auto'` 下 Cursor / Grok / Antigravity IDE / Antigravity 可能因超长溢出到文件；Claude / Codex 仅在显式 `'file'` 时切换。以 `-` 开头的 prompt 对 Antigravity IDE 总会改走文件指针，避免 CLI 把它当成 flag。 |
+| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` 写 Markdown 交接文件，并发送指向它的精简 prompt。`'auto'` 下 Cursor / Grok / Claude Code CLI / OpenCode / Antigravity IDE / Antigravity 可能因超长溢出到文件；Claude / Codex 仅在显式 `'file'` 时切换。以 `-` 开头的 prompt 对 Antigravity IDE 总会改走文件指针，避免 CLI 把它当成 flag。 |
 
 #### Windows
 
 选取用手势是 **Ctrl-click**（或 `Alt+Shift+I`）。页脚 Agent 默认已经走
-`cmd /c start "" <url>` —— 只要本机装了 Cursor / Claude / Codex / Grok 且协议能唤起，
-**不必**再写 `openCommand`。
+`cmd /c start "" <url>` —— 只要本机装了 Cursor / Claude / Codex / Grok / Claude Code / OpenCode
+且协议能唤起，**不必**再写 `openCommand`。Windows 上 OpenCode 默认走 CLI，除非设
+`agents.opencode.launch: 'app'`；`claude-cli://` 链接超过 `cmd` 能承载的长度（约 8000 字符）时改走 Terminal launcher。
 
 只有默认 opener 失败时才设 `openCommand` / `openArgs`（WSL、自定义协议助手、`start` 被禁用）。
 一旦写了非空 `openCommand`，就会**整段替换**平台默认值，所以要把 `cmd` 的完整参数带上。
@@ -664,6 +672,54 @@ ideByebye({
 | `permissionMode` | `string` | 无 | 传给 `--permission-mode`（`plan`、`acceptEdits`、`default` 等）。 |
 | `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件交接（ARGV / ARG_MAX）。 |
 | `sessions` | `boolean \| { limit?, home? }` | 开启 | 已有会话列表。`false` 去掉 `›`。只能恢复已关闭的会话。`home` 覆盖 `~/.grok`。 |
+
+#### `agents.claudeCli`
+
+默认开启。有两条路线：
+
+- **Deeplink** — `claude-cli://open?cwd=<projectRoot>&q=<prompt>` 在你最近用过的终端里打开 Claude Code
+  （iTerm2、Ghostty、kitty、WezTerm、Alacritty、Terminal.app；Linux 用 `$TERMINAL`；Windows 用
+  Windows Terminal），prompt **只预填**，由你按 Enter 发送。这个 handler 由 CLI 自己注册：在交互式
+  `claude` 会话里第一次发 prompt 时完成，设置了 `disableDeepLinkRegistration` 则不注册。
+- **Terminal** — launcher 运行 `claude [--permission-mode <mode>] -- "<prompt>"`，prompt **直接提交**。
+
+`launch: 'auto'` 下，handler 已注册、且 prompt（经 CLI 自身清洗后不超过 5000 字符、不含控制字符）和
+目录（绝对路径、没有 `..`、不是 UNC、不含不可见字符）都被接受时走 deeplink；否则走 Terminal launcher；
+找不到 CLI 时发带[文件指针](#页脚-agent-共用选项)的 deeplink。macOS 上，CLI 被卸载后残留的 handler
+会被识别为未注册；Linux 和 Windows 上无法识别这种残留，链接打开后什么也不会发生 —— 遇到时请设
+`launch: 'terminal'`。
+
+| 选项 | 类型 | 默认 | 可配内容 |
+| --- | --- | --- | --- |
+| `launch` | `'auto' \| 'deeplink' \| 'terminal'` | `'auto'` | 固定路线。`'deeplink'` 从不运行 launcher（超长时改用文件指针）；`'terminal'` 从不打开链接。 |
+| `command` | `string` | `'claude'`，其次 `~/.local/bin/claude`、`~/.claude/local/claude`，最后是 macOS handler 链接到的 CLI | Terminal 路线用的 CLI。若 Node 的 PATH 与登录 shell 不同，请给绝对路径。 |
+| `projectRoot` | `string` | Vite / 打包器项目根 | 两条路线的会话目录（`cwd`）。相对 `@` 引用相对此根剥离。 |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | 只影响这个 prompt 里的源码 `@` 引用。 |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | 只影响这个 prompt 里的截图 / 静帧路径。 |
+| `permissionMode` | `string` | 无 | 只对 Terminal 路线生效：`--permission-mode`（`plan`、`acceptEdits` 等）。deeplink 没有模式参数。 |
+| `promptArgLimit` | `number` | `12000` | Terminal 路线：`auto` 模式下更长的 prompt 改用文件指针。 |
+
+#### `agents.opencode`
+
+默认开启。`launch: 'auto'` 在 macOS 上读取桌面版的版本号：
+
+- **OpenCode 1.x 桌面版** — `opencode://new-session?directory=<projectRoot>&prompt=<prompt>` 打开新会话，
+  prompt **只预填**。桌面版连的是远程 server 时会忽略这个链接，此时请设 `launch: 'terminal'`。
+- **OpenCode 2.x 桌面版、只装了 CLI、或不是 macOS** — launcher 在 Terminal 运行
+  `opencode <projectRoot> --prompt=<prompt>`，等模型就绪后**直接提交**。2.x 桌面版虽然注册了
+  `opencode://`，但会丢弃链接；PATH 上没有 `opencode` 时，改用 App 自带的 CLI
+  （`OpenCode.app/Contents/Resources/opencode-cli`）。
+
+| 选项 | 类型 | 默认 | 可配内容 |
+| --- | --- | --- | --- |
+| `launch` | `'auto' \| 'app' \| 'terminal'` | `'auto'` | 固定路线。`'app'` 不检查版本、总是发 deeplink（Windows / Linux 上的 1.x 桌面版）；`'terminal'` 总是用 CLI。 |
+| `appPath` | `string` | `/Applications/OpenCode.app`，其次 `~/Applications/OpenCode.app` | 桌面版 bundle（macOS），从它的 `Info.plist` 读版本号。 |
+| `command` | `string` | `'opencode'`，其次 `~/.opencode/bin/opencode`，最后是 App 自带的 CLI | Terminal 路线用的 CLI。 |
+| `projectRoot` | `string` | Vite / 打包器项目根 | 两条路线的会话目录。相对 `@` 引用相对此根剥离。 |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | 只影响这个 prompt 里的源码 `@` 引用。 |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | 只影响这个 prompt 里的截图 / 静帧路径。 |
+| `promptUrlLimit` | `number` | `8000` | App 路线：编码后的 deeplink 超过此长度时改用文件指针。 |
+| `promptArgLimit` | `number` | `12000` | Terminal 路线：`auto` 模式下更长的 prompt 改用文件指针。 |
 
 #### `agents.antigravityIde`
 
@@ -788,6 +844,8 @@ SVG-`<foreignObject>` → canvas。无 CORS 的跨域资源可能空白，字体
 | --- | --- |
 | `requests/<timestamp>-<id>.md` | 完整请求 + prompt（`file` Agent，或任意页脚 Agent 在 `promptMode: 'file'` / auto 溢出时）。 |
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + 供 `grok --verbatim` 的 prompt。 |
+| `launches/<timestamp>-<id>.claude.command` + `.claude.prompt.txt` | Claude Code CLI 的 Terminal launcher（只在 Terminal 路线写出；deeplink 不写文件）。 |
+| `launches/<timestamp>-<id>.opencode.command` + `.opencode.prompt.txt` | OpenCode 的 Terminal launcher（只在 Terminal 路线写出）。 |
 | `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE 打开文件夹的 launcher，以及放进 agent 输入框的 prompt（仅在设置 `agents.antigravityIde` 之后）。 |
 | `launches/<timestamp>-<id>.agy.command` + `.agy.prompt.txt` | Antigravity CLI Terminal launcher（仅在设置 `agents.antigravity` 之后）。 |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | 事件流 + 静帧（使用录制时）。 |
@@ -820,7 +878,7 @@ ideByebye({ locale: 'en' });
 
 ## 发送到已有会话
 
-Codex App、Grok Build，以及（需开关）Antigravity IDE，可以把下一次 prompt 送进已经存在的会话。没有选中会话时，发送和现在一样：新开 Codex 线程、新开 Grok 终端，或新开 Antigravity 聊天。
+Codex App、Grok Build，以及（需开关）Antigravity IDE，可以把下一次 prompt 送进已经存在的会话。没有选中会话时，发送和现在一样：新开 Codex 线程、新开 Grok 终端，或新开 Antigravity 聊天。Claude Code CLI 和 OpenCode 总是新开会话。
 
 打开发送按钮旁的目标选择器：能续接会话的 agent 会显示 `›`，点开列出**当前项目**的会话（标题、状态、目录、相对时间）。选中后，下一次 Enter（或发送）发给这个 agent 的这个会话，选择器会显示成「Agent / 会话标题」。选择按 agent 记在 `localStorage` 里。「新会话」只清掉这个 agent。`sessions: false` 会去掉该 agent 的 `›`。
 
@@ -852,6 +910,8 @@ ideByebye({
   唯一会下发 token 的是 Angular 的 `/session` 路由（仅 `angularProxy` 创建）：只响应本地
   `Host` 上的同源页面 fetch，且以不可执行的 JSON 返回。
 - **项目根约束** — 文件写入不离开项目；deeplink 只携带你选择发送的内容。
+- **固定的探测位置** — Agent 探测只看已知的安装位置（Claude Code 的 URL handler、OpenCode 的
+  App bundle 和 CLI）并执行 `--version`，不读取 OpenCode 后台 service 的密码，也不读 Claude Code 的会话文件。
 - **忽略产物目录** — 把 `.intent-inspector/`（或你的 `outputDir`）写入 `.gitignore`，
   避免截图、录制与交接文案进 git（详见 [产物](#产物)）。
 - **样式净化** — 捕获的样式值在服务端净化（剥控制字符），避免伪造额外 prompt 行。
