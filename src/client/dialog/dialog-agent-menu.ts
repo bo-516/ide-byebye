@@ -114,9 +114,9 @@ export function paintAgentTrigger(dom: {
 /**
  * fillAgentMenu(menuEl, rows, hooks): render the destination menu ("Send to") into an existing element.
  *
- * Purpose: one row per destination with its icon (brand mark or kind glyph), label, a subtitle (the stored session, or
- * "unavailable"), a check on the Enter target, and — for agents that list sessions — a trailing button that opens the
- * session menu.
+ * Purpose: one row per destination with its icon (brand mark or kind glyph), label (followed by "(unavailable)" when
+ * it cannot take a prompt, on the same line so every row has the same height), a subtitle only for a stored session, a
+ * check on the Enter target, and — for agents that list sessions — a trailing button that opens the session menu.
  * Boundary: only builds DOM and forwards clicks; it never changes the Enter target itself. Row buttons swallow
  * `mousedown` so the intent editor keeps focus and caret while the user picks. Replaces all previous children.
  *
@@ -141,11 +141,13 @@ export function fillAgentMenu(menuEl: HTMLElement, rows: AgentMenuRow[], hooks: 
         main.setAttribute('role', 'menuitemradio');
         main.setAttribute('aria-checked', row.selected ? 'true' : 'false');
         const text: HTMLElement = el('span', 'cii-agent-row-text');
-        text.append(el('span', 'cii-agent-row-label', row.label));
+        const label: HTMLElement = el('span', 'cii-agent-row-label', row.label);
+        // On the label's line, so an unavailable row keeps the height of the others; the reason is in the tooltip.
+        if (row.unavailable)
+            label.append(el('span', 'cii-agent-row-state', t('agent.menu.unavailable')));
+        text.append(label);
         if (row.target)
             text.append(el('span', 'cii-agent-row-sub cii-agent-row-session', row.target.title || t('session.untitled')));
-        else if (row.unavailable)
-            text.append(el('span', 'cii-agent-row-sub', t('agent.menu.unavailable')));
         main.append(agentIcon(row.kind, row.name), text, el('span', 'cii-agent-row-check'));
         main.addEventListener('mousedown', keepFocus);
         main.addEventListener('click', (event) => {

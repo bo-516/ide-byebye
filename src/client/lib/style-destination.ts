@@ -138,6 +138,7 @@ export const DESTINATION_STYLE = `
   mask: var(--cii-mask-corner-down-right);
 }
 .cii-agent-row-unavailable .cii-agent-row-label { color: var(--cii-text-muted); }
+.cii-agent-row-state { color: var(--cii-text-faint); font: 12px/1.3 var(--cii-font); }
 .cii-agent-row-check { flex: none; width: 16px; height: 16px; }
 .cii-agent-row-selected .cii-agent-row-check {
   background: var(--cii-accent);
