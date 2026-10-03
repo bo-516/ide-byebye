@@ -6,7 +6,7 @@ import { LAST_AGENT_PREF_KEY, loadLastAgent, saveLastAgent, setCustomAgentAction
 // then `agents.custom` clients) can take Enter, so the `clipboard` / `file` backend agents never do.
 
 /** Every built-in adapter id, as `enabledAgents` lists them for a zero-config project. */
-const ALL_AGENTS = ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build'];
+const ALL_AGENTS = ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode'];
 
 /**
  * Run `fn` against an in-memory `window.localStorage`, restoring any prior global `window` afterward.

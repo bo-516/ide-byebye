@@ -76,6 +76,14 @@ const STRINGS: Record<string, { zh: string; en: string }> = {
         zh: '在终端打开 Grok Build，并预填本次 UI 修改意图。',
         en: 'Open Grok Build in Terminal with this UI change intent prefilled.',
     },
+    'agent.claudeCli.title': {
+        zh: '在终端打开 Claude Code CLI，并带上本次 UI 修改意图。',
+        en: 'Open Claude Code CLI in a terminal with this UI change intent.',
+    },
+    'agent.opencode.title': {
+        zh: '在 OpenCode 中新建会话，并带上本次 UI 修改意图。',
+        en: 'Start a new OpenCode session with this UI change intent.',
+    },
     'agent.antigravityIde.title': {
         zh: '在 Antigravity IDE 中打开聊天，并预填本次 UI 修改意图。',
         en: 'Open Antigravity IDE chat with this UI change intent prefilled.',

@@ -38,6 +38,8 @@ test('ALL_AGENT_NAMES lists the shipped agent identifiers in stable order', () =
         'claude-app',
         'cursor-app',
         'grok-build',
+        'claude-cli',
+        'opencode',
         'antigravity-ide',
         'antigravity',
     ]);

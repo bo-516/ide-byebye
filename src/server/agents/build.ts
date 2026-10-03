@@ -6,6 +6,8 @@ import { createCodexAppAdapter } from './codex-app.js';
 import { createClaudeAppAdapter } from './claude-app.js';
 import { createCursorAppAdapter } from './cursor-app.js';
 import { createGrokBuildAdapter } from './grok-build.js';
+import { createClaudeCliAdapter } from './claude-cli.js';
+import { createOpenCodeAdapter } from './opencode.js';
 import { createAntigravityIdeAdapter } from './antigravity-ide.js';
 import { createAntigravityAdapter } from './antigravity.js';
 import { createCustomAgentAdapters } from './custom-client.js';
@@ -13,8 +15,9 @@ import { createCustomAgentAdapters } from './custom-client.js';
 /**
  * Construct the agent registry from the (already-resolved) agent config map.
  *
- * Boundary: clipboard, file, Codex, Claude, Cursor, and Grok Build are enabled by default; pass `agents.<name>: false`
- * (or `{ enabled: false }`) to opt out. Antigravity IDE (`antigravityIde`) and Antigravity CLI (`antigravity`) stay
+ * Boundary: clipboard, file, Codex, Claude, Cursor, Grok Build, Claude Code CLI (`claudeCli`), and OpenCode
+ * (`opencode`) are enabled by default; pass `agents.<name>: false` (or `{ enabled: false }`) to opt out. A missing
+ * CLI or app only greys the row out (`isAvailable`). Antigravity IDE (`antigravityIde`) and Antigravity CLI (`antigravity`) stay
  * unregistered until the host sets `true` or an options object — omitting them leaves the footer unchanged. App agents
  * also accept an object config (e.g. `cursorApp.workspace` / `grokBuild.command`). `agents.custom` adds config-defined
  * clients that receive the prompt in their own input box; it is empty unless the host project declares it. Custom
@@ -42,6 +45,12 @@ export function buildRegistry(agents: Record<string, unknown>) {
     const grokBuild = coerceAgentConfig(agents.grokBuild ?? true);
     if (grokBuild)
         registry.register(createGrokBuildAdapter(grokBuild));
+    const claudeCli = coerceAgentConfig(agents.claudeCli ?? true);
+    if (claudeCli)
+        registry.register(createClaudeCliAdapter(claudeCli));
+    const opencode = coerceAgentConfig(agents.opencode ?? true);
+    if (opencode)
+        registry.register(createOpenCodeAdapter(opencode));
     // Opt-in: no `?? true`, so a project that never mentions these keys does not grow the footer.
     const antigravityIde = coerceAgentConfig(agents.antigravityIde);
     if (antigravityIde)

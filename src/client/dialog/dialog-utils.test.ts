@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+    agentLabel,
     computeDropdownPlacement,
     configuredActions,
     isAgentVisible,
     setCustomAgentActions,
     visibleAgentActions,
 } from './dialog-utils.js';
+import { AGENT_MARK_BRANDS } from '../lib/agent-icons.js';
+import { setLocale } from '../lib/i18n.js';
+
+/** `enabledAgents` for a zero-config project: every agent `buildRegistry` registers by default. */
+const ZERO_CONFIG_AGENTS = ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode'];
 
 type PlacementInput = Parameters<typeof computeDropdownPlacement>[0];
 type Placement = ReturnType<typeof computeDropdownPlacement>;
@@ -184,22 +190,47 @@ test('visibleAgentActions drops agents turned off in plugin config', () => {
 });
 
 test('visibleAgentActions keeps every configured app agent', () => {
+    const names = visibleAgentActions({ enabledAgents: ZERO_CONFIG_AGENTS }).map((action) => action.name);
+    assert.deepEqual(names, ['codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode']);
+});
+
+test('visibleAgentActions drops Claude Code CLI and OpenCode once config turns them off (AC-8)', () => {
     const names = visibleAgentActions({
-        enabledAgents: ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build'],
+        enabledAgents: ZERO_CONFIG_AGENTS.filter((name) => name !== 'claude-cli' && name !== 'opencode'),
     }).map((action) => action.name);
     assert.deepEqual(names, ['codex-app', 'claude-app', 'cursor-app', 'grok-build']);
 });
 
 test('visibleAgentActions hides Antigravity until those agents are enabled', () => {
-    const zeroConfig = visibleAgentActions({
-        enabledAgents: ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build'],
-    }).map((action) => action.name);
+    const zeroConfig = visibleAgentActions({ enabledAgents: ZERO_CONFIG_AGENTS }).map((action) => action.name);
     assert.equal(zeroConfig.includes('antigravity-ide'), false);
     assert.equal(zeroConfig.includes('antigravity'), false);
     const optedIn = visibleAgentActions({
-        enabledAgents: ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'antigravity-ide', 'antigravity'],
+        enabledAgents: [...ZERO_CONFIG_AGENTS, 'antigravity-ide', 'antigravity'],
     }).map((action) => action.name);
     assert.deepEqual(optedIn.slice(-2), ['antigravity-ide', 'antigravity']);
+});
+
+test('Claude Code CLI and OpenCode rows carry a label, a brand mark, and a title in both locales (AC-12)', () => {
+    const titles = { zh: /终端打开 Claude Code CLI|OpenCode 中新建会话/, en: /Claude Code CLI in a terminal|new OpenCode session/ };
+    try {
+        for (const locale of ['zh', 'en'] as const) {
+            setLocale(locale);
+            const rows = configuredActions().filter((action) => action.name === 'claude-cli' || action.name === 'opencode');
+            assert.deepEqual(rows.map((row) => [row.name, row.label, row.kind]), [
+                ['claude-cli', 'Claude Code CLI', 'terminal'],
+                ['opencode', 'OpenCode', 'app'],
+            ]);
+            for (const row of rows) {
+                assert.match(row.title, titles[locale], `${locale} ${row.name}`);
+                assert.ok(AGENT_MARK_BRANDS[row.name], `${row.name} has a brand mark`);
+                assert.equal(agentLabel(row.name), row.label);
+            }
+        }
+    }
+    finally {
+        setLocale('zh');
+    }
 });
 
 test('visibleAgentActions falls back to every action when enabledAgents is missing or empty', () => {
@@ -212,7 +243,7 @@ test('visibleAgentActions falls back to every action when enabledAgents is missi
 test('isAgentVisible drops the Copy button when clipboard is turned off in plugin config', () => {
     // `agents.clipboard: false` leaves the adapter out of the registry, so `enabledAgents` lacks it and a rendered
     // Copy button could only alert "Clipboard is not enabled".
-    const config = { enabledAgents: ['file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build'] };
+    const config = { enabledAgents: ZERO_CONFIG_AGENTS.filter((name) => name !== 'clipboard') };
     assert.equal(isAgentVisible(config, 'clipboard'), false);
     assert.equal(isAgentVisible(config, 'codex-app'), true);
     assert.equal(isAgentVisible({ enabledAgents: ['clipboard', 'codex-app'] }, 'clipboard'), true);

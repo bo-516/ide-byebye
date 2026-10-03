@@ -45,16 +45,17 @@ export function fileStamp(date: Date) {
 }
 
 /**
- * Probe whether a command exits successfully for `--version`.
+ * Run a command with `args` and report whether it exits 0.
  *
- * Boundary: a missing binary (`ENOENT`) or non-zero exit marks the candidate unavailable; a hang is killed after the
- * timeout so `isAvailable` cannot stall the agents endpoint.
+ * Boundary: output is ignored. A missing binary (`ENOENT`), a spawn error, or a non-zero exit is `false`; a hang is
+ * killed after `timeoutMs` so availability checks cannot stall the agents endpoint.
  *
  * @param {string} command Executable path or PATH name.
- * @param {number} [timeoutMs=COMMAND_PROBE_TIMEOUT_MS] Kill timeout for the probe.
- * @returns {Promise<boolean>} True when `--version` exits 0.
+ * @param {string[]} args Full argv after the command.
+ * @param {number} [timeoutMs=COMMAND_PROBE_TIMEOUT_MS] Kill timeout.
+ * @returns {Promise<boolean>} True when the command exits 0 in time.
  */
-export function probeCommandVersion(command: string, timeoutMs = COMMAND_PROBE_TIMEOUT_MS) {
+export function probeCommandExit(command: string, args: string[], timeoutMs = COMMAND_PROBE_TIMEOUT_MS) {
     return new Promise<boolean>((resolve) => {
         let settled = false;
         const finish = (ok: boolean) => {
@@ -65,7 +66,7 @@ export function probeCommandVersion(command: string, timeoutMs = COMMAND_PROBE_T
         };
         let child: ChildProcess;
         try {
-            child = spawn(command, ['--version'], { stdio: 'ignore' });
+            child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
         }
         catch {
             finish(false);
@@ -84,6 +85,19 @@ export function probeCommandVersion(command: string, timeoutMs = COMMAND_PROBE_T
             finish(code === 0);
         });
     });
+}
+
+/**
+ * Probe whether a command exits successfully for `--version`.
+ *
+ * Boundary: see {@link probeCommandExit}; this never starts an agent session.
+ *
+ * @param {string} command Executable path or PATH name.
+ * @param {number} [timeoutMs=COMMAND_PROBE_TIMEOUT_MS] Kill timeout for the probe.
+ * @returns {Promise<boolean>} True when `--version` exits 0.
+ */
+export function probeCommandVersion(command: string, timeoutMs = COMMAND_PROBE_TIMEOUT_MS) {
+    return probeCommandExit(command, ['--version'], timeoutMs);
 }
 
 /**

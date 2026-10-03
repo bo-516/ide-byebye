@@ -26,7 +26,7 @@ test('Antigravity CLI stays unregistered until config turns it on', () => {
 test('both opt-in agents register after the default footer agents', () => {
     assert.deepEqual(
         buildRegistry({ antigravityIde: true, antigravity: true }).names(),
-        ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'antigravity-ide', 'antigravity'],
+        ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode', 'antigravity-ide', 'antigravity'],
     );
 });
 
