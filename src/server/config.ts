@@ -178,15 +178,24 @@ export function resolveOptions(options: {
         agents: options.agents ?? {},
     };
 }
-/** Coerce a `boolean | config` agent entry into a config object or undefined. */
-export function coerceAgentConfig(value: unknown) {
+/**
+ * Coerce a `boolean | config` agent entry into a config object or undefined.
+ *
+ * Boundary: `true` becomes `{ enabled: true }`; `false`, nullish, non-objects, and `{ enabled: false }` are undefined
+ * (not registered). Any other object is returned as-is — adapters read their own keys and ignore the rest.
+ *
+ * @param {unknown} value `agents.<name>` from plugin config.
+ * @returns {Record<string, unknown> | undefined} The adapter config, or undefined when the agent is off.
+ */
+export function coerceAgentConfig(value: unknown): Record<string, unknown> | undefined {
     if (value === true)
         return { enabled: true };
     if (!value)
         return undefined;
     if (typeof value === 'object') {
-        // `object` has no `enabled`. The cast is erased, so `null` still throws on the property read.
-        return (value as { enabled?: boolean }).enabled === false ? undefined : value;
+        // Config entries are plain option records; the cast only names that shape for the adapters.
+        const config = value as Record<string, unknown>;
+        return config.enabled === false ? undefined : config;
     }
     return undefined;
 }

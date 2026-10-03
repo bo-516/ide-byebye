@@ -3,7 +3,8 @@ import { AGENT_MARKS, type AgentMark } from './agent-marks.js';
 
 /**
  * Brand mark for each built-in destination. The two Antigravity launchers get separate marks: they share Google's glyph
- * but not its tile (light for Antigravity, dark for the IDE), which is what tells their rows apart.
+ * but not its tile (light for Antigravity, dark for the IDE), which is what tells their rows apart. Claude App and
+ * Claude Code CLI likewise get Anthropic's two product marks rather than one shared logo.
  *
  * Boundary: keys must match `AGENT_ACTIONS` names and values must be keys of `AGENT_MARKS` (a test enforces both). A
  * destination missing here — every client from `agents.custom` — keeps the glyph for its kind.
@@ -14,6 +15,8 @@ export const AGENT_MARK_BRANDS: Record<string, string> = {
     'claude-app': 'claude',
     'cursor-app': 'cursor',
     'grok-build': 'grok',
+    'claude-cli': 'claude-code',
+    opencode: 'opencode',
     'antigravity-ide': 'antigravity-ide',
     antigravity: 'antigravity',
 };

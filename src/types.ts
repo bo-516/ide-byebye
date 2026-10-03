@@ -26,6 +26,8 @@ export type AgentId =
   | 'claude-app'
   | 'cursor-app'
   | 'grok-build'
+  | 'claude-cli'
+  | 'opencode'
   | 'antigravity-ide'
   | 'antigravity'
   | (string & {});
@@ -196,6 +198,58 @@ export interface GrokBuildAgentOptions extends AgentOpenOptions {
 }
 
 /**
+ * Claude Code CLI (`claude`). On by default.
+ * `'auto'` opens `claude-cli://` in your last-used terminal with the prompt prefilled (you press Enter) when the
+ * handler is registered and the prompt fits; otherwise a Terminal launcher runs `claude -- "<prompt>"`, which submits it.
+ */
+export interface ClaudeCliAgentOptions extends AgentOpenOptions {
+  /**
+   * Route. `'auto'` (default): deeplink when registered and ≤ 5000 characters, else Terminal launcher.
+   * `'deeplink'` never uses the launcher (long prompts become a file pointer); `'terminal'` never opens the link.
+   */
+  launch?: 'auto' | 'deeplink' | 'terminal';
+  /** CLI for the Terminal route. Default: `claude`, `~/.local/bin/claude`, `~/.claude/local/claude`. */
+  command?: string;
+  /** Session folder for both routes; relative paths resolve from process cwd. Default: project root. */
+  projectRoot?: string;
+  /** Source `@` refs in this prompt only. Default `'relative'` (to `projectRoot`). */
+  pathStyle?: PathStyle;
+  /** Screenshot / still paths in this prompt only. Default `'absolute'`. */
+  artifactPathStyle?: PathStyle;
+  /** Terminal route only → `--permission-mode <value>` (`plan`, `acceptEdits`, …). */
+  permissionMode?: string;
+  /** Terminal route: longer prompts switch to a file pointer. Default `12000`. */
+  promptArgLimit?: number;
+}
+
+/**
+ * OpenCode. On by default.
+ * `'auto'` opens a new desktop session with the prompt prefilled on macOS when the app is 1.x; 2.x desktops, CLI-only
+ * installs and other platforms get a Terminal launcher running `opencode <dir> --prompt=<prompt>`, which submits it.
+ */
+export interface OpenCodeAgentOptions extends AgentOpenOptions {
+  /**
+   * Route. `'auto'` (default): desktop 1.x deeplink on macOS, else Terminal launcher.
+   * `'app'` always sends `opencode://new-session` (1.x desktops on Windows / Linux); `'terminal'` always uses the CLI.
+   */
+  launch?: 'auto' | 'app' | 'terminal';
+  /** Desktop bundle (macOS). Default: `/Applications/OpenCode.app`, then `~/Applications/OpenCode.app`. */
+  appPath?: string;
+  /** CLI. Default: `opencode`, `~/.opencode/bin/opencode`, then the CLI inside the desktop bundle. */
+  command?: string;
+  /** Session folder for both routes; relative paths resolve from process cwd. Default: project root. */
+  projectRoot?: string;
+  /** Source `@` refs in this prompt only. Default `'relative'` (to `projectRoot`). */
+  pathStyle?: PathStyle;
+  /** Screenshot / still paths in this prompt only. Default `'absolute'`. */
+  artifactPathStyle?: PathStyle;
+  /** App route: encoded deeplink longer than this switches to a file pointer. Default `8000`. */
+  promptUrlLimit?: number;
+  /** Terminal route: longer prompts switch to a file pointer. Default `12000`. */
+  promptArgLimit?: number;
+}
+
+/**
  * A client that receives the assembled prompt in its own input box instead of
  * having an app opened for it. Declared per project through `agents.custom`;
  * nothing is registered when the option is absent.
@@ -246,6 +300,10 @@ export interface AgentsOptions {
   claudeApp?: AgentEntry<ClaudeAppAgentOptions>;
   cursorApp?: AgentEntry<CursorAppAgentOptions>;
   grokBuild?: AgentEntry<GrokBuildAgentOptions>;
+  /** Claude Code CLI handoff (`claude-cli`). On by default; `false` removes it. */
+  claudeCli?: AgentEntry<ClaudeCliAgentOptions>;
+  /** OpenCode handoff (`opencode`). On by default; `false` removes it. */
+  opencode?: AgentEntry<OpenCodeAgentOptions>;
   /**
    * Antigravity IDE chat handoff. Omit it (the default) and the button is not registered.
    * `true` or an options object turns it on.
@@ -328,7 +386,7 @@ export interface IdeByebyeOptions {
   clickModifier?: ClickModifier;
   /**
    * Enter-key target: a footer agent (`'codex-app'` / `'claude-app'` / `'cursor-app'` /
-   * `'grok-build'` / `'antigravity-ide'` / `'antigravity'` or an `agents.custom` name).
+   * `'grok-build'` / `'claude-cli'` / `'opencode'` / `'antigravity-ide'` / `'antigravity'` or an `agents.custom` name).
    * Default `'claude-app'`. `'clipboard'` / `'file'` and unknown / disabled ids fall back to the
    * first enabled footer agent; once the user clicks a footer agent, Enter follows that remembered choice instead.
    * `'antigravity-ide'` and `'antigravity'` are only enabled after `agents.antigravityIde` / `agents.antigravity`.
@@ -361,7 +419,7 @@ export interface IdeByebyeOptions {
   recording?: boolean | RecordingOptions;
   /**
    * Per-agent enable / overrides, plus `custom` clients.
-   * Default `{}` (clipboard, file, Codex, Claude, Cursor, Grok Build on).
+   * Default `{}` (clipboard, file, Codex, Claude, Cursor, Grok Build, Claude Code CLI, OpenCode on).
    * `antigravityIde` and `antigravity` stay off until set.
    */
   agents?: AgentsOptions;

@@ -1,0 +1,86 @@
+{
+  "grok": {
+    "plain": {
+      "input": {
+        "command": "grok",
+        "cwd": "/tmp/p",
+        "promptPath": "/tmp/p/.intent-inspector/launches/a.prompt.txt"
+      },
+      "darwin": "#!/bin/bash\nset -euo pipefail\ncd '/tmp/p' || exit 1\nexec 'grok' --cwd '/tmp/p' --verbatim \"$(cat '/tmp/p/.intent-inspector/launches/a.prompt.txt')\"\n",
+      "win32": "@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcALwB0AG0AcAAvAHAAJwA7ACAAJABwAHIAbwBtAHAAdAAgAD0AIABHAGUAdAAtAEMAbwBuAHQAZQBuAHQAIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcALwB0AG0AcAAvAHAALwAuAGkAbgB0AGUAbgB0AC0AaQBuAHMAcABlAGMAdABvAHIALwBsAGEAdQBuAGMAaABlAHMALwBhAC4AcAByAG8AbQBwAHQALgB0AHgAdAAnACAALQBSAGEAdwAgAC0ARQBuAGMAbwBkAGkAbgBnACAAVQBUAEYAOAA7ACAAJgAgACcAZwByAG8AawAnACAALQAtAGMAdwBkACAAJwAvAHQAbQBwAC8AcAAnACAALQAtAHYAZQByAGIAYQB0AGkAbQAgACQAcAByAG8AbQBwAHQA\r\n"
+    },
+    "quoted": {
+      "input": {
+        "command": "/Users/me/.grok/bin/grok",
+        "cwd": "/tmp/it's-project",
+        "promptPath": "/tmp/it's-project/.intent-inspector/launches/a.prompt.txt",
+        "permissionMode": " plan "
+      },
+      "darwin": "#!/bin/bash\nset -euo pipefail\ncd '/tmp/it'\\''s-project' || exit 1\nexec '/Users/me/.grok/bin/grok' --cwd '/tmp/it'\\''s-project' --permission-mode 'plan' --verbatim \"$(cat '/tmp/it'\\''s-project/.intent-inspector/launches/a.prompt.txt')\"\n",
+      "win32": "@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcALwB0AG0AcAAvAGkAdAAnACcAcwAtAHAAcgBvAGoAZQBjAHQAJwA7ACAAJABwAHIAbwBtAHAAdAAgAD0AIABHAGUAdAAtAEMAbwBuAHQAZQBuAHQAIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcALwB0AG0AcAAvAGkAdAAnACcAcwAtAHAAcgBvAGoAZQBjAHQALwAuAGkAbgB0AGUAbgB0AC0AaQBuAHMAcABlAGMAdABvAHIALwBsAGEAdQBuAGMAaABlAHMALwBhAC4AcAByAG8AbQBwAHQALgB0AHgAdAAnACAALQBSAGEAdwAgAC0ARQBuAGMAbwBkAGkAbgBnACAAVQBUAEYAOAA7ACAAJgAgACcALwBVAHMAZQByAHMALwBtAGUALwAuAGcAcgBvAGsALwBiAGkAbgAvAGcAcgBvAGsAJwAgAC0ALQBjAHcAZAAgACcALwB0AG0AcAAvAGkAdAAnACcAcwAtAHAAcgBvAGoAZQBjAHQAJwAgAC0ALQBwAGUAcgBtAGkAcwBzAGkAbwBuAC0AbQBvAGQAZQAgACcAcABsAGEAbgAnACAALQAtAHYAZQByAGIAYQB0AGkAbQAgACQAcAByAG8AbQBwAHQA\r\n"
+    },
+    "resume": {
+      "input": {
+        "command": "grok",
+        "cwd": "/tmp/session-cwd",
+        "promptPath": "/tmp/p.txt",
+        "permissionMode": "plan",
+        "resumeSessionId": "01a0d2e5-6e44-7b51-b736-be5fef078a2e"
+      },
+      "darwin": "#!/bin/bash\nset -euo pipefail\ncd '/tmp/session-cwd' || exit 1\nexec 'grok' --cwd '/tmp/session-cwd' --resume '01a0d2e5-6e44-7b51-b736-be5fef078a2e' --permission-mode 'plan' --verbatim \"$(cat '/tmp/p.txt')\"\n",
+      "win32": "@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcALwB0AG0AcAAvAHMAZQBzAHMAaQBvAG4ALQBjAHcAZAAnADsAIAAkAHAAcgBvAG0AcAB0ACAAPQAgAEcAZQB0AC0AQwBvAG4AdABlAG4AdAAgAC0ATABpAHQAZQByAGEAbABQAGEAdABoACAAJwAvAHQAbQBwAC8AcAAuAHQAeAB0ACcAIAAtAFIAYQB3ACAALQBFAG4AYwBvAGQAaQBuAGcAIABVAFQARgA4ADsAIAAmACAAJwBnAHIAbwBrACcAIAAtAC0AYwB3AGQAIAAnAC8AdABtAHAALwBzAGUAcwBzAGkAbwBuAC0AYwB3AGQAJwAgAC0ALQByAGUAcwB1AG0AZQAgACcAMAAxAGEAMABkADIAZQA1AC0ANgBlADQANAAtADcAYgA1ADEALQBiADcAMwA2AC0AYgBlADUAZgBlAGYAMAA3ADgAYQAyAGUAJwAgAC0ALQBwAGUAcgBtAGkAcwBzAGkAbwBuAC0AbQBvAGQAZQAgACcAcABsAGEAbgAnACAALQAtAHYAZQByAGIAYQB0AGkAbQAgACQAcAByAG8AbQBwAHQA\r\n"
+    },
+    "windows": {
+      "input": {
+        "command": "C:\\Users\\me\\.grok\\bin\\grok",
+        "cwd": "C:\\tmp\\it's-project",
+        "promptPath": "C:\\tmp\\it's-project\\.intent-inspector\\launches\\a.prompt.txt",
+        "permissionMode": "plan",
+        "resumeSessionId": "01A0D2E5-6E44-7B51-B736-BE5FEF078A2E"
+      },
+      "darwin": "#!/bin/bash\nset -euo pipefail\ncd 'C:\\tmp\\it'\\''s-project' || exit 1\nexec 'C:\\Users\\me\\.grok\\bin\\grok' --cwd 'C:\\tmp\\it'\\''s-project' --resume '01A0D2E5-6E44-7B51-B736-BE5FEF078A2E' --permission-mode 'plan' --verbatim \"$(cat 'C:\\tmp\\it'\\''s-project\\.intent-inspector\\launches\\a.prompt.txt')\"\n",
+      "win32": "@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcAQwA6AFwAdABtAHAAXABpAHQAJwAnAHMALQBwAHIAbwBqAGUAYwB0ACcAOwAgACQAcAByAG8AbQBwAHQAIAA9ACAARwBlAHQALQBDAG8AbgB0AGUAbgB0ACAALQBMAGkAdABlAHIAYQBsAFAAYQB0AGgAIAAnAEMAOgBcAHQAbQBwAFwAaQB0ACcAJwBzAC0AcAByAG8AagBlAGMAdABcAC4AaQBuAHQAZQBuAHQALQBpAG4AcwBwAGUAYwB0AG8AcgBcAGwAYQB1AG4AYwBoAGUAcwBcAGEALgBwAHIAbwBtAHAAdAAuAHQAeAB0ACcAIAAtAFIAYQB3ACAALQBFAG4AYwBvAGQAaQBuAGcAIABVAFQARgA4ADsAIAAmACAAJwBDADoAXABVAHMAZQByAHMAXABtAGUAXAAuAGcAcgBvAGsAXABiAGkAbgBcAGcAcgBvAGsAJwAgAC0ALQBjAHcAZAAgACcAQwA6AFwAdABtAHAAXABpAHQAJwAnAHMALQBwAHIAbwBqAGUAYwB0ACcAIAAtAC0AcgBlAHMAdQBtAGUAIAAnADAAMQBBADAARAAyAEUANQAtADYARQA0ADQALQA3AEIANQAxAC0AQgA3ADMANgAtAEIARQA1AEYARQBGADAANwA4AEEAMgBFACcAIAAtAC0AcABlAHIAbQBpAHMAcwBpAG8AbgAtAG0AbwBkAGUAIAAnAHAAbABhAG4AJwAgAC0ALQB2AGUAcgBiAGEAdABpAG0AIAAkAHAAcgBvAG0AcAB0AA==\r\n"
+    }
+  },
+  "antigravity": {
+    "plain": {
+      "input": {
+        "command": "agy",
+        "cwd": "/tmp/proj",
+        "promptPath": "/tmp/proj/p.txt"
+      },
+      "darwin": "#!/bin/bash\nset -euo pipefail\ncd '/tmp/proj' || exit 1\nexec 'agy' --prompt-interactive \"$(cat '/tmp/proj/p.txt')\"\n",
+      "win32": "@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcALwB0AG0AcAAvAHAAcgBvAGoAJwA7ACAAJABwAHIAbwBtAHAAdAAgAD0AIABHAGUAdAAtAEMAbwBuAHQAZQBuAHQAIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcALwB0AG0AcAAvAHAAcgBvAGoALwBwAC4AdAB4AHQAJwAgAC0AUgBhAHcAIAAtAEUAbgBjAG8AZABpAG4AZwAgAFUAVABGADgAOwAgACYAIAAnAGEAZwB5ACcAIAAtAC0AcAByAG8AbQBwAHQALQBpAG4AdABlAHIAYQBjAHQAaQB2AGUAIAAkAHAAcgBvAG0AcAB0AA==\r\n"
+    },
+    "mode": {
+      "input": {
+        "command": "/opt/agy",
+        "cwd": "/tmp/it's",
+        "promptPath": "/tmp/prompt.txt",
+        "mode": " plan "
+      },
+      "darwin": "#!/bin/bash\nset -euo pipefail\ncd '/tmp/it'\\''s' || exit 1\nexec '/opt/agy' --mode 'plan' --prompt-interactive \"$(cat '/tmp/prompt.txt')\"\n",
+      "win32": "@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcALwB0AG0AcAAvAGkAdAAnACcAcwAnADsAIAAkAHAAcgBvAG0AcAB0ACAAPQAgAEcAZQB0AC0AQwBvAG4AdABlAG4AdAAgAC0ATABpAHQAZQByAGEAbABQAGEAdABoACAAJwAvAHQAbQBwAC8AcAByAG8AbQBwAHQALgB0AHgAdAAnACAALQBSAGEAdwAgAC0ARQBuAGMAbwBkAGkAbgBnACAAVQBUAEYAOAA7ACAAJgAgACcALwBvAHAAdAAvAGEAZwB5ACcAIAAtAC0AbQBvAGQAZQAgACcAcABsAGEAbgAnACAALQAtAHAAcgBvAG0AcAB0AC0AaQBuAHQAZQByAGEAYwB0AGkAdgBlACAAJABwAHIAbwBtAHAAdAA=\r\n"
+    },
+    "blankMode": {
+      "input": {
+        "command": "agy.exe",
+        "cwd": "C:\\repo",
+        "promptPath": "C:\\repo\\prompt.txt",
+        "mode": "   "
+      },
+      "darwin": "#!/bin/bash\nset -euo pipefail\ncd 'C:\\repo' || exit 1\nexec 'agy.exe' --prompt-interactive \"$(cat 'C:\\repo\\prompt.txt')\"\n",
+      "win32": "@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcAQwA6AFwAcgBlAHAAbwAnADsAIAAkAHAAcgBvAG0AcAB0ACAAPQAgAEcAZQB0AC0AQwBvAG4AdABlAG4AdAAgAC0ATABpAHQAZQByAGEAbABQAGEAdABoACAAJwBDADoAXAByAGUAcABvAFwAcAByAG8AbQBwAHQALgB0AHgAdAAnACAALQBSAGEAdwAgAC0ARQBuAGMAbwBkAGkAbgBnACAAVQBUAEYAOAA7ACAAJgAgACcAYQBnAHkALgBlAHgAZQAnACAALQAtAHAAcgBvAG0AcAB0AC0AaQBuAHQAZQByAGEAYwB0AGkAdgBlACAAJABwAHIAbwBtAHAAdAA=\r\n"
+    },
+    "windows": {
+      "input": {
+        "command": "agy.exe",
+        "cwd": "C:\\repo",
+        "promptPath": "C:\\repo\\prompt.txt",
+        "mode": "accept-edits"
+      },
+      "darwin": "#!/bin/bash\nset -euo pipefail\ncd 'C:\\repo' || exit 1\nexec 'agy.exe' --mode 'accept-edits' --prompt-interactive \"$(cat 'C:\\repo\\prompt.txt')\"\n",
+      "win32": "@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcAQwA6AFwAcgBlAHAAbwAnADsAIAAkAHAAcgBvAG0AcAB0ACAAPQAgAEcAZQB0AC0AQwBvAG4AdABlAG4AdAAgAC0ATABpAHQAZQByAGEAbABQAGEAdABoACAAJwBDADoAXAByAGUAcABvAFwAcAByAG8AbQBwAHQALgB0AHgAdAAnACAALQBSAGEAdwAgAC0ARQBuAGMAbwBkAGkAbgBnACAAVQBUAEYAOAA7ACAAJgAgACcAYQBnAHkALgBlAHgAZQAnACAALQAtAG0AbwBkAGUAIAAnAGEAYwBjAGUAcAB0AC0AZQBkAGkAdABzACcAIAAtAC0AcAByAG8AbQBwAHQALQBpAG4AdABlAHIAYQBjAHQAaQB2AGUAIAAkAHAAcgBvAG0AcAB0AA==\r\n"
+    }
+  }
+}

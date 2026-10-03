@@ -1,12 +1,20 @@
 import os from 'node:os';
 import path from 'node:path';
 import { resolvePromptPathStyleOptions } from '../config.js';
-import { buildPrompt, buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
+import { buildPrompt } from '../prompt.js';
 import {
-    formatGrokBuildHandoffPath,
-    powershellSingleQuote,
-    shellSingleQuote,
-} from './grok-build-launcher.js';
+    buildAgentFilePrompt,
+    buildAgentPrompt,
+    resolveAgentProjectRoot,
+    shouldWriteLauncherPromptFile,
+    withAgentPathRoot,
+} from './launch-prompt.js';
+import {
+    buildPosixLauncherScript,
+    buildWindowsLauncherScript,
+    launcherExtension,
+    type LauncherInput,
+} from './launch-script.js';
 
 /** Default interactive argv budget before switching to a short file-pointer prompt. */
 export const DEFAULT_ANTIGRAVITY_PROMPT_ARG_LIMIT = 12000;
@@ -39,8 +47,7 @@ export function resolveAntigravityPathStyleOptions(config: any = {}) {
 export function resolveAntigravityProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot: string }): string;
 export function resolveAntigravityProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot?: string }): string | undefined;
 export function resolveAntigravityProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot?: string }) {
-    const configured = typeof config?.projectRoot === 'string' ? config.projectRoot.trim() : '';
-    return configured ? path.resolve(configured) : context.projectRoot;
+    return resolveAgentProjectRoot(config, context);
 }
 
 /**
@@ -54,10 +61,7 @@ export function resolveAntigravityProjectRoot(config: { projectRoot?: unknown } 
  * @returns {Parameters<typeof buildPrompt>[0]} Request view whose `projectRoot` matches the CLI cwd.
  */
 export function withAntigravityPathRoot(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
-    const pathRoot = resolveAntigravityProjectRoot(config, { projectRoot: request.projectRoot });
-    if (pathRoot === request.projectRoot)
-        return request;
-    return { ...request, projectRoot: pathRoot };
+    return withAgentPathRoot(request, config);
 }
 
 /**
@@ -71,7 +75,7 @@ export function withAntigravityPathRoot(request: Parameters<typeof buildPrompt>[
  * @returns {string} Prompt text ending with a newline.
  */
 export function buildAntigravityPrompt(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
-    return buildPrompt(withAntigravityPathRoot(request, config), resolveAntigravityPathStyleOptions(config));
+    return buildAgentPrompt(request, config);
 }
 
 /**
@@ -86,12 +90,7 @@ export function buildAntigravityPrompt(request: Parameters<typeof buildPrompt>[0
  * @returns {string} Prompt ending with a newline.
  */
 export function buildAntigravityFilePrompt(request: Parameters<typeof buildPrompt>[0], promptPath: string, config: any = {}) {
-    const intent = String(request.intent ?? '').trim();
-    const rooted = withAntigravityPathRoot(request, config);
-    const pathOptions = resolveAntigravityPathStyleOptions(config);
-    const refs = filterInlineReferenceLines(buildPromptReferenceLines(rooted, pathOptions), intent);
-    const handoffPath = formatGrokBuildHandoffPath(promptPath, rooted.projectRoot, pathOptions.pathStyle);
-    return [...refs, handoffPath, '', intent].join('\n').trim() + '\n';
+    return buildAgentFilePrompt(request, promptPath, config);
 }
 
 /**
@@ -105,14 +104,7 @@ export function buildAntigravityFilePrompt(request: Parameters<typeof buildPromp
  * @returns {boolean} True when the request should be written to disk first.
  */
 export function shouldWriteAntigravityPromptFile(config: { promptMode?: unknown, promptArgLimit?: unknown } | null | undefined, prompt: string) {
-    const mode = config?.promptMode ?? 'auto';
-    if (mode === 'file')
-        return true;
-    if (mode !== 'auto')
-        return false;
-    const rawLimit = Number(config?.promptArgLimit);
-    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : DEFAULT_ANTIGRAVITY_PROMPT_ARG_LIMIT;
-    return String(prompt).length > limit;
+    return shouldWriteLauncherPromptFile(config, prompt, DEFAULT_ANTIGRAVITY_PROMPT_ARG_LIMIT);
 }
 
 /**
@@ -158,6 +150,26 @@ function optionalMode(mode: unknown) {
 }
 
 /**
+ * Map Antigravity launcher fields onto the shared launcher input: `agy [--mode <mode>] --prompt-interactive <prompt>`.
+ *
+ * @param {{ command: string, cwd: string, promptPath: string, mode?: string }} input Launcher fields.
+ * @returns {LauncherInput} Input for the bash or PowerShell builder.
+ */
+function agyLauncherInput(input: { command: string, cwd: string, promptPath: string, mode?: string }): LauncherInput {
+    const mode = optionalMode(input.mode);
+    return {
+        command: input.command,
+        cwd: input.cwd,
+        promptPath: input.promptPath,
+        args: [
+            ...(mode ? [{ flag: '--mode' }, { value: mode }] : []),
+            { flag: '--prompt-interactive' },
+            { prompt: true },
+        ],
+    };
+}
+
+/**
  * Build the bash launcher that opens an interactive `agy` session with the prompt prefilled.
  *
  * Boundary: the prompt body is read at runtime via `cat`. Paths and the binary are single-quoted. `--mode` is omitted
@@ -167,18 +179,7 @@ function optionalMode(mode: unknown) {
  * @returns {string} Bash script including the shebang.
  */
 export function buildAntigravityLauncherScript(input: { command: string, cwd: string, promptPath: string, mode?: string }) {
-    const command = shellSingleQuote(input.command);
-    const cwd = shellSingleQuote(input.cwd);
-    const promptPath = shellSingleQuote(input.promptPath);
-    const mode = optionalMode(input.mode);
-    const modeArgs = mode ? ` --mode ${shellSingleQuote(mode)}` : '';
-    return [
-        '#!/bin/bash',
-        'set -euo pipefail',
-        `cd ${cwd} || exit 1`,
-        `exec ${command}${modeArgs} --prompt-interactive "$(cat ${promptPath})"`,
-        '',
-    ].join('\n');
+    return buildPosixLauncherScript(agyLauncherInput(input));
 }
 
 /**
@@ -191,15 +192,7 @@ export function buildAntigravityLauncherScript(input: { command: string, cwd: st
  * @returns {string} `.cmd` contents (CRLF).
  */
 export function buildAntigravityWindowsLauncherScript(input: { command: string, cwd: string, promptPath: string, mode?: string }) {
-    const mode = optionalMode(input.mode);
-    const modeArgs = mode ? ` --mode ${powershellSingleQuote(mode)}` : '';
-    const program = [
-        `Set-Location -LiteralPath ${powershellSingleQuote(input.cwd)}`,
-        `$prompt = Get-Content -LiteralPath ${powershellSingleQuote(input.promptPath)} -Raw -Encoding UTF8`,
-        `& ${powershellSingleQuote(input.command)}${modeArgs} --prompt-interactive $prompt`,
-    ].join('; ');
-    const encoded = Buffer.from(program, 'utf16le').toString('base64');
-    return `@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}\r\n`;
+    return buildWindowsLauncherScript(agyLauncherInput(input));
 }
 
 /**
@@ -209,7 +202,7 @@ export function buildAntigravityWindowsLauncherScript(input: { command: string, 
  * @returns {'.cmd' | '.command'} Suffix including the dot.
  */
 export function antigravityLauncherExtension(platform = process.platform) {
-    return platform === 'win32' ? '.cmd' : '.command';
+    return launcherExtension(platform);
 }
 
 /**

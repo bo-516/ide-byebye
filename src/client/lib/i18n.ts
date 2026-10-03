@@ -76,6 +76,14 @@ const STRINGS: Record<string, { zh: string; en: string }> = {
         zh: '在终端打开 Grok Build，并预填本次 UI 修改意图。',
         en: 'Open Grok Build in Terminal with this UI change intent prefilled.',
     },
+    'agent.claudeCli.title': {
+        zh: '在终端打开 Claude Code CLI，并带上本次 UI 修改意图。',
+        en: 'Open Claude Code CLI in a terminal with this UI change intent.',
+    },
+    'agent.opencode.title': {
+        zh: '在 OpenCode 中新建会话，并带上本次 UI 修改意图。',
+        en: 'Start a new OpenCode session with this UI change intent.',
+    },
     'agent.antigravityIde.title': {
         zh: '在 Antigravity IDE 中打开聊天，并预填本次 UI 修改意图。',
         en: 'Open Antigravity IDE chat with this UI change intent prefilled.',
@@ -101,7 +109,8 @@ const STRINGS: Record<string, { zh: string; en: string }> = {
     'send.title': { zh: '发送到 {label}', en: 'Send to {label}' },
     'agent.menu.title': { zh: '发送到', en: 'Send to' },
     'agent.menu.choose': { zh: '切换发送目标', en: 'Change destination' },
-    'agent.menu.unavailable': { zh: '当前不可用', en: 'Unavailable' },
+    // Shown right after the destination label; the leading space (en) / full-width bracket (zh) is the gap.
+    'agent.menu.unavailable': { zh: '（不可用）', en: ' (unavailable)' },
     'agent.menu.sessions': { zh: '选择已有会话', en: 'Choose an existing session' },
     'clipboard.copyFailed': {
         zh: '自动复制失败，请全选下方内容并手动复制（⌘/Ctrl+C）。',

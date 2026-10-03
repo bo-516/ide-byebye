@@ -3,8 +3,8 @@
 [English](./README.md) | [中文](./README.zh-CN.md)
 
 > ⌘-click any rendered element, describe the change in plain words, and hand
-> **source location + intent** to **Codex App / Claude App / Cursor / Grok Build**
-> — no hunting through the IDE.
+> **source location + intent** to **Codex App / Claude App / Cursor / Grok Build /
+> Claude Code CLI / OpenCode** — no hunting through the IDE.
 
 Dev-only plugin for Vite / webpack / rspack / rsbuild / esbuild / Farm, Next.js
 (Turbopack + webpack) and the Angular CLI (Mako: path injection only). It
@@ -29,7 +29,7 @@ including SSR frameworks such as **Next.js**, **Nuxt** and **SvelteKit**. See
    `data-insp-path` to source (`src/App.vue #85-87` in the clip).
 2. **Describe** — type plain-language intent in the dialog (optional `@code`,
    screenshots, styles, or recording).
-3. **Hand off** — choose **Codex App / Claude App / Cursor / Grok Build**;
+3. **Hand off** — choose **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode**;
    the loopback server builds a structured prompt and opens the agent with
    `file:line` + intent already filled in. In the clip the prompt goes to Claude App,
    then the filter bar (`#99-129`) goes into a Codex thread that is already open
@@ -112,7 +112,7 @@ Or install it yourself in [Install](#install) / [Quick start](#quick-start).
    (Angular: from Angular's dev-mode component debug info).
 2. **Describe** — intent dialog opens on the element. Optionally add `@code`
    refs, screenshots, computed styles, or an interaction recording.
-3. **Hand off** — click **Codex App / Claude App / Cursor / Grok Build**. The
+3. **Hand off** — click **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode**. The
    local loopback server (`127.0.0.1`, per-process token) builds the prompt and
    opens the agent (deeplink or Terminal).
 
@@ -261,7 +261,7 @@ Override only what you need:
 
 ```js
 ideByebye({
-  defaultAgent: 'codex-app', // Enter key → one of the four footer agents
+  defaultAgent: 'codex-app', // Enter key → a footer agent
   agents: {
     cursorApp: { workspace: 'my-app' },
     grokBuild: { permissionMode: 'plan' },
@@ -346,12 +346,14 @@ From the package root, `npm test` installs demo dependencies when the lockfile c
   Next.js `>=14.2` (Turbopack or webpack) or the Angular CLI. Mako only injects
   `data-insp-path`. Vue, pug, and Svelte stamping use the compiler installed in
   your project. `.astro` and `.mdx` are not stamped.
-- **Footer agents** — Codex App / Claude App / Cursor / Grok Build open via the
-  OS default (`open` on macOS, `cmd /c start` on Windows, `xdg-open` on Linux).
+- **Footer agents** — Codex App / Claude App / Cursor / Grok Build / Claude Code CLI /
+  OpenCode open via the OS default (`open` on macOS, `cmd /c start` on Windows,
+  `xdg-open` on Linux).
   Windows is zero-config for most setups; override only if the default opener
   fails (see [Windows](#windows)).
 - **Target agent installed** — Codex App / Claude App / Cursor /
-  [Grok Build CLI](https://x.ai/cli). No extra npm deps for these agents.
+  [Grok Build CLI](https://x.ai/cli) / [Claude Code](https://code.claude.com) /
+  [OpenCode](https://opencode.ai/download) (desktop app or CLI). No extra npm deps for these agents.
 
 ## The intent dialog
 
@@ -389,7 +391,7 @@ Empty call is enough. You get:
 | Plugin on | `enabled: true` (dev only) |
 | Pick | hold ⌘ (macOS) / Ctrl → click; hotkey `Alt+Shift+I` |
 | Enter handoff | **Claude App** |
-| Footer agents | Codex App / Claude App / Cursor / Grok Build — all on. Antigravity IDE and Antigravity CLI stay off until configured |
+| Footer agents | Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode — all on (a missing app or CLI greys its row out). Antigravity IDE and Antigravity CLI stay off until configured |
 | Backend agents | clipboard (**Copy prompt** button) + file (no UI entry point) — on; neither is an Enter target |
 | Recording | off; enable with `recording: true` (needs `@rrweb/record` + `@rrweb/replay`) |
 | UI locale | auto (`navigator.language` → else `zh`) |
@@ -460,7 +462,7 @@ ideByebye({
 | --- | --- |
 | **Type** | `string` |
 | **Default** | `'claude-app'` |
-| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'antigravity-ide'` / `'antigravity'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → Antigravity IDE → Antigravity → custom); if none is enabled, Enter only shows a "not enabled" error. Once you pick another agent in the destination picker next to Send, Enter follows that choice instead (remembered in this browser). `'antigravity-ide'` and `'antigravity'` work only after those agents are turned on. |
+| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'claude-cli'` / `'opencode'` / `'antigravity-ide'` / `'antigravity'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → Claude Code CLI → OpenCode → Antigravity IDE → Antigravity → custom); if none is enabled, Enter only shows a "not enabled" error. Once you pick another agent in the destination picker next to Send, Enter follows that choice instead (remembered in this browser). `'antigravity-ide'` and `'antigravity'` work only after those agents are turned on. |
 
 #### `applyMode`
 
@@ -531,7 +533,7 @@ ideByebye({
 | | |
 | --- | --- |
 | **Type** | `object` |
-| **Default** | `{}` (all six agents **on**) |
+| **Default** | `{}` (all eight agents **on**) |
 | **Set to** | Per-agent enable / overrides — see [Agents](#agents). Unknown keys are ignored. |
 
 #### `sourceStamp`
@@ -568,7 +570,7 @@ ideByebye({
 
 ### Agents
 
-Six built-in agents, **all on by default**. Disable with `agents.<name>: false`
+Eight built-in agents, **all on by default**. Disable with `agents.<name>: false`
 or `{ enabled: false }`. `true` is explicit on; an object keeps it on and
 overrides options. **Antigravity IDE** and the **Antigravity CLI** are built in
 but **off until you set them** — omit `antigravityIde` / `antigravity` and the
@@ -589,6 +591,8 @@ writes the same `requests/` file, then opens that app.
 | `claudeApp` | `claude-app` | yes | Open **Claude App** prefilled; can attach files & folders. |
 | `cursorApp` | `cursor-app` | yes | Open **Cursor** prefilled (routes by workspace name). |
 | `grokBuild` | `grok-build` | yes | Open **Grok Build** in Terminal with prompt prefilled. |
+| `claudeCli` | `claude-cli` | yes | Open **Claude Code CLI**: prefilled via `claude-cli://` in your terminal, or run in Terminal and submitted. |
+| `opencode` | `opencode` | yes | Open **OpenCode**: a prefilled desktop session (1.x on macOS), or the CLI in Terminal and submitted. |
 | `antigravityIde` | `antigravity-ide` | yes, **off by default** | Open **Antigravity IDE** on the project and put the prompt in the agent input. |
 | `antigravity` | `antigravity` | yes, **off by default** | Open the **Antigravity** desktop app and put the prompt in its composer. |
 
@@ -601,6 +605,8 @@ agents: {
     // monorepo: grok --cwd at repo root → @apps/desktop/src/…
     projectRoot: path.resolve(__dirname, '../..'),
   },
+  claudeCli: { permissionMode: 'plan' }, // Terminal route only
+  opencode: false,                        // remove a default agent
   clipboard: false,
   // Opt-in. Omit either key and that button is not registered.
   antigravityIde: true,
@@ -609,28 +615,33 @@ agents: {
 ```
 
 Buttons grey out when the agent binary is missing (Grok Build: `grok` not on
-PATH and not at `~/.grok/bin/grok`; Antigravity IDE: `antigravity-ide`;
-Antigravity CLI: `agy`, then `~/.local/bin/agy`). Deeplink agents stay enabled;
-the OS reports an error if the app is not installed.
+PATH and not at `~/.grok/bin/grok`; Claude Code CLI: no `claude-cli://` handler
+and no `claude`; OpenCode: no 1.x desktop app and no `opencode` CLI;
+Antigravity IDE: `antigravity-ide`; Antigravity CLI: `agy`, then
+`~/.local/bin/agy`). The tooltip says what to install. Deeplink agents stay
+enabled; the OS reports an error if the app is not installed.
 
 #### Shared footer-agent options
 
-Codex / Claude / Cursor share these; Grok Build and the Antigravity CLI reuse
-them for their Terminal launchers. Antigravity IDE ignores `openCommand` /
-`openArgs` — its own CLI starts the app.
+Codex / Claude / Cursor share these; Grok Build, Claude Code CLI, OpenCode and the
+Antigravity CLI reuse them for their deeplinks and Terminal launchers. Antigravity
+IDE ignores `openCommand` / `openArgs` — its own CLI starts the app.
 
 | Option | Type | Default | What you can set |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` (when using an object) | `false` unregisters the agent. |
 | `openCommand` | `string` | `open` / `cmd` / `xdg-open` | Executable for deeplink / launcher. Override the platform default when needed. |
 | `openArgs` | `string[]` | platform prefix | Extra args **before** the URL / launcher path. Appended after the default prefix when `openCommand` is omitted. |
-| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` writes a Markdown handoff and sends a compact prompt pointing at it. In `'auto'`, Cursor / Grok / Antigravity IDE / Antigravity may overflow to file; Claude / Codex only switch on explicit `'file'`. A prompt that starts with `-` always uses the file pointer for Antigravity IDE, so the CLI does not treat it as a flag. |
+| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` writes a Markdown handoff and sends a compact prompt pointing at it. In `'auto'`, Cursor / Grok / Claude Code CLI / OpenCode / Antigravity IDE / Antigravity may overflow to file; Claude / Codex only switch on explicit `'file'`. A prompt that starts with `-` always uses the file pointer for Antigravity IDE, so the CLI does not treat it as a flag. |
 
 #### Windows
 
 Pick with **Ctrl-click** (or `Alt+Shift+I`). Footer agents already use
 `cmd /c start "" <url>` — you do **not** need `openCommand` if Cursor / Claude /
-Codex / Grok are installed and their URL protocols work.
+Codex / Grok / Claude Code / OpenCode are installed and their URL protocols work.
+On Windows, OpenCode uses its CLI unless you set `agents.opencode.launch: 'app'`, and
+a `claude-cli://` link longer than `cmd` can carry (about 8000 characters) goes to the
+Terminal launcher instead.
 
 Set `openCommand` / `openArgs` only when that default fails (WSL, a custom
 protocol helper, or `start` blocked). A non-blank `openCommand` **replaces** the
@@ -697,6 +708,59 @@ In **WSL**, point `openCommand` at `wslview` or `explorer.exe` instead of `cmd`.
 | `permissionMode` | `string` | none | Passed as `--permission-mode` (`plan`, `acceptEdits`, `default`, …). |
 | `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to file handoff (ARGV / ARG_MAX). |
 | `sessions` | `boolean \| { limit?, home? }` | on | Existing-session list. `false` removes the `›`. Only a closed session can be resumed. `home` overrides `~/.grok`. |
+
+#### `agents.claudeCli`
+
+On by default. Two routes:
+
+- **Deeplink** — `claude-cli://open?cwd=<projectRoot>&q=<prompt>` opens Claude Code in
+  the terminal you used last (iTerm2, Ghostty, kitty, WezTerm, Alacritty, Terminal.app;
+  `$TERMINAL` on Linux; Windows Terminal on Windows) with the prompt **prefilled** — you
+  press Enter. The CLI registers this handler itself the first time you send a prompt in
+  an interactive `claude` session, unless `disableDeepLinkRegistration` is set.
+- **Terminal** — a launcher runs `claude [--permission-mode <mode>] -- "<prompt>"`, which
+  **submits** the prompt.
+
+`launch: 'auto'` uses the deeplink when the handler is registered and accepts the
+prompt (at most 5000 characters after the CLI's own clean-up, no control characters)
+and the folder (absolute, no `..`, no UNC or hidden characters); otherwise the
+Terminal launcher; with no CLI found, a deeplink carrying a
+[file pointer](#shared-footer-agent-options). On macOS a handler whose CLI was
+uninstalled counts as unregistered; on Linux and Windows such a stale handler cannot
+be detected, so the link opens nothing — set `launch: 'terminal'` if that happens.
+
+| Option | Type | Default | What you can set |
+| --- | --- | --- | --- |
+| `launch` | `'auto' \| 'deeplink' \| 'terminal'` | `'auto'` | Pin a route. `'deeplink'` never runs the launcher (long prompts become a file pointer); `'terminal'` never opens the link. |
+| `command` | `string` | `'claude'`, then `~/.local/bin/claude`, `~/.claude/local/claude`, then the CLI the macOS handler links to | CLI for the Terminal route. Absolute path if Node’s PATH differs from your login shell. |
+| `projectRoot` | `string` | Vite / bundler project root | Session folder for both routes (`cwd`). Relative `@` refs are stripped against this root. |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | Source `@` refs in this prompt only. |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in this prompt only. |
+| `permissionMode` | `string` | none | Terminal route only: `--permission-mode` (`plan`, `acceptEdits`, …). The deeplink has no mode. |
+| `promptArgLimit` | `number` | `12000` | Terminal route: in `auto` mode, longer prompts switch to a file pointer. |
+
+#### `agents.opencode`
+
+On by default. `launch: 'auto'` reads the desktop app's version on macOS:
+
+- **OpenCode 1.x desktop** — `opencode://new-session?directory=<projectRoot>&prompt=<prompt>`
+  opens a new session with the prompt **prefilled**. The app ignores the link when it is
+  connected to a remote server; use `launch: 'terminal'` then.
+- **OpenCode 2.x desktop, CLI only, or not macOS** — a Terminal launcher runs
+  `opencode <projectRoot> --prompt=<prompt>`, which **submits** the prompt once the model is
+  ready. 2.x desktops register `opencode://` but drop the link, so they use the CLI that ships
+  inside the app (`OpenCode.app/Contents/Resources/opencode-cli`) when `opencode` is not on PATH.
+
+| Option | Type | Default | What you can set |
+| --- | --- | --- | --- |
+| `launch` | `'auto' \| 'app' \| 'terminal'` | `'auto'` | Pin a route. `'app'` always sends the deeplink with no version check (1.x desktops on Windows / Linux); `'terminal'` always uses the CLI. |
+| `appPath` | `string` | `/Applications/OpenCode.app`, then `~/Applications/OpenCode.app` | Desktop bundle (macOS) whose `Info.plist` gives the version. |
+| `command` | `string` | `'opencode'`, then `~/.opencode/bin/opencode`, then the CLI inside the app | CLI for the Terminal route. |
+| `projectRoot` | `string` | Vite / bundler project root | Session folder for both routes. Relative `@` refs are stripped against this root. |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | Source `@` refs in this prompt only. |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in this prompt only. |
+| `promptUrlLimit` | `number` | `8000` | App route: an encoded deeplink longer than this switches to a file pointer. |
+| `promptArgLimit` | `number` | `12000` | Terminal route: in `auto` mode, longer prompts switch to a file pointer. |
 
 #### `agents.antigravityIde`
 
@@ -823,6 +887,8 @@ Written under `outputDir` (default `.intent-inspector/`):
 | --- | --- |
 | `requests/<timestamp>-<id>.md` | Full request + prompt (`file` agent, or any footer agent in `promptMode: 'file'` / auto overflow). |
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + prompt for `grok --verbatim`. |
+| `launches/<timestamp>-<id>.claude.command` + `.claude.prompt.txt` | Claude Code CLI Terminal launcher (Terminal route only; the deeplink writes nothing). |
+| `launches/<timestamp>-<id>.opencode.command` + `.opencode.prompt.txt` | OpenCode Terminal launcher (Terminal route only). |
 | `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE folder open and the prompt that was placed in the agent input (only after `agents.antigravityIde` is set). |
 | `launches/<timestamp>-<id>.agy.command` + `.agy.prompt.txt` | Antigravity CLI Terminal launcher (only after `agents.antigravity` is set). |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | Event stream + still (when recording is used). |
@@ -855,7 +921,7 @@ ideByebye({ locale: 'en' });
 
 ## Send to an existing session
 
-Codex App, Grok Build, and (behind a flag) Antigravity IDE can take the next prompt in a session you already have. With no session picked, send behaves exactly as before: a new Codex thread, a new Grok terminal, or a new Antigravity chat.
+Codex App, Grok Build, and (behind a flag) Antigravity IDE can take the next prompt in a session you already have. With no session picked, send behaves exactly as before: a new Codex thread, a new Grok terminal, or a new Antigravity chat. Claude Code CLI and OpenCode always start a new session.
 
 Open the destination picker next to Send: agents that can continue a session show `›`, which opens this project's sessions (title, status, directory, relative time). Pick one and the next Enter (or Send) goes to that agent and that session; the picker then reads `Agent / session title`. The choice is remembered per agent in `localStorage`. **New session** clears only that agent. `sessions: false` removes that agent's `›`.
 
@@ -890,6 +956,10 @@ ideByebye({
   page fetches on a local `Host` only, as non-executable JSON.
 - **Project-rooted** — file writes stay inside the project; the deeplink only
   carries what you chose to send.
+- **Fixed discovery paths** — agent detection only looks at known install
+  locations (the Claude Code URL handler, OpenCode's app bundle and CLI) and
+  `--version` probes. It never reads OpenCode's background-service password or
+  Claude Code's session files.
 - **Ignore artifacts** — put `.intent-inspector/` (or your `outputDir`) in
   `.gitignore` so screenshots, recordings, and handoff text never land in git
   (see [Artifacts](#artifacts)).

@@ -105,6 +105,8 @@ export const AGENT_LABELS = {
     'claude-app': 'Claude App',
     'cursor-app': 'Cursor',
     'grok-build': 'Grok Build',
+    'claude-cli': 'Claude Code CLI',
+    opencode: 'OpenCode',
     'antigravity-ide': 'Antigravity IDE',
     antigravity: 'Antigravity',
     clipboard: 'Clipboard',
@@ -117,8 +119,9 @@ export const AGENT_LABELS = {
  * Adding an action without a matching registered adapter lists an unavailable destination instead of sending to a
  * missing route. `titleKey` is resolved to a localized title at call time by `configuredActions()`. `kind` describes the
  * handoff (`app` opens a desktop app, `ide` an editor, `terminal` a CLI in a new terminal) and picks the icon only
- * when the destination has no brand mark in `AGENT_MARK_BRANDS` (lib/agent-icons.ts): Grok Build and Antigravity are
- * CLI handoffs (Terminal launchers); Antigravity IDE launches `antigravity-ide chat`.
+ * when the destination has no brand mark in `AGENT_MARK_BRANDS` (lib/agent-icons.ts): Grok Build, Claude Code CLI and
+ * Antigravity are CLI handoffs (Terminal launchers or `claude-cli://`); OpenCode opens the desktop app or its CLI;
+ * Antigravity IDE launches `antigravity-ide chat`.
  *
  * @type {Array<{ name: string, label: string, titleKey: string, kind: 'app' | 'ide' | 'terminal' }>} Ordered actions.
  */
@@ -146,6 +149,18 @@ export const AGENT_ACTIONS = [
         label: 'Grok Build',
         titleKey: 'agent.grokBuild.title',
         kind: 'terminal',
+    },
+    {
+        name: 'claude-cli',
+        label: 'Claude Code CLI',
+        titleKey: 'agent.claudeCli.title',
+        kind: 'terminal',
+    },
+    {
+        name: 'opencode',
+        label: 'OpenCode',
+        titleKey: 'agent.opencode.title',
+        kind: 'app',
     },
     {
         name: 'antigravity-ide',

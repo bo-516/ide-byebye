@@ -1,5 +1,6 @@
 import { t } from '../lib/i18n.js';
 import { el } from './dialog-utils.js';
+import { loadSessionCatalog, SessionCatalogCache } from './dialog-session-catalog.js';
 import { fillSessionMenu } from './dialog-session-menu.js';
 import { observeSessionMenuPosition } from './dialog-session-position.js';
 import {
@@ -7,7 +8,6 @@ import {
     applySessionSendResult,
     payloadTargetId,
     readSessionTargets,
-    sessionLoadingView,
     withSessionTarget,
     writeSessionTargets,
     type SessionCatalog,
@@ -59,8 +59,8 @@ export class DialogSessionController {
     menuBack: (() => void) | null = null;
     stopPositioning: (() => void) | null = null;
     busy = false;
-    /** Last successful catalog per agent, so a refresh can keep those rows on screen. */
-    catalogs = new Map<string, SessionCatalog>();
+    /** Catalogs per agent: prefetched when the dialog learns which agents list sessions, kept for refreshes. */
+    cache: SessionCatalogCache;
 
     /**
      * @param {SessionControllerDeps} deps Dialog hooks. `rememberAgent` makes a chosen agent the Enter target; `onChange`
@@ -69,6 +69,8 @@ export class DialogSessionController {
     constructor(deps: SessionControllerDeps) {
         this.deps = deps;
         this.onKey = (event: KeyboardEvent) => this.onMenuKey(event);
+        // Async so a missing `api.sessions` rejects like a failed fetch instead of throwing synchronously.
+        this.cache = new SessionCatalogCache(async (agent) => this.deps.api.sessions!(agent));
     }
 
     /**
@@ -114,7 +116,8 @@ export class DialogSessionController {
     }
 
     /**
-     * Record session support from `GET /agents`; a menu open for an agent that lost support closes.
+     * Record session support from `GET /agents` and prefetch those agents' catalogs; a menu open for an agent that
+     * lost support closes.
      * @param {Array<{ name: string, sessions?: boolean }> | null | undefined} agents Availability list. A missing list
      * leaves previously recorded support in place.
      * @returns {void}
@@ -124,7 +127,19 @@ export class DialogSessionController {
             this.support.set(agent.name, agent.sessions === true);
         if (this.menuAgent && !this.supports(this.menuAgent))
             this.closeMenu();
+        this.prefetch();
         this.notify();
+    }
+
+    /**
+     * Start loading the catalog of every agent the server says lists sessions, so `›` opens at full size.
+     * Boundary: best effort and deduplicated; catalogs still fresh are skipped. Without `api.sessions` nothing loads.
+     * @returns {void}
+     */
+    prefetch(): void {
+        if (!this.deps.api.sessions)
+            return;
+        this.cache.prefetch([...this.support].filter(([, listed]) => listed).map(([agent]) => agent));
     }
 
     /**
@@ -235,28 +250,19 @@ export class DialogSessionController {
     }
 
     /**
-     * Fetch the catalog. A refresh covers the previous rows; the first open shows only the loading note.
-     * A response for a menu that was closed or switched away is ignored.
+     * Paint the open menu from the catalog cache, fetching only a missing or stale catalog (see `loadSessionCatalog`).
+     * A stale list stays under the loading cover while it refreshes. A response for a menu that was closed or switched
+     * away is ignored.
      * @param {{ name: string, label: string }} action Agent whose menu is open.
+     * @param {boolean} [refresh=false] ⟳: refetch even when the cached catalog is fresh.
      * @returns {Promise<void>}
      */
-    async loadMenu(action: { name: string; label: string }): Promise<void> {
-        const previous = this.catalogs.get(action.name);
-        this.paintMenu(action, sessionLoadingView(previous));
-        try {
-            // The dialog's api interface omits `sessions`; the live client provides it. A missing method still throws.
-            const res = await this.deps.api.sessions!(action.name);
-            if (this.menuAgent !== action.name)
-                return;
-            this.catalogs.set(action.name, res);
-            this.paintMenu(action, { res });
-        }
-        catch (err) {
-            if (this.menuAgent !== action.name)
-                return;
-            const error = err instanceof Error ? err.message : String(err);
-            this.paintMenu(action, previous ? { error, res: previous } : { error });
-        }
+    loadMenu(action: { name: string; label: string }, refresh = false): Promise<void> {
+        return loadSessionCatalog(this.cache, action.name, {
+            refresh,
+            paint: (view) => this.paintMenu(action, view),
+            isCurrent: () => this.menuAgent === action.name,
+        });
     }
 
     /**
@@ -281,7 +287,7 @@ export class DialogSessionController {
         const filled = fillSessionMenu(menuEl, action, view, {
             busy: this.busy,
             selectedId: this.targets[action.name]?.id,
-            onRefresh: () => void this.loadMenu(action),
+            onRefresh: () => void this.loadMenu(action, true),
             onNew: () => this.chooseNew(action.name),
             onChoose: (session, row) => this.chooseRow(action.name, session, row),
             onBack: this.menuBack ? () => this.goBack() : null,

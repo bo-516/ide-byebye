@@ -1,13 +1,10 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import { assertPathInsideRoot } from '../security.js';
+import { resolveFirstCommand, writeLaunchFiles } from './launch-files.js';
 import { quoteWindowsCmdArg } from './opener.js';
 import { createAntigravitySessionBridge } from '../sessions/antigravity-sessions.js';
 import { deliverAntigravityIdePrompt } from './antigravity-ide-bridge.js';
 import {
-    antigravityIdeLauncherExtension,
     antigravityIdeMissingMessage,
     buildAntigravityIdeLauncherFile,
     collectAntigravityIdeContextFiles,
@@ -20,100 +17,13 @@ import {
 const CLI_HANDOFF_TIMEOUT_MS = 45000;
 
 /**
- * Build a filesystem-safe timestamp fragment for IDE handoff files.
- *
- * Boundary: `date` must expose `toISOString()`. A non-Date-like value throws before any file is named.
- *
- * @param {Date} date Date used to stamp the file name.
- * @returns {string} ISO-like timestamp with colon characters replaced.
- */
-function fileStamp(date: Date) {
-    return date.toISOString().replace(/:/g, '-').replace(/\..+$/, '');
-}
-
-/**
- * Probe whether a command exits 0 for `--version`.
- *
- * Boundary: `ENOENT` and non-zero exits are unavailable. A hang is killed after `timeoutMs` so the agents endpoint
- * cannot stall. This does not start a chat session.
- *
- * @param {string} command Executable path or PATH name.
- * @param {number} [timeoutMs=5000] Kill timeout.
- * @returns {Promise<boolean>} True when `--version` exits 0.
- */
-function probeCommandVersion(command: string, timeoutMs = 5000) {
-    return new Promise<boolean>((resolve) => {
-        let settled = false;
-        const finish = (ok: boolean) => {
-            if (settled)
-                return;
-            settled = true;
-            resolve(ok);
-        };
-        let child: ChildProcess;
-        try {
-            child = spawn(command, ['--version'], { stdio: 'ignore' });
-        }
-        catch {
-            finish(false);
-            return;
-        }
-        const timer = setTimeout(() => {
-            child.kill();
-            finish(false);
-        }, timeoutMs);
-        child.once('error', () => {
-            clearTimeout(timer);
-            finish(false);
-        });
-        child.once('close', (code) => {
-            clearTimeout(timer);
-            finish(code === 0);
-        });
-    });
-}
-
-/**
  * First IDE CLI candidate whose `--version` succeeds.
  *
  * @param {{ command?: unknown }} config Antigravity IDE adapter config.
  * @returns {Promise<string | null>} Command to embed in the launcher, or null.
  */
-async function resolveAntigravityIdeCommand(config: { command?: unknown }) {
-    for (const candidate of resolveAntigravityIdeCommandCandidates(config)) {
-        if (await probeCommandVersion(candidate))
-            return candidate;
-    }
-    return null;
-}
-
-/**
- * Write the prompt body and the launcher that opens the project folder.
- *
- * Boundary: both files stay under `outputDir/launches` inside the project root. The launcher never contains the prompt
- * text — the bridge extension reads a separate request file. Windows writes `.cmd`; other platforms write `.command`.
- *
- * @param {{ request: { id: string, createdAt: string | number | Date }, context: { outputDir: string, projectRoot: string }, launcher: { command: string, cwd: string, prompt?: unknown, newWindow?: boolean, reuseWindow?: boolean } }} input Write inputs. `launcher.prompt` is the script body; the other fields are the launcher file.
- * @returns {{ launchPath: string, promptPath: string }} Absolute paths.
- */
-function writeLauncherFiles(input: {
-    request: { id: string, createdAt: string | number | Date },
-    context: { outputDir: string, projectRoot: string },
-    launcher: { command: string, cwd: string, prompt?: unknown, newWindow?: boolean, reuseWindow?: boolean },
-}) {
-    const launchesDir = path.join(input.context.outputDir, 'launches');
-    assertPathInsideRoot(launchesDir, input.context.projectRoot);
-    fs.mkdirSync(launchesDir, { recursive: true });
-    const stamp = `${fileStamp(new Date(input.request.createdAt))}-${input.request.id}`;
-    const promptPath = path.join(launchesDir, `${stamp}.agy-ide.prompt.txt`);
-    const launchPath = path.join(launchesDir, `${stamp}.agy-ide${antigravityIdeLauncherExtension()}`);
-    const prompt = String(input.launcher.prompt ?? '');
-    fs.writeFileSync(promptPath, prompt.endsWith('\n') ? prompt : `${prompt}\n`, 'utf8');
-    fs.writeFileSync(launchPath, buildAntigravityIdeLauncherFile({ ...input.launcher, promptPath }), {
-        encoding: 'utf8',
-        mode: 0o755,
-    });
-    return { launchPath, promptPath };
+function resolveAntigravityIdeCommand(config: { command?: unknown }) {
+    return resolveFirstCommand(resolveAntigravityIdeCommandCandidates(config));
 }
 
 /**
@@ -228,16 +138,18 @@ export function createAntigravityIdeAdapter(config: any = {}) {
                 const files = config.addFiles === false
                     ? []
                     : retainPathsInsideRoots(collectAntigravityIdeContextFiles(request), [context.projectRoot, cwd]);
-                const { launchPath, promptPath } = writeLauncherFiles({
+                // The launcher only opens the folder; the prompt file is the record of what went into the agent input.
+                const { launchPath, promptPath } = writeLaunchFiles({
                     request,
                     context,
-                    launcher: {
+                    tag: 'agy-ide',
+                    prompt,
+                    buildScript: () => buildAntigravityIdeLauncherFile({
                         command,
                         cwd,
-                        prompt,
                         newWindow: config.newWindow === true,
                         reuseWindow: config.reuseWindow === true,
-                    },
+                    }),
                 });
                 const launchEvent = { type: 'file-change', text: `Wrote launcher ${launchPath}` };
                 events.push(launchEvent);

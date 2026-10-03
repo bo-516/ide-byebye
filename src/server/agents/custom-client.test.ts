@@ -120,6 +120,8 @@ test('buildRegistry registers custom clients and refuses built-in names', () => 
         'claude-app',
         'cursor-app',
         'grok-build',
+        'claude-cli',
+        'opencode',
         'grok-desktop',
     ]);
 });
@@ -132,8 +134,12 @@ test('buildRegistry without agents.custom keeps the built-in agent set and leave
         'claude-app',
         'cursor-app',
         'grok-build',
+        'claude-cli',
+        'opencode',
     ]);
     assert.equal(buildRegistry({ custom: [{ name: 'antigravity' }] }).has('antigravity'), false);
+    // The new built-in names are reserved too, so a custom client cannot take them over.
+    assert.equal(buildRegistry({ claudeCli: false, custom: [{ name: 'claude-cli' }] }).has('claude-cli'), false);
 });
 
 test('buildDeliveryPayload carries the prompt plus absolute source and artifact paths', () => {

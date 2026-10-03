@@ -35,8 +35,10 @@ function appTile(fill: string, edge: string, glyph: string): string {
  * are only re-encoded for embedding: the Codex app tile is dropped so its mark is a bare glyph, and Antigravity's
  * no-op filter steps are dropped and its ids shortened. Antigravity and Antigravity IDE share that glyph, so their marks
  * put it back on each app's own tile ({@link appTile}): light for Antigravity, dark for the IDE, as on their app icons.
- * The logos are trademarks of OpenAI (Codex), Anthropic (Claude), Anysphere (Cursor), xAI (Grok) and Google
- * (Antigravity); they are shown only to identify where a prompt is sent.
+ * Claude App and Claude Code CLI use Anthropic's two product marks (the Claude spark and the Claude Code pixel mark),
+ * which is what tells those rows apart. The logos are trademarks of OpenAI (Codex), Anthropic (Claude, Claude Code),
+ * Anysphere (Cursor), xAI (Grok), Google (Antigravity) and OpenCode's authors (OpenCode); they are shown only to
+ * identify where a prompt is sent.
  * Boundary: complete SVG documents with single-quoted attributes only, because they are embedded in a double-quoted CSS
  * `url("data:…")`; never interpolate page data into them. `image` marks keep the vendor's colours in both themes;
  * `mask` marks are single-colour logos that the stylesheet paints with the theme's text colour, so they turn white in
@@ -56,6 +58,12 @@ export const AGENT_MARKS: Record<string, AgentMark> = {
     },
     cursor: {
         mask: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z'/></svg>",
+    },
+    'claude-code': {
+        image: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='#D97757' fill-rule='evenodd' clip-rule='evenodd' d='M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z'/></svg>",
+    },
+    opencode: {
+        mask: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M16 6H8v12h8V6zm4 16H4V2h16v20z'/></svg>",
     },
     grok: {
         mask: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815'/></svg>",
