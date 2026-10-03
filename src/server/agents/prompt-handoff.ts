@@ -45,7 +45,7 @@ export function createPromptHandoff(
         /**
          * Make the pointer prompt pass `fits` by cutting the intent's inline copy, keeping references and the file path.
          *
-         * Boundary: only after {@link toPointer} — the full intent is in the file the pointer names, so the cut copy
+         * Boundary: only after `toPointer` — the full intent is in the file the pointer names, so the cut copy
          * ends with `…` and nothing is lost. Cuts fall on code-point boundaries, so no lone surrogate reaches an encoder.
          * Without a pointer this only reports whether the prompt fits.
          *

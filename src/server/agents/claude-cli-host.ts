@@ -8,6 +8,15 @@ import { openTarget } from './opener.js';
 /** Timeout for the Windows `reg query` that checks whether `claude-cli://` is registered. */
 const REGISTRY_QUERY_TIMEOUT_MS = 3000;
 
+/** macOS handler bundle the CLI writes under `~/Applications`; its `Contents/MacOS/claude` links to the CLI. */
+const MACOS_HANDLER_APP = 'Claude Code URL Handler.app';
+
+/** Linux handler entry the CLI writes under `$XDG_DATA_HOME/applications`. */
+const LINUX_HANDLER_DESKTOP = 'claude-code-url-handler.desktop';
+
+/** Windows registry key the CLI creates for its URL scheme. */
+const WINDOWS_HANDLER_KEY = 'HKCU\\Software\\Classes\\claude-cli';
+
 /** Side effects of the Claude Code CLI adapter; tests replace them so nothing is spawned or opened. */
 export interface ClaudeCliDeps {
     platform: string;
@@ -45,7 +54,7 @@ export function defaultClaudeCliDeps(): ClaudeCliDeps {
             }
         },
         probe: (command) => probeCommandVersion(command),
-        registryHasHandler: () => probeCommandExit('reg', ['query', 'HKCU\\Software\\Classes\\claude-cli', '/ve'], REGISTRY_QUERY_TIMEOUT_MS),
+        registryHasHandler: () => probeCommandExit('reg', ['query', WINDOWS_HANDLER_KEY, '/ve'], REGISTRY_QUERY_TIMEOUT_MS),
         open: (config, target) => openTarget(config, target),
     };
 }
@@ -63,9 +72,9 @@ export function claudeCliHandlerPath(host: { platform: string, homedir: string, 
     if (host.platform === 'win32')
         return null;
     if (host.platform === 'darwin')
-        return path.join(host.homedir, 'Applications', 'Claude Code URL Handler.app', 'Contents', 'MacOS', 'claude');
+        return path.join(host.homedir, 'Applications', MACOS_HANDLER_APP, 'Contents', 'MacOS', 'claude');
     const dataHome = host.env.XDG_DATA_HOME || path.join(host.homedir, '.local', 'share');
-    return path.join(dataHome, 'applications', 'claude-code-url-handler.desktop');
+    return path.join(dataHome, 'applications', LINUX_HANDLER_DESKTOP);
 }
 
 /**

@@ -37,13 +37,16 @@ function fakeHost(host: { version?: string, cli?: string[] }, extra: Partial<Ope
     return { deps, opened, probed };
 }
 
+/** `send` arguments of the adapter under test. */
+type SendArgs = Parameters<ReturnType<typeof createOpenCodeAdapter>['send']>;
+
 /**
  * Run `fn` against a throwaway project and a request whose intent is `intent`.
  *
- * @param {string} intent User intent. @param {(input: { projectRoot: string, request: any, context: any }) =>
- * Promise<void>} fn Test body.
+ * @param {string} intent User intent.
+ * @param {(input: { projectRoot: string, request: SendArgs[0], context: SendArgs[1] }) => Promise<void>} fn Test body.
  */
-async function withRequest(intent: string, fn: (input: { projectRoot: string, request: any, context: any }) => Promise<void>) {
+async function withRequest(intent: string, fn: (input: { projectRoot: string, request: SendArgs[0], context: SendArgs[1] }) => Promise<void>) {
     // Realpath: macOS tmpdir is a /var symlink, and prompt paths are made relative against the real root.
     const projectRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ide-byebye-opencode-')));
     const request = {
