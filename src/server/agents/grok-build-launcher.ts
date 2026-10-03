@@ -1,12 +1,37 @@
 import os from 'node:os';
 import path from 'node:path';
 import { resolvePromptPathStyleOptions } from '../config.js';
-import { buildPrompt, buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
+import { buildPrompt } from '../prompt.js';
+import {
+    buildAgentFilePrompt,
+    buildAgentPrompt,
+    resolveAgentProjectRoot,
+    shouldWriteLauncherPromptFile,
+    withAgentPathRoot,
+} from './launch-prompt.js';
+import {
+    buildPosixLauncherScript,
+    buildWindowsLauncherScript,
+    launcherExtension,
+    type LaunchArg,
+    type LauncherInput,
+} from './launch-script.js';
+
+export { formatHandoffPath as formatGrokBuildHandoffPath, powershellSingleQuote, shellSingleQuote } from './launch-script.js';
 
 /** Default interactive argv budget before switching to a short file-pointer prompt. */
 export const DEFAULT_GROK_BUILD_PROMPT_ARG_LIMIT = 12000;
 /** Default CLI binary name when no absolute path / override is configured. */
 export const DEFAULT_GROK_BUILD_COMMAND = 'grok';
+
+/** Launcher fields for a Grok Build session. `resumeSessionId` must be a UUID when set. */
+interface GrokBuildLauncherInput {
+    command: string;
+    cwd: string;
+    promptPath: string;
+    permissionMode?: string;
+    resumeSessionId?: string;
+}
 
 /**
  * Resolve `@` path formatting for Grok Build from agent config.
@@ -25,24 +50,11 @@ export function resolveGrokBuildPathStyleOptions(config: any = {}) {
 }
 
 /**
- * Single-quote a string for safe inclusion in a bash script.
- *
- * Boundary: this only escapes for POSIX single-quoted strings. Passing a value then embedding it outside quotes still
- * lets the shell interpret metacharacters — callers must wrap the result as the sole token.
- *
- * @param {string} value Raw path or literal to quote.
- * @returns {string} Bash single-quoted literal.
- */
-export function shellSingleQuote(value: string) {
-    return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
-
-/**
  * Resolve the project directory Grok Build should start in.
  *
  * Boundary: `grokBuild.projectRoot` overrides the Vite project root only when it is a non-blank string. Relative
  * configured paths are resolved against the current Node process; blank / non-string values fall back to
- * `context.projectRoot`.
+ * `context.projectRoot`. Shared with the other CLI agents through {@link resolveAgentProjectRoot}.
  *
  * @param {{ projectRoot?: unknown } | null | undefined} config Grok Build adapter config.
  * @param {{ projectRoot?: string }} context Agent context carrying the Vite project root. A string `projectRoot` makes the return a string.
@@ -51,10 +63,7 @@ export function shellSingleQuote(value: string) {
 export function resolveGrokBuildProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot: string }): string;
 export function resolveGrokBuildProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot?: string }): string | undefined;
 export function resolveGrokBuildProjectRoot(config: { projectRoot?: unknown } | null | undefined, context: { projectRoot?: string }) {
-    const configuredRoot = typeof config?.projectRoot === 'string' && config.projectRoot.trim()
-        ? config.projectRoot.trim()
-        : '';
-    return configuredRoot ? path.resolve(configuredRoot) : context.projectRoot;
+    return resolveAgentProjectRoot(config, context);
 }
 
 /**
@@ -69,32 +78,7 @@ export function resolveGrokBuildProjectRoot(config: { projectRoot?: unknown } | 
  * @returns {Record<string, unknown>} Request view whose `projectRoot` matches Grok's cwd.
  */
 export function withGrokBuildPathRoot(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
-    const pathRoot = resolveGrokBuildProjectRoot(config, { projectRoot: request.projectRoot });
-    if (pathRoot === request.projectRoot)
-        return request;
-    return { ...request, projectRoot: pathRoot };
-}
-
-/**
- * Format a handoff file path for inclusion in the short Grok Build prompt.
- *
- * Boundary: mirrors prompt `@` path style so the pointer path stays openable from `--cwd`. Relative mode strips the
- * Grok path root when the file is inside it; outside files and absolute mode keep a resolved absolute path. The
- * handoff path is plain text (no leading `@`) — it is a file pointer, not a source selection chip.
- *
- * @param {string} promptPath Absolute path of the written handoff file.
- * @param {string} pathRoot Grok Build working directory (same as `--cwd`).
- * @param {'relative' | 'absolute'} pathStyle How to present the path.
- * @returns {string} Path text for the short prompt line.
- */
-export function formatGrokBuildHandoffPath(promptPath: string, pathRoot: string | undefined, pathStyle: 'relative' | 'absolute') {
-    if (pathStyle === 'absolute')
-        return path.resolve(promptPath).split(path.sep).join('/');
-    // `pathRoot` is the cwd string at runtime. The assertion is erased; `path.relative` still receives the original value.
-    const rel = path.relative(pathRoot as string, promptPath);
-    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel))
-        return rel.split(path.sep).join('/');
-    return path.resolve(promptPath).split(path.sep).join('/');
+    return withAgentPathRoot(request, config);
 }
 
 /**
@@ -110,7 +94,7 @@ export function formatGrokBuildHandoffPath(promptPath: string, pathRoot: string 
  * @returns {string} Final prompt text ending with a trailing newline.
  */
 export function buildGrokBuildPrompt(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
-    return buildPrompt(withGrokBuildPathRoot(request, config), resolveGrokBuildPathStyleOptions(config));
+    return buildAgentPrompt(request, config);
 }
 
 /**
@@ -118,7 +102,7 @@ export function buildGrokBuildPrompt(request: Parameters<typeof buildPrompt>[0],
  *
  * Boundary: the prompt path should come from a written handoff file; an empty path would remove the handoff target and
  * leave Grok Build with only the original intent. Path style and relative root follow {@link resolveGrokBuildPathStyleOptions}
- * and {@link withGrokBuildPathRoot}; the handoff path itself is formatted via {@link formatGrokBuildHandoffPath}.
+ * and {@link withGrokBuildPathRoot}; the handoff path itself is formatted via `formatGrokBuildHandoffPath`.
  *
  * @param {Record<string, unknown>} request Normalized intent request.
  * @param {string} promptPath Absolute prompt file path written under the inspector output directory.
@@ -126,12 +110,7 @@ export function buildGrokBuildPrompt(request: Parameters<typeof buildPrompt>[0],
  * @returns {string} Grok Build handoff prompt ending with a newline.
  */
 export function buildGrokBuildFilePrompt(request: Parameters<typeof buildPrompt>[0], promptPath: string, config: any = {}) {
-    const intent = String(request.intent ?? '').trim();
-    const rooted = withGrokBuildPathRoot(request, config);
-    const pathOptions = resolveGrokBuildPathStyleOptions(config);
-    const refs = filterInlineReferenceLines(buildPromptReferenceLines(rooted, pathOptions), intent);
-    const handoffPath = formatGrokBuildHandoffPath(promptPath, rooted.projectRoot, pathOptions.pathStyle);
-    return [...refs, handoffPath, '', intent].join('\n').trim() + '\n';
+    return buildAgentFilePrompt(request, promptPath, config);
 }
 
 /**
@@ -146,14 +125,48 @@ export function buildGrokBuildFilePrompt(request: Parameters<typeof buildPrompt>
  * @returns {boolean} True when the request should be written to disk and replaced by a short pointer prompt.
  */
 export function shouldWriteGrokBuildPromptFile(config: { promptMode?: unknown, promptArgLimit?: unknown }, prompt: unknown) {
-    const mode = config.promptMode ?? 'auto';
-    if (mode === 'file')
-        return true;
-    if (mode !== 'auto')
-        return false;
-    const rawLimit = Number(config.promptArgLimit);
-    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : DEFAULT_GROK_BUILD_PROMPT_ARG_LIMIT;
-    return String(prompt).length > limit;
+    return shouldWriteLauncherPromptFile(config, prompt, DEFAULT_GROK_BUILD_PROMPT_ARG_LIMIT);
+}
+
+/**
+ * `--resume <uuid>` arguments, or none when the send is a new session.
+ *
+ * Boundary: the id is checked against the UUID pattern before it reaches the script. Anything else throws, so a
+ * page-supplied string cannot change the shell command.
+ *
+ * @param {string | undefined} sessionId Target session id, omitted for a new session.
+ * @returns {LaunchArg[]} Zero or two launcher arguments.
+ */
+function resumeArgs(sessionId: string | undefined): LaunchArg[] {
+    if (sessionId == null || sessionId === '')
+        return [];
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(sessionId)))
+        throw new Error('Invalid resume session id');
+    return [{ flag: '--resume' }, { value: String(sessionId) }];
+}
+
+/**
+ * Map Grok launcher fields onto the shared launcher input:
+ * `grok --cwd <cwd> [--resume <id>] [--permission-mode <mode>] --verbatim <prompt>`.
+ *
+ * @param {GrokBuildLauncherInput} input Launcher fields. A bad `resumeSessionId` throws.
+ * @returns {LauncherInput} Input for the bash or PowerShell builder.
+ */
+function grokLauncherInput(input: GrokBuildLauncherInput): LauncherInput {
+    const permissionMode = typeof input.permissionMode === 'string' ? input.permissionMode.trim() : '';
+    return {
+        command: input.command,
+        cwd: input.cwd,
+        promptPath: input.promptPath,
+        args: [
+            { flag: '--cwd' },
+            { value: input.cwd },
+            ...resumeArgs(input.resumeSessionId),
+            ...(permissionMode ? [{ flag: '--permission-mode' }, { value: permissionMode }] : []),
+            { flag: '--verbatim' },
+            { prompt: true },
+        ],
+    };
 }
 
 /**
@@ -167,51 +180,8 @@ export function shouldWriteGrokBuildPromptFile(config: { promptMode?: unknown, p
  *        `resumeSessionId` must be a UUID; a bad value throws before the script is returned.
  * @returns {string} Executable bash script contents (including shebang).
  */
-export function buildGrokBuildLauncherScript(input: { command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }) {
-    const command = shellSingleQuote(input.command);
-    const cwd = shellSingleQuote(input.cwd);
-    const promptPath = shellSingleQuote(input.promptPath);
-    const resume = resumeFlag(input.resumeSessionId, shellSingleQuote);
-    const permissionArgs = typeof input.permissionMode === 'string' && input.permissionMode.trim()
-        ? ` --permission-mode ${shellSingleQuote(input.permissionMode.trim())}`
-        : '';
-    return [
-        '#!/bin/bash',
-        'set -euo pipefail',
-        `cd ${cwd} || exit 1`,
-        `exec ${command} --cwd ${cwd}${resume}${permissionArgs} --verbatim "$(cat ${promptPath})"`,
-        '',
-    ].join('\n');
-}
-
-/**
- * `--resume '<uuid>'` or `''` when the send is a new session.
- *
- * Boundary: the id is checked against the UUID pattern before quoting. Anything else throws, so a page-supplied
- * string cannot change the shell command. The quote function is bash or PowerShell depending on the caller.
- *
- * @param {string | undefined} sessionId Target session id, omitted for a new session.
- * @param {(value: string) => string} quote Platform quoting helper.
- * @returns {string} A leading-space flag, or `''`.
- */
-function resumeFlag(sessionId: string | undefined, quote: (value: string) => string) {
-    if (sessionId == null || sessionId === '')
-        return '';
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(sessionId)))
-        throw new Error('Invalid resume session id');
-    return ` --resume ${quote(String(sessionId))}`;
-}
-
-/**
- * Single-quote a string for PowerShell so paths survive `-EncodedCommand` decoding.
- *
- * Boundary: only `'` is doubled. The result must be used as a complete single-quoted token.
- *
- * @param {string} value Raw path or literal.
- * @returns {string} PowerShell single-quoted literal.
- */
-export function powershellSingleQuote(value: string) {
-    return `'${String(value).replace(/'/g, "''")}'`;
+export function buildGrokBuildLauncherScript(input: GrokBuildLauncherInput) {
+    return buildPosixLauncherScript(grokLauncherInput(input));
 }
 
 /**
@@ -225,18 +195,8 @@ export function powershellSingleQuote(value: string) {
  * @param {{ command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }} input Launcher fields.
  * @returns {string} `.cmd` file contents (CRLF).
  */
-export function buildGrokBuildWindowsLauncherScript(input: { command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }) {
-    const resume = resumeFlag(input.resumeSessionId, powershellSingleQuote);
-    const permissionArgs = typeof input.permissionMode === 'string' && input.permissionMode.trim()
-        ? ` --permission-mode ${powershellSingleQuote(input.permissionMode.trim())}`
-        : '';
-    const program = [
-        `Set-Location -LiteralPath ${powershellSingleQuote(input.cwd)}`,
-        `$prompt = Get-Content -LiteralPath ${powershellSingleQuote(input.promptPath)} -Raw -Encoding UTF8`,
-        `& ${powershellSingleQuote(input.command)} --cwd ${powershellSingleQuote(input.cwd)}${resume}${permissionArgs} --verbatim $prompt`,
-    ].join('; ');
-    const encoded = Buffer.from(program, 'utf16le').toString('base64');
-    return `@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}\r\n`;
+export function buildGrokBuildWindowsLauncherScript(input: GrokBuildLauncherInput) {
+    return buildWindowsLauncherScript(grokLauncherInput(input));
 }
 
 /**
@@ -248,7 +208,7 @@ export function buildGrokBuildWindowsLauncherScript(input: { command: string, cw
  * @returns {'.cmd' | '.command'} File suffix including the dot.
  */
 export function grokBuildLauncherExtension(platform = process.platform) {
-    return platform === 'win32' ? '.cmd' : '.command';
+    return launcherExtension(platform);
 }
 
 /**
@@ -258,7 +218,7 @@ export function grokBuildLauncherExtension(platform = process.platform) {
  * @param {string} [platform=process.platform] Node platform id.
  * @returns {string} Script contents to write.
  */
-export function buildGrokBuildLauncherFile(input: { command: string, cwd: string, promptPath: string, permissionMode?: string, resumeSessionId?: string }, platform = process.platform) {
+export function buildGrokBuildLauncherFile(input: GrokBuildLauncherInput, platform = process.platform) {
     return platform === 'win32'
         ? buildGrokBuildWindowsLauncherScript(input)
         : buildGrokBuildLauncherScript(input);
