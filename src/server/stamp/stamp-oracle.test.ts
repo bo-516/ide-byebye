@@ -3,6 +3,8 @@
  *
  * Boundary: `transformCode` is the oracle. `stampModule` is the shipped transform. Fixtures live under
  * the package root so Vue, pug, and Svelte resolve, and outside `node_modules` so they are not skipped.
+ * `createPortal` content is a documented difference: the oracle propagates the callsite into it, we keep
+ * its own path (see `jsx-roots.ts`), so portal fixtures whose content is a root are asserted on their own.
  */
 
 import assert from 'node:assert/strict';
@@ -11,6 +13,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { elementTable, type StampEntry } from './element-table.js';
+import { PATH_BINDING } from './stamp-edits.js';
 import { stampModule } from './stamp-module.js';
 import { resolveStampOptions } from './stamp-options.js';
 
@@ -27,7 +30,7 @@ const JSX = {
     'class.tsx': 'class Item extends React.Component {\n  render() { return <li/>; }\n}\n',
     'memo.tsx': 'const Item = memo(() => <li/>);\n',
     'create-element.tsx': 'export function App() {\n  return React.createElement("p", null, "x");\n}\nfunction Item(props) {\n  return React.createElement("div", { id: "a" });\n}\nconst other = React.createElement("span", props);\n',
-    'portal.tsx': 'function Item(props) {\n  return createPortal(<div/>, document.body);\n}\n',
+    'portal-sibling.tsx': 'function Item(props) {\n  return <><a/>{createPortal(<b/>, document.body)}</>;\n}\n',
     'fragment.tsx': 'function Item(props) {\n  return <><div/></>;\n}\n',
     'ternary.tsx': 'function Item(props) {\n  return cond ? <a/> : <b/>;\n}\n',
     'and.tsx': 'function Item(props) {\n  return cond && <a/>;\n}\n',
@@ -123,6 +126,43 @@ test('Svelte 5 snippets are stamped and Vue script JSX uses file-level positions
     assert.ok(vueTable.has('3:10:div'), [...vueTable.keys()].join(','));
     assert.equal(vueTable.get('3:10:div')?.kind, 'propagated');
     assert.ok(vueTable.has('6:11:p'));
+});
+
+test('createPortal content keeps its own path, and only the portal content differs from code-inspector', async () => {
+    const dir = path.join(ROOT, 'portal');
+    fs.mkdirSync(dir, { recursive: true });
+    // Oracle kinds for these fixtures are all `propagated`; ours keep the portal content static.
+    const cases: Array<{ name: string, source: string, kinds: Record<string, StampEntry['kind']> }> = [
+        {
+            name: 'portal.tsx',
+            source: 'function Item(props) {\n  return createPortal(<div/>, document.body);\n}\n',
+            kinds: { '2:23:div': 'static' },
+        },
+        {
+            name: 'portal-ternary.tsx',
+            source: 'function Item(props) {\n  return open ? createPortal(<div/>, document.body) : <span/>;\n}\n',
+            kinds: { '2:30:div': 'static', '2:55:span': 'propagated' },
+        },
+        {
+            name: 'portal-member.tsx',
+            source: 'function Item({ title }) {\n  return ReactDOM.createPortal(<div><p/></div>, document.body);\n}\n',
+            kinds: { '2:32:div': 'static', '2:37:p': 'static' },
+        },
+    ];
+    for (const { name, source, kinds } of cases) {
+        const file = path.join(dir, name);
+        fs.writeFileSync(file, source);
+        const oracle = elementTable(await transformCode({ content: source, filePath: file, fileType: 'jsx', escapeTags: [], pathType: 'absolute' }));
+        const out = stampModule({ code: source, id: file, family: 'rollup', options }) ?? source;
+        const ours = elementTable(out);
+        assert.deepEqual(Object.fromEntries([...ours].map(([key, entry]) => [key, entry.kind])), kinds, name);
+        // Values (the element's own location) still match the oracle; only the kind of the portal content differs.
+        for (const [key, entry] of ours)
+            assert.equal(entry.value, oracle.get(key)?.value, `${name} ${key}`);
+        // No root propagates in a portal-only component, so no callsite parameter is injected either.
+        if (name !== 'portal-ternary.tsx')
+            assert.ok(!out.includes(PATH_BINDING), `${name} injected ${PATH_BINDING}`);
+    }
 });
 
 test.after(() => {

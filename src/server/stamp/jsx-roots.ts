@@ -5,8 +5,13 @@
  * most one root. Ternaries and `&&` / `||` use the larger branch; arrays and fragments add children.
  * An identifier follows its variable initializer, not a parameter, import, or function.
  *
- * Boundary: oxc ESTree. Parentheses, `as`, `<T>`, and `!` are peeled first. `createPortal(x)` looks
- * at `x`. Anything else (calls, member access) is not a root. Cycles in bindings are cut with `start:name`.
+ * Boundary: oxc ESTree. Parentheses, `as`, `<T>`, and `!` are peeled first. `createPortal(x)` is not a
+ * root target: `x` renders under another DOM container (a dialog, a popover), so it keeps its own static
+ * path instead of the callsite — the browser recovers the mount point from the component tree. It still
+ * counts toward {@link estimateRootCount}, so `<><A/>{createPortal(…)}</>` stays "more than one root" and
+ * `<A/>` keeps its own path, as before. This is the one documented difference from code-inspector 1.6.2,
+ * which propagates the portal content. Anything else (calls, member access) is not a root. Cycles in
+ * bindings are cut with `start:name`.
  */
 
 import type { Scope } from './jsx-bind.js';
@@ -18,6 +23,9 @@ export type RootTarget = { type: 'jsx', node: any } | { type: 'createElement', n
 /**
  * Root elements of `node`, using `scope` for identifier lookup (the return's scope, or the
  * binding's scope when following an initializer — not the identifier's home scope).
+ *
+ * Boundary: a `createPortal(x, container)` call yields no targets, so `x` is stamped with its own
+ * path and a component that only returns a portal gets no injected callsite parameter.
  *
  * @param {StampNode | null | undefined} node Expression. Null returns an empty list.
  * @param {Scope | null} scope Scope from {@link import('./jsx-bindings.js').buildScopes}.
@@ -34,7 +42,7 @@ export function collectRootTargets(node: StampNode | null | undefined, scope: Sc
         return [{ type: 'jsx', node: current }];
     if (current.type === 'CallExpression') {
         if (callName(current.callee as StampNode | null | undefined) === 'createPortal')
-            return collectRootTargets(current.arguments?.[0], scope, visited);
+            return [];
         if (callName(current.callee as StampNode | null | undefined) === 'createElement')
             return [{ type: 'createElement', node: current }];
         return [];
@@ -60,7 +68,9 @@ export function collectRootTargets(node: StampNode | null | undefined, scope: Sc
 
 /**
  * How many roots `node` would produce. Stops at 2. Ternaries and logical expressions take the max,
- * so `cond ? <a/> : <b/>` counts as one and both branches still propagate.
+ * so `cond ? <a/> : <b/>` counts as one and both branches still propagate. `createPortal(x)` counts
+ * as `x` even though {@link collectRootTargets} returns nothing for it, so a portal beside another
+ * root still keeps that root from propagating (same counts as code-inspector).
  *
  * @param {StampNode | null | undefined} node Expression.
  * @param {Scope | null} scope Lookup scope. See {@link collectRootTargets}.
