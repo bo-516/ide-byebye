@@ -3,9 +3,9 @@ import { Sidebar } from './components/Sidebar.jsx';
 import { TodoHeader } from './components/TodoHeader.jsx';
 import { AddTask } from './components/AddTask.jsx';
 import { TaskItem } from './components/TaskItem.jsx';
+import { ModalHost, PortalDemo } from './components/PortalDemo.jsx';
 
-// Every element carries a compiled-in data-insp-path (source file:line:col),
-// so ⌘ + clicking any of them jumps to the matching source location.
+// Every element carries a compiled-in data-insp-path (file:line:col); ⌘ + click jumps to that source location.
 const INITIAL_LISTS = [
   { id: 'today', icon: '◷', label: 'Today' },
   { id: 'upcoming', icon: '◍', label: 'Upcoming' },
@@ -108,7 +108,9 @@ export default function App() {
             Clear completed
           </button>
         </footer>
+        <PortalDemo />
       </main>
+      <ModalHost />
     </div>
   );
 }

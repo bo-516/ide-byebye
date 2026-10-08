@@ -116,6 +116,16 @@ Or install it yourself in [Install](#install) / [Quick start](#quick-start).
    local loopback server (`127.0.0.1`, per-process token) builds the prompt and
    opens the agent (deeplink or Terminal).
 
+**Dialogs and popovers** rendered with React `createPortal` or Vue `<Teleport>`
+resolve to their own file, not to the `<body>` or container they are mounted
+into. The picker stops at the portal root; library markup that carries no stamp
+(say, a Radix overlay) resolves through the component tree to the nearest
+stamped usage, such as your `<DialogContent>` line. The stamper also gives
+`createPortal` content its own location instead of the component's call site.
+Where the dialog was mounted from (`App.tsx #24 <ModalHost>`, …) shows next to
+the chip — click an entry to make it the target — and reaches the agent as one
+`Rendered via portal:` line.
+
 Nothing leaves your machine except the deeplink you trigger. Adapters only
 inject a bootstrap: into HTML, or — when a framework renders its own HTML — into
 a module every page already loads (`/@vite/client`, a Next.js root layout /

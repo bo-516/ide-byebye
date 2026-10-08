@@ -102,6 +102,12 @@ https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md
 3. **交接** — 点击 **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode**。本地 loopback
    服务（`127.0.0.1`、按进程 token）拼好 prompt，再打开 Agent（deeplink 或 Terminal）。
 
+**弹窗和浮层**：用 React `createPortal` 或 Vue `<Teleport>` 渲染的内容，定位到它自己的文件，
+而不是它挂载到的 `<body>` 或容器。选取在 portal 根处停下；库渲染、没有打点的部分（比如 Radix 的遮罩）
+沿组件树找到最近的打点用法，比如你写 `<DialogContent>` 的那一行。打点器也让 `createPortal` 的内容保留
+自身位置，不再透传组件的调用处。弹窗是从哪里挂载的（`App.tsx #24 <ModalHost>` 等）显示在 chip 旁边，
+点一下即可切换为主定位；交给 Agent 的 prompt 里也会多一行 `Rendered via portal:`。
+
 除你主动触发的 deeplink 外，数据不会离开本机。适配器只注入一段 bootstrap：注入 HTML，
 或者——当框架自己渲染 HTML 时——注入每个页面本来就会加载的模块（`/@vite/client`、
 Next.js 根 layout / `_app`、Angular 开发脚本）。

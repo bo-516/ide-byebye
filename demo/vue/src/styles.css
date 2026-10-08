@@ -604,3 +604,82 @@ a {
 .link-btn:hover {
   text-decoration: underline;
 }
+
+/* ---------- teleport cases (TeleportDemo.vue, LibDialog.vue) ---------- */
+.portal-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.portal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.portal-title {
+  margin-right: 6px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.portal-note {
+  margin: 6px 0 12px;
+  color: var(--ink-2);
+}
+
+.hand-mask,
+.lib-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(22, 36, 28, 0.32);
+}
+
+.hand-panel {
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px 22px;
+  border-radius: var(--r);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hand-title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.lib-box {
+  width: min(380px, calc(100vw - 32px));
+  border-radius: var(--r);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+}
+
+.lib-close {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 18px;
+}
+
+.lib-body {
+  padding: 4px 16px 8px;
+}
