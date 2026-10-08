@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { buildCodexAppFilePrompt, buildCodexAppPrompt } from './agents/codex-app-prompt.js';
 import { buildPrompt } from './prompt.js';
 import { buildPromptMarkdownReferenceLines } from './prompt-markdown.js';
 
@@ -163,5 +164,45 @@ test('buildPrompt artifactPathStyle relative keeps short screenshot chips', () =
     assert.equal(
         prompt,
         '@src/App.jsx #2-4\n@.intent-inspector/screenshots/n708w16.webp\n\nlook\n',
+    );
+});
+
+/** A portal pick as the pipeline leaves it: validated chain entries plus `portal: true`. */
+const PORTAL_SELECTION = {
+    line: 5,
+    portal: true,
+    renderChain: [
+        { file: '/tmp/project/src/widgets/HandDialog.tsx', line: 5, column: 5, tag: 'div' },
+        { file: '/tmp/project/src/App.tsx', line: 24, column: 7, tag: 'ModalHost' },
+        { file: '/tmp/project/src/main.tsx', line: 4, column: 53, tag: 'App' },
+    ],
+};
+const PORTAL_BASE = {
+    projectRoot: '/tmp/project',
+    source: {
+        filePath: '/tmp/project/src/widgets/HandDialog.tsx',
+        selectedNodeRange: { startLine: 5, endLine: 10 },
+    },
+    intent: 'Make the mask lighter',
+};
+const CHAIN_LINE = 'Rendered via portal: src/widgets/HandDialog.tsx:5 <div> ← src/App.tsx:24 <ModalHost> ← src/main.tsx:4 <App>';
+
+test('a portal pick adds exactly one render-chain line after the references, before the styles', () => {
+    assert.equal(buildPrompt({ ...PORTAL_BASE, selection: { line: 5 } }), '@src/widgets/HandDialog.tsx #5-10\n\nMake the mask lighter\n');
+    assert.equal(buildPrompt({ ...PORTAL_BASE, selection: PORTAL_SELECTION }), `@src/widgets/HandDialog.tsx #5-10\n${CHAIN_LINE}\n\nMake the mask lighter\n`);
+    const styles = { scope: 'self' as const, nodes: [{ label: 'div.mask', styles: { opacity: '0.4' }, selected: true }] };
+    assert.equal(
+        buildPrompt({ ...PORTAL_BASE, selection: PORTAL_SELECTION, styles }),
+        `@src/widgets/HandDialog.tsx #5-10\n${CHAIN_LINE}\n\nRendered styles (selected element):\n- div.mask [selected]\n    opacity: 0.4\n\nMake the mask lighter\n`,
+    );
+});
+
+test('Codex App prompts carry the same render-chain line after their links', () => {
+    const link = '[src/widgets/HandDialog.tsx #5-10](src/widgets/HandDialog.tsx#5-#10)';
+    assert.equal(buildCodexAppPrompt({ ...PORTAL_BASE, selection: { line: 5 } }), `${link}\n\nMake the mask lighter\n`);
+    assert.equal(buildCodexAppPrompt({ ...PORTAL_BASE, selection: PORTAL_SELECTION }), `${link}\n${CHAIN_LINE}\n\nMake the mask lighter\n`);
+    assert.equal(
+        buildCodexAppFilePrompt({ ...PORTAL_BASE, selection: PORTAL_SELECTION }, '/tmp/project/.intent-inspector/requests/a.md'),
+        `${link}\n${CHAIN_LINE}\n/tmp/project/.intent-inspector/requests/a.md\n\nMake the mask lighter\n`,
     );
 });

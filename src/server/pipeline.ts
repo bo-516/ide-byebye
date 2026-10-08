@@ -2,17 +2,20 @@ import crypto from 'node:crypto';
 import { normalizeAngularHint } from '../shared/angular-hint.js';
 import { resolveAngularComponentFile } from './angular/component-file.js';
 import { parseInspPath } from './insp-path.js';
+import { normalizeRenderChain } from './render-chain.js';
 import { assertPathInsideRoot } from './security.js';
 import { extractSourceContext } from './source-context.js';
 import { normalizeStyles } from './styles.js';
 
 /**
  * Browser selection before path checks. `inspPath` is the stamper value or the synthetic Angular path;
- * other client fields are copied onto the resolved selection.
+ * other client fields are copied onto the resolved selection. `renderChain` / `portal` only count on the primary pick.
  */
 type BrowserSelection = {
     inspPath?: unknown;
     angular?: unknown;
+    renderChain?: unknown;
+    portal?: unknown;
     [key: string]: unknown;
 };
 
@@ -50,7 +53,8 @@ type ResolvedIntent = {
  * Boundary: `selection` must carry a `data-insp-path` value from the built-in stamper, or the synthetic Angular path
  * plus `selection.angular` hint (normalized and size-capped here; the raw hint never travels further). The path must
  * stay inside the current project root; invalid or out-of-root values throw user-facing errors before any prompt is
- * built.
+ * built. The page's `renderChain` / `portal` are always dropped here; {@link resolveSelection} re-attaches a validated
+ * chain to the primary pick only.
  *
  * @param {BrowserSelection | null | undefined} selection Browser selection payload from the client. Missing `inspPath` throws.
  * @param {string} projectRoot Absolute Vite project root.
@@ -87,6 +91,8 @@ export function resolveSourceSelection(selection: BrowserSelection | null | unde
         resolvedSelection.angular = angular;
     else
         delete resolvedSelection.angular;
+    delete resolvedSelection.renderChain;
+    delete resolvedSelection.portal;
     return { selection: resolvedSelection, source };
 }
 
@@ -111,7 +117,9 @@ function resolveReferenceSelections(references: readonly (BrowserSelection | nul
  * Parse the primary `data-insp-path`, validate all selected paths, and extract source context.
  *
  * Boundary: the primary selection is required, while additional references are optional but strict when present. Throws
- * user-facing errors on bad input before the request reaches an agent adapter.
+ * user-facing errors on bad input before the request reaches an agent adapter. A primary pick with `portal: true` keeps
+ * its render chain as validated entries (`normalizeRenderChain`) when at least two survive; otherwise both fields go.
+ * Chain entries never fail the request and are never read from disk.
  *
  * @param {IntentPayload | null | undefined} payload Browser payload sent to resolve or send routes. A missing primary selection throws.
  * @param {string} projectRoot Absolute Vite project root.
@@ -121,6 +129,9 @@ function resolveReferenceSelections(references: readonly (BrowserSelection | nul
 export function resolveSelection(payload: IntentPayload | null | undefined, projectRoot: string, options: PipelineOptions) {
     const primary = resolveSourceSelection(payload?.selection, projectRoot, options, 'Selection');
     const references = resolveReferenceSelections(payload?.references, projectRoot, options);
+    const renderChain = payload?.selection?.portal === true ? normalizeRenderChain(payload.selection.renderChain, projectRoot) : [];
+    if (renderChain.length >= 2)
+        Object.assign(primary.selection, { renderChain, portal: true });
     return { ...primary, references };
 }
 
