@@ -75,6 +75,23 @@ export const CLIENT_CONFIG_GLOBAL = '__CODE_INTENT_INSPECTOR__';
 export const PLUGIN_NODE_ATTR = 'data-intent-inspector-ui';
 /** The attribute the built-in stamper writes and the picker reads back. */
 export const INSP_PATH_ATTR = 'data-insp-path';
+/**
+ * Most entries a portal selection's `renderChain` carries: the picked element's own location plus its mount points,
+ * innermost first, one per file.
+ *
+ * Boundary: the client stops collecting at this count and the server keeps at most this many valid entries, so a
+ * larger page-supplied chain is truncated, never rejected.
+ *
+ * @type {number}
+ */
+export const MAX_RENDER_CHAIN_ENTRIES = 5;
+/**
+ * Longest `renderChain` entry, in characters. Longer entries are dropped (client and server), not truncated, because
+ * a cut `data-insp-path` would point at a different location.
+ *
+ * @type {number}
+ */
+export const MAX_RENDER_CHAIN_ENTRY_LENGTH = 1024;
 export const DEFAULT_HOTKEY = 'Alt+Shift+I';
 export const DEFAULT_OUTPUT_DIR = '.intent-inspector';
 export const DEFAULT_MAX_SOURCE_CONTEXT_LINES = 60;

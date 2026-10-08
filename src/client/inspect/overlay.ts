@@ -1,4 +1,5 @@
-import { basename, inspPathOf, parseInspPathLite } from './dom.js';
+import { inspPathOf } from './dom.js';
+import { basename, parseInspPathLite } from './insp-path-lite.js';
 import { t } from '../lib/i18n.js';
 /** Fixed-position highlight box + floating label for the hovered element. */
 export class Overlay {
