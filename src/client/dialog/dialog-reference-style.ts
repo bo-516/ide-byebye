@@ -9,7 +9,8 @@ import { DIALOG_EDITOR_STYLE_TEXT } from './dialog-editor-style.js';
  * Boundary: `installDialogReferenceStyle` appends this after `DIALOG_EDITOR_STYLE_TEXT`, inside the plugin shadow root
  * after `STYLE_TEXT`, because it reads the design tokens and icon masks declared there; installing it elsewhere has no
  * effect, and installing it alone leaves every `var()` unresolved. The `.cii-mention-*` part classes come from
- * `createMentionElement` in `dialog-editor`.
+ * `createMentionElement` in `dialog-editor`; the `.cii-chain*` classes (a portal pick's mount chain around the context
+ * chip) come from `renderPinnedRow` in `dialog-render-chain`.
  *
  * @type {string} CSS text appended to the plugin shadow root.
  */
@@ -122,6 +123,50 @@ export const DIALOG_REFERENCE_STYLE_TEXT = `
   background: var(--cii-fill);
   color: var(--cii-text-muted);
   opacity: 1;
+}
+
+/* Mount chain of a portal pick: the context chip keeps its place among plain crumbs, innermost first. */
+.cii-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  min-width: 0;
+}
+.cii-chain-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.cii-chain-sep {
+  flex: none;
+  color: var(--cii-text-faint);
+  font: 500 13px/1 var(--cii-font);
+}
+.cii-chain-crumb {
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 7px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cii-text-muted);
+  font: 500 12.5px/1 var(--cii-font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cii-chain-crumb:hover {
+  background: var(--cii-fill);
+  color: var(--cii-text);
+}
+/* The pinned row scrolls, so an outside focus ring would be clipped at its edges. */
+.cii-chain-crumb:focus-visible {
+  outline-offset: -2px;
 }
 `;
 

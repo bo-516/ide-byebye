@@ -1,5 +1,6 @@
 import { el } from './dialog-utils.js';
 import { splitMentionLabel } from './dialog-mention-label.js';
+import { renderPinnedRow } from './dialog-render-chain.js';
 import { t } from '../lib/i18n.js';
 
 /**
@@ -103,12 +104,14 @@ function createMentionElement(label: string, options: MentionOptions = {}) {
  * Boundary: the editor only holds this dialog's local DOM and selection cache; source resolution stays on the server.
  * Every dialog render rebuilds the DOM, so after reset() you must render() before setPrimary().
  *
- * @param {{ placeholder?: string, onChange?: () => void }} [options] Placeholder copy and a structure-change callback
- *        (fired when a reference is inserted/removed). Omitted means an empty placeholder and a no-op callback.
+ * @param {{ placeholder?: string, onChange?: () => void, onSwitchPrimary?: (inspPath: string) => void }} [options]
+ *        Placeholder copy, a structure-change callback (fired when a reference is inserted/removed), and the handler
+ *        for choosing another entry of a portal pick's mount chain. Omitted means an empty placeholder, a no-op
+ *        callback, and no mount chain beside the primary chip.
  * @returns {object} Editor controls (`render`, `setPrimary`, `insertReference`, `serialize`, …). Method types stay on
  *          the returned object; widening them to `Function` would hide the argument and return types callers use.
  */
-export function createDialogEditor(options: { placeholder?: string; onChange?: () => void } = {}) {
+export function createDialogEditor(options: { placeholder?: string; onChange?: () => void; onSwitchPrimary?: (inspPath: string) => void } = {}) {
     const placeholder = String(options.placeholder || '');
     const onChange = typeof options.onChange === 'function' ? options.onChange : () => {};
 
@@ -200,25 +203,12 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
     };
 
     /**
-     * renderPinned(): render/refresh the primary selection pinned chip outside the contenteditable.
-     * Boundary: hides the container when there is no primary; the primary chip has no remove button and is naturally
-     * not editable-deletable.
+     * renderPinned(): render/refresh the non-removable primary chip outside the contenteditable, plus a portal pick's
+     * mount chain (see `renderPinnedRow`). Hides the container when there is no primary.
      */
     const renderPinned = () => {
-        if (!pinnedEl)
-            return;
-        pinnedEl.innerHTML = '';
-        if (!primary) {
-            pinnedEl.hidden = true;
-            return;
-        }
-        pinnedEl.hidden = false;
-        const chip = createMentionElement(primary.label, {
-            static: true,
-            inspPath: primary.selection?.inspPath,
-        });
-        chip.title = t('editor.primaryPinned.title', { target: primary.selection?.inspPath ?? primary.label });
-        pinnedEl.append(chip);
+        if (pinnedEl)
+            renderPinnedRow(pinnedEl, primary, (label, inspPath) => createMentionElement(label, { static: true, inspPath }), options.onSwitchPrimary);
     };
 
     /**
@@ -325,7 +315,7 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
         /**
          * setPrimary(data): set/refresh the primary selection chip data (triggered by a click, not removable).
          * Purpose: show the client fallback label immediately, then call again to upgrade once the server resolves the
-         * `@path #range`.
+         * `@path #range`. A portal pick's `selection.renderChain` renders as switchable entries around the chip.
          * Boundary: only updates memory and (if rendered) the pinned DOM; never writes into the contenteditable, so it
          * does not enter the intent text.
          *
