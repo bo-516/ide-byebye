@@ -5,7 +5,7 @@ import { isLocalHostHeader, isLocalRequest, isSameOriginPageRequest, readToken, 
 import { buildIntentRequest, resolveSelection } from './pipeline.js';
 import { buildPrompt, buildPromptReferenceLines } from './prompt.js';
 import { saveScreenshotPayloads, saveRecordingPayloads } from './screenshot.js';
-import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
+import { cleanupInspectorArtifacts } from './output-cleanup.js';
 import { resolveVendorEsmPath } from './vendor.js';
 import { gateSendTarget, handleSessionsGet } from './routes-sessions.js';
 
@@ -382,7 +382,8 @@ export function createInspectorRequestHandler(deps: InspectorRouteDeps) {
                     if (!registry.has(payload.agent)) {
                         throw new Error(`Agent "${payload.agent}" is not enabled`);
                     }
-                    cleanupNonScreenshotArtifacts(deps.outputDirAbs, deps.projectRoot);
+                    // Age out old handoffs only. This send's file does not exist yet, and a recent one stays for the agent.
+                    cleanupInspectorArtifacts(deps.outputDirAbs, deps.projectRoot);
                     const resolved = resolveSelection(payload, deps.projectRoot, options);
                     const request = buildIntentRequest(payload, resolved, deps.projectRoot, options);
                     request.screenshots = saveScreenshotPayloads(payload.screenshots ?? (payload.screenshot ? [payload.screenshot] : undefined), request, deps.outputDirAbs);

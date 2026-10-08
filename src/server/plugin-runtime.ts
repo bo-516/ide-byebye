@@ -7,7 +7,7 @@ import { normalizeCustomAgents } from './agents/custom-client.js';
 import { SessionStore } from './session-store.js';
 import { createLogger } from './logger.js';
 import { createInspectorServer } from './inspector-server.js';
-import { cleanupNonScreenshotArtifacts } from './output-cleanup.js';
+import { cleanupInspectorArtifacts } from './output-cleanup.js';
 import { loadClientCode } from './client-code.js';
 import { buildBootstrapStatement, consoleFilterSnippet } from './bootstrap-script.js';
 import { stampUnplugin } from './stamp/stamp-unplugin.js';
@@ -297,7 +297,8 @@ export function createInspectorRuntime(options: any = {}, runtimeOptions: { expo
         },
         initPaths(rootDir: string | undefined) {
             initPaths(rootDir);
-            cleanupNonScreenshotArtifacts(ctx.outputDirAbs, ctx.projectRoot);
+            // Same retention as a send, so a restart does not drop a handoff the agent has not opened.
+            cleanupInspectorArtifacts(ctx.outputDirAbs, ctx.projectRoot);
         },
         ensureServer,
         injectionTags,

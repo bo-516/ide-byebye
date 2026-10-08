@@ -2,12 +2,12 @@ import fs from 'node:fs';
 import { randomInt } from 'node:crypto';
 import path from 'node:path';
 import { assertPathInsideRoot } from './security.js';
+import { ARTIFACT_MAX_AGE_MS } from './output-cleanup.js';
 const SUPPORTED_MIME_TYPES = new Map([
     ['image/png', 'png'],
     ['image/jpeg', 'jpg'],
     ['image/webp', 'webp'],
 ]);
-const SCREENSHOT_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 const SCREENSHOT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 /** Subdirectory and file extensions for persisted rrweb recordings (event stream + rasterized still). */
 const RECORDINGS_SUBDIR = 'recordings';
@@ -92,7 +92,8 @@ function writeRandomNamedScreenshot(dir: string, ext: string, bytes: Buffer) {
 /**
  * Remove expired screenshot files from the inspector output directory.
  *
- * Boundary: cleanup is best-effort and ignores individual stat/remove failures. Passing the wrong `projectRoot` causes
+ * Boundary: files older than {@link ARTIFACT_MAX_AGE_MS} are removed; a file aged exactly that long stays.
+ * Cleanup is best-effort and ignores individual stat/remove failures. Passing the wrong `projectRoot` causes
  * path validation to throw before any files are touched.
  *
  * @param {string} outputDir Inspector output directory.
@@ -114,7 +115,7 @@ export function cleanupExpiredScreenshots(outputDir: string, projectRoot: string
         const file = path.join(dir, entry.name);
         try {
             const stat = fs.statSync(file);
-            if (nowMs - stat.mtimeMs <= SCREENSHOT_MAX_AGE_MS)
+            if (nowMs - stat.mtimeMs <= ARTIFACT_MAX_AGE_MS)
                 continue;
             fs.rmSync(file, { force: true });
             removed += 1;
@@ -208,7 +209,8 @@ function recordingsDir(outputDir: string) {
 /**
  * Remove expired recording artifacts (event JSON + still frames) from the inspector output directory.
  *
- * Boundary: cleanup is best-effort and shares the screenshot max-age window. Passing the wrong `projectRoot` makes path
+ * Boundary: files older than {@link ARTIFACT_MAX_AGE_MS} are removed; a file aged exactly that long stays.
+ * Cleanup is best-effort and ignores individual stat/remove failures. Passing the wrong `projectRoot` makes path
  * validation throw before any files are touched.
  *
  * @param {string} outputDir Inspector output directory.
@@ -230,7 +232,7 @@ export function cleanupExpiredRecordings(outputDir: string, projectRoot: string,
         const file = path.join(dir, entry.name);
         try {
             const stat = fs.statSync(file);
-            if (nowMs - stat.mtimeMs <= SCREENSHOT_MAX_AGE_MS)
+            if (nowMs - stat.mtimeMs <= ARTIFACT_MAX_AGE_MS)
                 continue;
             fs.rmSync(file, { force: true });
             removed += 1;
