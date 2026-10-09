@@ -1,5 +1,6 @@
 import { el, clamp, readJsonStore, writeJsonStore } from './dialog-utils.js';
 import { t } from '../lib/i18n.js';
+import type { PinnedDraft } from './dialog-types.js';
 
 /** sessionStorage key for the pinned intent draft (survives SPA navigation and reload, clears on tab close). */
 const PIN_DRAFT_KEY = 'code-intent-inspector:pinned-intent';
@@ -39,7 +40,7 @@ export class DialogPin {
     constructor(parent: ParentNode, callbacks?: { onRestore?: () => void } | null) {
         this.parent = parent;
         this.onRestore = typeof callbacks?.onRestore === 'function' ? callbacks.onRestore : () => {};
-        this.pos = readJsonStore(PIN_ORB_POS_KEY, null, window.localStorage);
+        this.pos = readJsonStore<{ x: number; y: number } | null>(PIN_ORB_POS_KEY, null, window.localStorage);
     }
 
     /**
@@ -47,7 +48,7 @@ export class DialogPin {
      * @returns {Record<string, unknown> | null} The stored draft, or null when nothing is pinned.
      */
     readDraft() {
-        return readJsonStore(PIN_DRAFT_KEY, null, window.sessionStorage);
+        return readJsonStore<PinnedDraft | null>(PIN_DRAFT_KEY, null, window.sessionStorage);
     }
 
     /** Whether a pinned draft currently exists. @returns {boolean} */

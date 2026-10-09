@@ -29,7 +29,7 @@ const LIFECYCLE = /"payload"\s*:\s*\{\s*"type"\s*:\s*"(task_started|task_complet
  * @param {string} [homeDir] User home. Tests pass a temp dir.
  * @returns {string} Absolute Codex home.
  */
-export function resolveCodexHome(config: any = {}, env = process.env, homeDir = os.homedir()) {
+export function resolveCodexHome(config: { sessions?: unknown } = {}, env = process.env, homeDir = os.homedir()) {
     const picker = readSessionPicker(config);
     if (picker.home)
         return path.resolve(picker.home);
@@ -109,7 +109,7 @@ function readSessionIndex(file: string, io: SessionFs) {
     const titles = new Map();
     if (!io.existsSync(file))
         return titles;
-    let text = '';
+    let text: string;
     try {
         text = io.readFileSync(file, 'utf8');
     }
@@ -155,7 +155,7 @@ function listRolloutFiles(sessionsDir: string, lookbackMs: number, now: number, 
     const years = io.readdirSync(sessionsDir);
     for (const year of years) {
         const yearDir = path.join(sessionsDir, year);
-        let months = [];
+        let months: string[];
         try {
             if (!io.statSync(yearDir).isDirectory())
                 continue;
@@ -166,7 +166,7 @@ function listRolloutFiles(sessionsDir: string, lookbackMs: number, now: number, 
         }
         for (const month of months) {
             const monthDir = path.join(yearDir, month);
-            let days = [];
+            let days: string[];
             try {
                 if (!io.statSync(monthDir).isDirectory())
                     continue;
@@ -177,7 +177,7 @@ function listRolloutFiles(sessionsDir: string, lookbackMs: number, now: number, 
             }
             for (const day of days) {
                 const dayDir = path.join(monthDir, day);
-                let names = [];
+                let names: string[];
                 try {
                     if (!io.statSync(dayDir).isDirectory())
                         continue;
@@ -252,7 +252,7 @@ export function listCodexSessions(input: {
     for (const candidate of files) {
         if (sessions.length >= picker.limit)
             break;
-        let head = '';
+        let head: string;
         try {
             head = readHead(candidate.file, HEAD_BYTES, io);
         }
@@ -271,8 +271,8 @@ export function listCodexSessions(input: {
             continue;
         const id = (headId && SESSION_ID_PATTERN.test(headId) ? headId : candidate.id).toLowerCase();
         const normalizedCwd = normalizeScopePath(cwd, io);
-        let tail = '';
-        let event = null;
+        let tail: string;
+        let event: string | null;
         try {
             tail = readTail(candidate.file, TAIL_BYTES, io);
             event = lastLifecycle(tail);

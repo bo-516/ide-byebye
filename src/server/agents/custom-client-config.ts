@@ -23,6 +23,29 @@ const WINDOW_TARGETS = ['parent', 'top', 'opener'];
 const NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i;
 
 /**
+ * Normalized custom-client descriptor produced by {@link normalizeCustomAgent}.
+ *
+ * Boundary: `transport` picks the delivery path in send. `configError` keeps a malformed-but-named target listed so
+ * the picker can show the reason. `url`/`method`/`headers`/`timeoutMs` are set for `http`, `messageType`/
+ * `windowTarget`/`targetOrigin` for `postMessage`.
+ */
+export interface CustomAgentTarget {
+    name: string;
+    label: string;
+    title?: string;
+    transport: 'http' | 'postMessage';
+    pathStyles?: { pathStyle: 'relative' | 'absolute'; artifactPathStyle: 'relative' | 'absolute' };
+    configError?: string;
+    url?: string | null;
+    method?: string;
+    headers?: Record<string, string>;
+    timeoutMs?: number;
+    messageType?: string;
+    windowTarget?: string;
+    targetOrigin?: string;
+}
+
+/**
  * Read the per-target prompt path styles, or `undefined` when the target inherits the plugin-level ones.
  *
  * Boundary: only an explicit `pathStyle` / `artifactPathStyle` on the target opts into a rebuilt prompt. Returning
@@ -124,25 +147,26 @@ function normalizePostMessageTransport(entry: Record<string, unknown>) {
  * usable id (e.g. a malformed URL) survive as `configError` so the UI can explain them.
  *
  * @param {unknown} entry Raw entry from `agents.custom`.
- * @returns {Record<string, unknown> | null} Normalized target descriptor, or null when the entry is unusable.
+ * @returns {CustomAgentTarget | null} Normalized target descriptor, or null when the entry is unusable.
  */
-export function normalizeCustomAgent(entry: any) {
+export function normalizeCustomAgent(entry: unknown): CustomAgentTarget | null {
     if (!entry || typeof entry !== 'object')
         return null;
-    const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+    const record = entry as Record<string, unknown>;
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
     if (!NAME_PATTERN.test(name) || ALL_AGENT_NAMES.includes(name))
         return null;
-    if (entry.enabled === false)
+    if (record.enabled === false)
         return null;
-    const label = typeof entry.label === 'string' && entry.label.trim() ? entry.label.trim() : name;
-    const title = typeof entry.title === 'string' && entry.title.trim() ? entry.title.trim() : undefined;
-    const transport = entry.transport === 'http' || entry.transport === 'postMessage'
-        ? entry.transport
-        : (typeof entry.url === 'string' && entry.url.trim() ? 'http' : 'postMessage');
-    const base = { name, label, title, transport, pathStyles: readPathStyles(entry) };
+    const label = typeof record.label === 'string' && record.label.trim() ? record.label.trim() : name;
+    const title = typeof record.title === 'string' && record.title.trim() ? record.title.trim() : undefined;
+    const transport: 'http' | 'postMessage' = record.transport === 'http' || record.transport === 'postMessage'
+        ? record.transport
+        : (typeof record.url === 'string' && record.url.trim() ? 'http' : 'postMessage');
+    const base = { name, label, title, transport, pathStyles: readPathStyles(record) };
     return transport === 'http'
-        ? { ...base, ...normalizeHttpTransport(entry, label) }
-        : { ...base, ...normalizePostMessageTransport(entry) };
+        ? { ...base, ...normalizeHttpTransport(record, label) }
+        : { ...base, ...normalizePostMessageTransport(record) };
 }
 
 /**
@@ -153,16 +177,16 @@ export function normalizeCustomAgent(entry: any) {
  * and duplicate names are dropped (first one wins) so a stale config cannot overwrite a registered adapter.
  *
  * @param {unknown} value Raw `agents.custom` value from plugin config.
- * @returns {Array<Record<string, unknown>>} Normalized custom prompt-delivery targets.
+ * @returns {CustomAgentTarget[]} Normalized custom prompt-delivery targets.
  */
-export function normalizeCustomAgents(value: unknown) {
+export function normalizeCustomAgents(value: unknown): CustomAgentTarget[] {
     const entries = Array.isArray(value)
         ? value
         : (value && typeof value === 'object' ? [value] : []);
-    const seen = new Set();
-    const targets = [];
+    const seen = new Set<string>();
+    const targets: CustomAgentTarget[] = [];
     for (const entry of entries) {
-        const target: any = normalizeCustomAgent(entry);
+        const target = normalizeCustomAgent(entry);
         if (!target || seen.has(target.name))
             continue;
         seen.add(target.name);

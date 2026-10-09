@@ -28,8 +28,11 @@ type TurbopackHolder = {
  * Next config fields the bundler wiring reads.
  * Boundary: an index signature keeps `reactStrictMode`, `basePath`, and other user keys on the spread result.
  */
+/** Next `webpack(config, context)` user hook; the return is a (possibly mutated) config. */
+type NextWebpackHook = (config: NextWebpackConfig, context: NextWebpackContext) => NextWebpackConfig;
+
 type NextConfigShape = {
-    webpack?: Function;
+    webpack?: NextWebpackHook;
     turbopack?: TurbopackHolder;
     experimental?: {
         turbo?: TurbopackHolder;
@@ -169,12 +172,12 @@ const WEBPACK_STAMP_TEST = /\.(?:jsx|tsx|js|ts|mjs|mts|vue|svelte|html)$/;
  * Boundary: does not assign `config.cache.version`. The stamp rule is `enforce: 'pre'`; the entry rule is a normal
  * rule so it runs after stamping.
  *
- * @param {Function | undefined} userWebpack User hook (called first, result preserved).
+ * @param {NextWebpackHook | undefined} userWebpack User hook (called first, result preserved).
  * @param {StampOptions} options Plugin options.
  * @param {NextInspector} inspector Running inspector.
- * @returns {Function} Next `webpack(config, context)` hook. The result keeps the user's config; dev compilations gain two rules.
+ * @returns {NextWebpackHook} Next `webpack(config, context)` hook. The result keeps the user's config; dev compilations gain two rules.
  */
-export function wrapWebpack(userWebpack: Function | undefined, options: StampOptions, inspector: NextInspector) {
+export function wrapWebpack(userWebpack: NextWebpackHook | undefined, options: StampOptions, inspector: NextInspector) {
     return function webpack(config: NextWebpackConfig, context: NextWebpackContext) {
         const result = typeof userWebpack === 'function' ? userWebpack(config, context) : config;
         if (!context?.dev)

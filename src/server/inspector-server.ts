@@ -31,7 +31,13 @@ export function createInspectorServer(deps: Parameters<typeof createInspectorReq
         });
     });
 
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<{
+        server: typeof server;
+        port: number;
+        origin: string;
+        updateDeps(next: Parameters<typeof createInspectorRequestHandler>[0]): void;
+        close(): Promise<void>;
+    }>((resolve, reject) => {
         const onError = (err: Error) => reject(err);
         server.once('error', onError);
         server.listen(0, '127.0.0.1', () => {

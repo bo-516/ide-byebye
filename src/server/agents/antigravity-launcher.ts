@@ -30,7 +30,7 @@ export const DEFAULT_ANTIGRAVITY_COMMAND = 'agy';
  * @param {Record<string, unknown>} [config] Antigravity adapter config.
  * @returns {{ pathStyle: 'relative' | 'absolute', artifactPathStyle: 'relative' | 'absolute' }} Prompt path options.
  */
-export function resolveAntigravityPathStyleOptions(config: any = {}) {
+export function resolveAntigravityPathStyleOptions(config: Record<string, unknown> = {}) {
     return resolvePromptPathStyleOptions(config);
 }
 
@@ -60,7 +60,7 @@ export function resolveAntigravityProjectRoot(config: { projectRoot?: unknown } 
  * @param {Record<string, unknown>} [config] Antigravity adapter config.
  * @returns {Parameters<typeof buildPrompt>[0]} Request view whose `projectRoot` matches the CLI cwd.
  */
-export function withAntigravityPathRoot(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
+export function withAntigravityPathRoot(request: Parameters<typeof buildPrompt>[0], config: { projectRoot?: unknown } = {}) {
     return withAgentPathRoot(request, config);
 }
 
@@ -74,7 +74,7 @@ export function withAntigravityPathRoot(request: Parameters<typeof buildPrompt>[
  * @param {Record<string, unknown>} [config] Antigravity adapter config.
  * @returns {string} Prompt text ending with a newline.
  */
-export function buildAntigravityPrompt(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
+export function buildAntigravityPrompt(request: Parameters<typeof buildPrompt>[0], config: Record<string, unknown> = {}) {
     return buildAgentPrompt(request, config);
 }
 
@@ -89,7 +89,7 @@ export function buildAntigravityPrompt(request: Parameters<typeof buildPrompt>[0
  * @param {Record<string, unknown>} [config] Antigravity adapter config.
  * @returns {string} Prompt ending with a newline.
  */
-export function buildAntigravityFilePrompt(request: Parameters<typeof buildPrompt>[0], promptPath: string, config: any = {}) {
+export function buildAntigravityFilePrompt(request: Parameters<typeof buildPrompt>[0], promptPath: string, config: Record<string, unknown> = {}) {
     return buildAgentFilePrompt(request, promptPath, config);
 }
 
@@ -117,7 +117,7 @@ export function shouldWriteAntigravityPromptFile(config: { promptMode?: unknown,
  * @param {{ platform?: string, env?: NodeJS.ProcessEnv, homedir?: string }} [options] Overrides for tests.
  * @returns {string[]} Ordered command candidates.
  */
-export function resolveAntigravityCommandCandidates(config: any = {}, options: any = {}) {
+export function resolveAntigravityCommandCandidates(config: Record<string, unknown> = {}, options: { platform?: string, env?: NodeJS.ProcessEnv, homedir?: string } = {}) {
     if (typeof config.command === 'string' && config.command.trim())
         return [config.command.trim()];
     const platform = options.platform ?? process.platform;
@@ -134,7 +134,7 @@ export function resolveAntigravityCommandCandidates(config: any = {}, options: a
  * @param {Record<string, unknown>} [config] Antigravity adapter config.
  * @returns {string} Message safe to return to the page.
  */
-export function antigravityMissingMessage(config: any = {}) {
+export function antigravityMissingMessage(config: Record<string, unknown> = {}) {
     const name = resolveAntigravityCommandCandidates(config)[0];
     return `"${name}" not found. Install the Antigravity CLI (https://antigravity.google/docs/cli/getting-started) and ensure \`${DEFAULT_ANTIGRAVITY_COMMAND}\` is on PATH.`;
 }

@@ -89,11 +89,11 @@ function classify(child: string, parent: string, platform: string) {
  *
  * @param {string} projectRoot Bundler / package root the inspector is serving.
  * @param {string[]} [extraRoots] Agent-configured project roots. Blank entries are ignored.
- * @param {{ platform?: string, realpath?: (input: string) => string, gitRoot?: string | null, io?: typeof fs }} [opts]
+ * @param {{ platform?: string, realpath?: (input: string) => string, gitRoot?: string | null, io?: SessionFs }} [opts]
  *        Test hooks. Omit them in production.
  * @returns {{ projectRoot: string, gitRoot: string | null, roots: string[], platform: string }} Scope used by matchers.
  */
-export function buildProjectScope(projectRoot: string, extraRoots: string[] = [], opts: any = {}) {
+export function buildProjectScope(projectRoot: string, extraRoots: string[] = [], opts: { platform?: string, realpath?: (input: string) => string, gitRoot?: string | null, io?: SessionFs } = {}) {
     const platform = opts.platform ?? process.platform;
     const realpath = opts.realpath ?? ((input: string) => normalizeScopePath(input, opts.io));
     const root = realpath(projectRoot);
@@ -124,7 +124,7 @@ export function buildProjectScope(projectRoot: string, extraRoots: string[] = []
  * @param {{ platform?: string, realpath?: (input: string) => string }} [opts] Test hooks.
  * @returns {boolean} True when the session may be listed.
  */
-export function matchSessionCwd(cwd: string, scope: { projectRoot: string, gitRoot: string | null, roots: string[], platform?: string }, opts: any = {}) {
+export function matchSessionCwd(cwd: string, scope: { projectRoot: string, gitRoot: string | null, roots: string[], platform?: string }, opts: { platform?: string, realpath?: (input: string) => string } = {}) {
     if (!cwd || typeof cwd !== 'string' || !scope?.projectRoot)
         return false;
     const platform = opts.platform ?? scope.platform ?? process.platform;
@@ -159,7 +159,7 @@ export function matchSessionCwd(cwd: string, scope: { projectRoot: string, gitRo
  * @param {string} [platform=process.platform] Platform whose `relative` should run.
  * @returns {string} Relative location, never empty.
  */
-export function sessionLocation(cwd: string, projectRoot: string, platform = process.platform) {
+export function sessionLocation(cwd: string, projectRoot: string, platform: string = process.platform) {
     const rel = pathApi(platform).relative(projectRoot, cwd);
     if (!rel)
         return '.';
@@ -173,7 +173,7 @@ export function sessionLocation(cwd: string, projectRoot: string, platform = pro
  * @param {string} [platform=process.platform] Platform whose basename rules apply.
  * @returns {string} Final path segment, or the cwd itself when it has none.
  */
-export function sessionProjectName(cwd: string, platform = process.platform) {
+export function sessionProjectName(cwd: string, platform: string = process.platform) {
     const base = pathApi(platform).basename(cwd);
     return base || cwd;
 }

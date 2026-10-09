@@ -94,7 +94,7 @@ export function stampVue(input: StampVueInput): Insertion[] | null {
  * @returns {Function | null} `parse` from the project's compiler, or null.
  */
 function loadVueParse(file: string) {
-    const mod = requireFromProject<any>(file, '@vue/compiler-dom', 'vue');
+    const mod = requireFromProject<{ parse?: unknown; default?: { parse?: unknown } }>(file, '@vue/compiler-dom', 'vue');
     const parse = mod?.parse ?? mod?.default?.parse;
     return typeof parse === 'function' ? parse : null;
 }

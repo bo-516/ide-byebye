@@ -13,20 +13,32 @@ import { ANGULAR_HINT_ATTRS, ANGULAR_HINT_LIMITS } from '../../shared/angular-hi
  * throw for nodes it does not manage; those are treated as "not Angular".
  */
 
+/** `debugInfo` fields Angular dev mode stamps on `constructor.ɵcmp`. */
+interface AngularComponentDebugInfo {
+    className?: unknown;
+    filePath?: unknown;
+    lineNumber?: unknown;
+}
+
+/** Minimal component-instance shape: only the `ɵcmp` definition Angular stamps is read. */
+interface AngularComponentInstance {
+    constructor?: { ɵcmp?: { debugInfo?: AngularComponentDebugInfo | null } | null } | null;
+}
+
 /** Minimal shape of Angular's dev-mode global. */
 interface AngularDebugApi {
-    getOwningComponent(el: Element): any;
-    getHostElement?(component: any): Element | null;
+    getOwningComponent(el: Element): AngularComponentInstance | null;
+    getHostElement?(component: AngularComponentInstance | null): Element | null;
 }
 
 /**
  * Angular dev-mode debugging API from a window-like object.
  *
- * @param {any} [win] Window to read `ng` from; defaults to the global window (absent in Node tests).
+ * @param {unknown} [win] Window-like object to read `ng` from; defaults to the global window (absent in Node tests).
  * @returns {AngularDebugApi | null} `window.ng` when it exposes `getOwningComponent`, else `null`.
  */
-export function angularDebugApi(win: any = typeof window === 'undefined' ? undefined : window): AngularDebugApi | null {
-    const ng = win?.ng;
+export function angularDebugApi(win: unknown = typeof window === 'undefined' ? undefined : window): AngularDebugApi | null {
+    const ng = (win as { ng?: AngularDebugApi | null } | null | undefined)?.ng;
     return ng && typeof ng.getOwningComponent === 'function' ? ng : null;
 }
 
@@ -35,9 +47,9 @@ export function angularDebugApi(win: any = typeof window === 'undefined' ? undef
  *
  * @param {AngularDebugApi} ng Debug API.
  * @param {Element} el Element to look up.
- * @returns {any} Component instance or `null`.
+ * @returns {AngularComponentInstance | null} Component instance or `null`.
  */
-function ownerOf(ng: AngularDebugApi, el: Element) {
+function ownerOf(ng: AngularDebugApi, el: Element): AngularComponentInstance | null {
     try {
         return ng.getOwningComponent(el) ?? null;
     }
@@ -51,8 +63,8 @@ function ownerOf(ng: AngularDebugApi, el: Element) {
  *
  * @param {Element} el Picked or hovered element.
  * @param {AngularDebugApi | null} [ng] Debug API (defaults to `window.ng`).
- * @returns {{ owner: any, info: { className?: string, filePath: string, lineNumber?: number } } | null} Owner and
- *   debug info, or `null` outside Angular dev builds.
+ * @returns {{ owner: AngularComponentInstance | null, info: AngularComponentDebugInfo & { filePath: string } } | null}
+ *   Owner and debug info, or `null` outside Angular dev builds.
  */
 export function angularComponentOf(el: Element, ng: AngularDebugApi | null = angularDebugApi()) {
     if (!ng || !el)
@@ -61,7 +73,7 @@ export function angularComponentOf(el: Element, ng: AngularDebugApi | null = ang
     const info = owner?.constructor?.ɵcmp?.debugInfo;
     if (!info || typeof info.filePath !== 'string' || !info.filePath)
         return null;
-    return { owner, info };
+    return { owner, info: info as AngularComponentDebugInfo & { filePath: string } };
 }
 
 /**
@@ -108,10 +120,10 @@ function describeStep(el: Element, index: number) {
  *
  * @param {AngularDebugApi} ng Debug API.
  * @param {Element} el Element.
- * @param {any} owner Owning component of `el`.
+ * @param {AngularComponentInstance | null} owner Owning component of `el`.
  * @returns {number} Zero-based index.
  */
-function sameTagIndex(ng: AngularDebugApi, el: Element, owner: any) {
+function sameTagIndex(ng: AngularDebugApi, el: Element, owner: AngularComponentInstance | null) {
     let index = 0;
     for (let node = el.previousElementSibling; node; node = node.previousElementSibling) {
         if (node.localName === el.localName && ownerOf(ng, node) === owner)
@@ -132,24 +144,25 @@ function sameTagIndex(ng: AngularDebugApi, el: Element, owner: any) {
  * @returns {{ inspPath: string, hint: Record<string, unknown> } | null} Location, or `null` outside Angular dev builds.
  */
 export function angularSelection(el: Element, ng: AngularDebugApi | null = angularDebugApi()) {
+    if (!ng)
+        return null;
     const found = angularComponentOf(el, ng);
     if (!found)
         return null;
     const { owner, info } = found;
-    let host: Element | null = null;
+    let host: Element | null;
     try {
-        // `angularComponentOf` already returned null when `ng` is missing, so the debug API is present here.
-        host = ng!.getHostElement?.(owner) ?? null;
+        host = ng.getHostElement?.(owner) ?? null;
     }
     catch {
         host = null;
     }
     const chain: Element[] = [];
     for (let node: Element | null = el; node && node !== host && chain.length < ANGULAR_HINT_LIMITS.pathSteps; node = node.parentElement) {
-        if (ownerOf(ng!, node) === owner)
+        if (ownerOf(ng, node) === owner)
             chain.unshift(node);
     }
-    const path = chain.map((node) => describeStep(node, sameTagIndex(ng!, node, owner)));
+    const path = chain.map((node) => describeStep(node, sameTagIndex(ng, node, owner)));
     const fingerprint = path.map((step) => `${step.tag}${step.index}`).join('>');
     const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, ANGULAR_HINT_LIMITS.stringLength);
     const hint: Record<string, unknown> = { path };

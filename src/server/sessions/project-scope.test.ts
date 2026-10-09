@@ -22,6 +22,7 @@ test('project scope matches equal, child, and in-git ancestors, and rejects abov
     assert.equal(matchSessionCwd(base, scope), false);
     assert.equal(matchSessionCwd(path.join(base, 'other'), scope), false);
     assert.equal(sessionLocation(scope.projectRoot, scope.projectRoot, scope.platform), '.');
+    assert.ok(scope.gitRoot);
     assert.equal(sessionLocation(scope.gitRoot, scope.projectRoot, scope.platform), '..');
     assert.equal(sessionLocation(path.join(scope.projectRoot, 'src'), scope.projectRoot, scope.platform), 'src');
 });

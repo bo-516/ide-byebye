@@ -47,7 +47,7 @@ function clampLookback(value: unknown) {
  * @param {Record<string, unknown>} [config] Adapter config (`sessions` may be boolean or {@link SessionPickerOptions}).
  * @returns {{ enabled: boolean, limit: number, lookbackDays: number, home: string | undefined }} Normalized picker options.
  */
-export function readSessionPicker(config: any = {}) {
+export function readSessionPicker(config: { sessions?: unknown } = {}) {
     if (config?.sessions === false) {
         return {
             enabled: false,
@@ -56,7 +56,7 @@ export function readSessionPicker(config: any = {}) {
             home: undefined,
         };
     }
-    const opts = config?.sessions && typeof config.sessions === 'object' ? config.sessions : {};
+    const opts = (config?.sessions && typeof config.sessions === 'object' ? config.sessions : {}) as Record<string, unknown>;
     const home = typeof opts.home === 'string' && opts.home.trim() ? opts.home.trim() : undefined;
     return {
         enabled: true,

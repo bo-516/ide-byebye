@@ -147,7 +147,7 @@ function shouldWritePromptFile(config: { promptMode?: unknown }, prompt: string)
  * @param {Record<string, unknown>} config Codex App adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
  */
-export function createCodexAppAdapter(config: any = {}) {
+export function createCodexAppAdapter(config: Record<string, unknown> = {}) {
     const sessionsEnabled = readSessionPicker(config).enabled;
     return {
         name: 'codex-app',
@@ -192,9 +192,9 @@ export function createCodexAppAdapter(config: any = {}) {
                     context.emit(event);
                 }
                 const url = target
-                    ? buildCodexAppThreadDeepLink({ scheme: config.scheme, threadId: target.id, prompt })
+                    ? buildCodexAppThreadDeepLink({ scheme: config.scheme as string | undefined, threadId: target.id, prompt })
                     : buildCodexAppDeepLink({
-                        scheme: config.scheme,
+                        scheme: config.scheme as string | undefined,
                         prompt,
                         path: resolveCodexAppProjectRoot(config, context),
                     });

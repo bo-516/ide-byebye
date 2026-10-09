@@ -21,15 +21,24 @@ import { lineContextWindow } from './component-slice.js';
 import { buildLineStartOffsets, lineColumnFromOffset } from './line-offsets.js';
 import { templateHitFields } from './template-hit.js';
 
+/**
+ * The slice of `@angular/compiler` this locator calls.
+ * Boundary: `parseTemplate` is the compiler's public entry; its `nodes` feed {@link flattenTemplate}, which narrows the
+ * untyped AST itself. The compiler module is untyped, so only the members this file reads are named.
+ */
+type AngularCompiler = {
+    parseTemplate: (template: string, file: string, options?: Record<string, unknown>) => { nodes?: Parameters<typeof flattenTemplate>[0] } | null | undefined;
+};
+
 /** Compilers keyed by resolved `@angular/compiler` path (`null` = not loadable from that location). */
-const compilerCache = new Map<string, { parseTemplate: Function } | null>();
+const compilerCache = new Map<string, AngularCompiler | null>();
 
 /**
  * Load the project's `@angular/compiler` (ESM-only; loaded through `require(esm)`, available in the Node versions
  * Angular itself requires).
  *
  * @param {string} file Absolute component path to resolve from.
- * @returns {{ parseTemplate: Function } | null} Compiler, or `null` when unavailable.
+ * @returns {AngularCompiler | null} Compiler, or `null` when unavailable.
  */
 function loadAngularCompiler(file: string) {
     let resolved: string;
@@ -77,11 +86,11 @@ function windowContext(filePath: string, fileLanguage: string, code: string, lin
  * @param {string | undefined} input.projectRoot Project root; without it external templates are not read.
  * @param {number} input.maxContextLines Excerpt window size.
  * @param {number} input.maxComponentLines Slice cap.
- * @returns {Record<string, unknown>} Full `SourceContext` (its `filePath` may be the template file).
+ * @returns {SourceContext} Full source-context record (its `filePath` may be the template file).
  */
 export function extractAngularSourceContext({ file, code, line, hint, projectRoot, maxContextLines, maxComponentLines }: {
     file: string, code: string, line: number, hint: AngularHint, projectRoot?: string, maxContextLines: number, maxComponentLines: number,
-}) {
+}): import('../source-context.js').SourceContext {
     const componentContext = windowContext(file, 'ts', code, line, maxContextLines);
     const template = findComponentTemplate(code, file, { className: hint.className, line });
     if (!template)
@@ -97,7 +106,7 @@ export function extractAngularSourceContext({ file, code, line, hint, projectRoo
     const lineStarts = buildLineStartOffsets(templateCode);
     const offsetToLine = (value: number) => lineColumnFromOffset(lineStarts, value);
     const templateSpan = { start: offset, end: offset + text.length };
-    let index = -1;
+    let index: number;
     if (compiler) {
         const parsed = compiler.parseTemplate(text, templateFile, { preserveWhitespaces: true, preserveLineEndings: true });
         const elements = flattenTemplate(parsed?.nodes, text);

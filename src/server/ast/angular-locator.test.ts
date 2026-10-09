@@ -111,7 +111,7 @@ test('external templates: the element range points into templateUrl', () => {
         assert.equal(out.filePath, path.join(root, 'src/app/app.html'));
         assert.equal(out.fileLanguage, 'html');
         assert.deepEqual(out.selectedNodeRange, { startLine: 13, endLine: 16 });
-        assert.match(out.selectedNodeCode, /^<button[\s\S]*>Add<\/button>$/);
+        assert.match(out.selectedNodeCode ?? '', /^<button[\s\S]*>Add<\/button>$/);
         assert.equal(out.astError, undefined);
     });
 });
@@ -154,8 +154,8 @@ test('unmatched elements fall back to the whole template instead of failing', ()
     withProject((root) => {
         const out = resolve(root, 'src/app/app.ts', 10, { path: [step('video')] });
         assert.equal(out.filePath, path.join(root, 'src/app/app.html'));
-        assert.match(out.astError, /not matched/);
-        assert.equal(out.selectedNodeRange.startLine, 1);
+        assert.match(out.astError ?? '', /not matched/);
+        assert.equal(out.selectedNodeRange?.startLine, 1);
     });
 });
 
@@ -164,7 +164,7 @@ test('a templateUrl escaping the project root is refused and degrades to the com
         fs.writeFileSync(path.join(root, 'src/app/app.ts'), APP_TS.replace('./app.html', '../../../../outside.html'));
         const out = resolve(root, 'src/app/app.ts', 10, { path: [step('main')] });
         assert.equal(out.filePath, path.join(root, 'src/app/app.ts'));
-        assert.match(out.astError, /outside/);
+        assert.match(out.astError ?? '', /outside/);
     });
 });
 

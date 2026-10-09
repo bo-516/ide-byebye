@@ -72,7 +72,7 @@ export function stampSvelte(input: StampSvelteInput): Insertion[] | null {
  * @returns {Function | null} `svelte/compiler` parse, or null.
  */
 function loadSvelteParse(file: string) {
-    const mod = requireFromProject<any>(file, 'svelte/compiler');
+    const mod = requireFromProject<{ parse?: unknown; default?: { parse?: unknown } }>(file, 'svelte/compiler');
     const parse = mod?.parse ?? mod?.default?.parse;
     return typeof parse === 'function' ? parse : null;
 }

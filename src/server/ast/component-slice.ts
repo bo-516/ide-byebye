@@ -101,7 +101,7 @@ export function cappedComponentCode(code: string, lines: string[], node: { loc?:
     }
     const half = Math.floor(maxComponentLines / 2);
     let windowStart = Math.max(startLine, hitLine - half);
-    let windowEnd = Math.min(endLine, windowStart + maxComponentLines - 1);
+    const windowEnd = Math.min(endLine, windowStart + maxComponentLines - 1);
     windowStart = Math.max(startLine, windowEnd - maxComponentLines + 1);
     const body = sliceLines(lines, windowStart, windowEnd);
     const head = windowStart > startLine ? '// … (component truncated above)\n' : '';

@@ -21,6 +21,27 @@ import { detectNextProjectDir, isInspectorHostProcess } from './next-project.js'
 /** `PHASE_DEVELOPMENT_SERVER` from `next/constants`. */
 const PHASE_DEVELOPMENT_SERVER = 'phase-development-server';
 
+/** Resolved Next config object as the integration reads it; `null` / `undefined` are treated as `{}`. */
+type ResolvedNextConfig = Parameters<typeof mergeTurbopackRules>[0] | null | undefined;
+
+/**
+ * Every shape {@link withIdeByebye} accepts at runtime: an object, a `(phase, context)` function, or a promise.
+ * Boundary: names the runtime branches only; the wrapper still returns the caller's own `T`.
+ */
+type NextConfigInput = ResolvedNextConfig
+    | ((phase: string, context: unknown) => ResolvedNextConfig | PromiseLike<ResolvedNextConfig>)
+    | PromiseLike<ResolvedNextConfig>;
+
+/**
+ * Whether a non-function config value is a thenable (a promise config export).
+ *
+ * @param {ResolvedNextConfig | PromiseLike<ResolvedNextConfig>} value Config value already known not to be a function.
+ * @returns {boolean} `true` when `value` is truthy and has a callable `then`.
+ */
+function isPromiseLikeConfig(value: ResolvedNextConfig | PromiseLike<ResolvedNextConfig>): value is PromiseLike<ResolvedNextConfig> {
+    return !!value && typeof (value as { then?: unknown }).then === 'function';
+}
+
 /**
  * Current stack with a generous frame limit, so the `next.config.*` frame is never cut off.
  *
@@ -73,7 +94,8 @@ function applyNextIntegration(nextConfig: Parameters<typeof mergeTurbopackRules>
  * @returns {object | Function | Promise<object>} Same shape as `nextConfig`, with the integration applied in dev only.
  */
 export function withIdeByebye<T = Record<string, unknown>>(nextConfig: T = {} as T, options: NextIdeByebyeOptions = {}): T {
-    const input: any = nextConfig;
+    // `T` is the caller's own type; the runtime checks below pick the branch, so the alias only names the shapes.
+    const input = nextConfig as NextConfigInput;
     if (options.enabled === false)
         return nextConfig;
     const root = resolveRoot(options);
@@ -85,8 +107,8 @@ export function withIdeByebye<T = Record<string, unknown>>(nextConfig: T = {} as
         }) as T;
     }
     const isDev = process.env.NODE_ENV === 'development' && hostable;
-    if (input && typeof input.then === 'function')
-        return input.then((resolved: Parameters<typeof mergeTurbopackRules>[0] | null | undefined) => (isDev ? applyNextIntegration(resolved, options, root) : resolved));
+    if (isPromiseLikeConfig(input))
+        return input.then((resolved) => (isDev ? applyNextIntegration(resolved, options, root) : resolved)) as T;
     // The constructed config is the caller's `T` at runtime; the generic return cannot name that spread.
     return isDev ? applyNextIntegration(input, options, root) as T : nextConfig;
 }

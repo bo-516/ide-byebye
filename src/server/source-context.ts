@@ -72,6 +72,23 @@ function runLocator(language: string, input: { file: string, code: string, line:
     return extractJsxFromCode(code, line, column, maxContextLines, maxComponentLines);
 }
 
+/** Locator result fields merged onto a source-context base record. */
+export type SourceContext = {
+    filePath?: string;
+    fileLanguage?: string;
+    fileExcerpt?: string;
+    startLine?: number;
+    endLine?: number;
+    importsCode?: string;
+    importsRange?: { startLine: number, endLine: number } | null;
+    selectedNodeCode?: string;
+    selectedNodeRange?: { startLine: number, endLine: number } | null;
+    containingComponentCode?: string;
+    containingComponentRange?: { startLine: number, endLine: number } | null;
+    astError?: string;
+    [key: string]: unknown;
+};
+
 /**
  * Copy locator fields onto the base context and widen its line window to cover the located code.
  *
@@ -79,12 +96,7 @@ function runLocator(language: string, input: { file: string, code: string, line:
  * @param {Record<string, unknown>} inner Locator output.
  * @returns {Record<string, unknown>} `base` with AST fields merged.
  */
-function mergeLocatorFields(base: Record<string, unknown> & {
-    containingComponentRange?: { startLine: number, endLine: number };
-    selectedNodeRange?: { startLine: number, endLine: number };
-    startLine: number;
-    endLine: number;
-}, inner: Record<string, unknown>) {
+function mergeLocatorFields(base: SourceContext & { startLine: number, endLine: number }, inner: Record<string, unknown>) {
     for (const key of LOCATOR_FIELDS) {
         if (inner[key] != null && inner[key] !== '')
             base[key] = inner[key];
@@ -110,15 +122,15 @@ function mergeLocatorFields(base: Record<string, unknown> & {
  * an external template (path-guarded).
  *
  * @param {{ file: string, line: number, column: number, maxContextLines?: number, maxComponentLines?: number, angular?: import('../shared/angular-hint.js').AngularHint | null, projectRoot?: string }} opts
- * @returns {object} SourceContext fields for the prompt pipeline.
+ * @returns {SourceContext} Source-context fields for the prompt pipeline.
  */
-export function extractSourceContext(opts: { file: string, line: number, column: number, maxContextLines?: number, maxComponentLines?: number, angular?: import('../shared/angular-hint.js').AngularHint | null, projectRoot?: string }) {
+export function extractSourceContext(opts: { file: string, line: number, column: number, maxContextLines?: number, maxComponentLines?: number, angular?: import('../shared/angular-hint.js').AngularHint | null, projectRoot?: string }): SourceContext {
     const { file, line, column, maxContextLines = DEFAULT_MAX_SOURCE_CONTEXT_LINES, maxComponentLines = DEFAULT_MAX_COMPONENT_LINES, angular, projectRoot, } = opts;
     const code = fs.readFileSync(file, 'utf8');
     const lines = code.split('\n');
     const language = detectLanguage(file);
     const window = lineContextWindow(lines, line, maxContextLines);
-    const base: any = {
+    const base: SourceContext & { startLine: number, endLine: number } = {
         filePath: file,
         fileLanguage: language,
         fileExcerpt: window.excerpt,

@@ -135,7 +135,10 @@ test('every session copy key exists in zh and en', () => {
 });
 
 test('dialog source wires the destination picker, session menu, and Esc-closes-menus-first', () => {
-    const dialog = fs.readFileSync(new URL('./dialog.ts', import.meta.url), 'utf8');
+    // `dialog.ts` is split into layers; the wiring assertions read the concatenated dialog sources.
+    const dialog = ['dialog.ts', 'dialog-shell.ts', 'dialog-pins.ts', 'dialog-send.ts', 'dialog-clipboard.ts', 'dialog-layout.ts']
+        .map((name) => fs.readFileSync(new URL(`./${name}`, import.meta.url), 'utf8'))
+        .join('\n');
     const sessions = fs.readFileSync(new URL('./dialog-session-picker.ts', import.meta.url), 'utf8');
     const picker = fs.readFileSync(new URL('./dialog-agent-picker.ts', import.meta.url), 'utf8');
     const menu = fs.readFileSync(new URL('./dialog-session-menu.ts', import.meta.url), 'utf8');

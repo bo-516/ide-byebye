@@ -113,7 +113,7 @@ function lineAnchor(startLine: number | undefined, endLine: number | undefined) 
  * @returns {string} Label text safe for a simple Markdown link.
  */
 function escapeMarkdownLabel(value: string) {
-    return String(value ?? '').replace(/([\\\[\]])/g, '\\$1');
+    return String(value ?? '').replace(/([\\[\]])/g, '\\$1');
 }
 
 /**

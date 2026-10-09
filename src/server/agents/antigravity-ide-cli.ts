@@ -41,7 +41,7 @@ export function resolveAntigravityIdeProjectRoot(config: { projectRoot?: unknown
  * @param {{ platform?: string, env?: NodeJS.ProcessEnv, homedir?: string }} [options] Overrides for tests.
  * @returns {string[]} Ordered command candidates.
  */
-export function resolveAntigravityIdeCommandCandidates(config: any = {}, options: any = {}) {
+export function resolveAntigravityIdeCommandCandidates(config: Record<string, unknown> = {}, options: { platform?: string, env?: NodeJS.ProcessEnv, homedir?: string } = {}) {
     if (typeof config.command === 'string' && config.command.trim())
         return [config.command.trim()];
     const platform = options.platform ?? process.platform;
@@ -233,7 +233,7 @@ export function buildAntigravityIdeLauncherFile(input: { command: string, cwd: s
  * @param {Record<string, unknown>} [config] Antigravity IDE adapter config.
  * @returns {string} Message safe to return to the page.
  */
-export function antigravityIdeMissingMessage(config: any = {}) {
+export function antigravityIdeMissingMessage(config: Record<string, unknown> = {}) {
     const name = resolveAntigravityIdeCommandCandidates(config)[0];
     return `"${name}" not found. Install Antigravity IDE and ensure \`${DEFAULT_ANTIGRAVITY_IDE_COMMAND}\` is on PATH.`;
 }

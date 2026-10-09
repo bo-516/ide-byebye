@@ -249,7 +249,8 @@ export function readSessionTargets(store?: SessionTargetStore): Record<string, S
         return {};
     const targets: Record<string, SessionTarget> = {};
     // The stored map is untrusted JSON; `id` / `title` are checked before an entry is kept.
-    for (const [agent, entry] of Object.entries(value as Record<string, any>)) {
+    for (const [agent, raw] of Object.entries(value as Record<string, unknown>)) {
+        const entry = raw as { id?: unknown; title?: unknown } | null;
         if (entry && typeof entry.id === 'string' && entry.id)
             targets[agent] = { id: entry.id, title: typeof entry.title === 'string' ? entry.title : '' };
     }

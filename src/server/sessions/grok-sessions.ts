@@ -45,7 +45,7 @@ interface GrokEventRecord {
  * @param {string} [homeDir] User home. Tests pass a temp directory's parent only via `sessions.home`.
  * @returns {string} Absolute Grok home.
  */
-export function resolveGrokHome(config: any = {}, homeDir = os.homedir()) {
+export function resolveGrokHome(config: { sessions?: unknown } = {}, homeDir = os.homedir()) {
     const picker = readSessionPicker(config);
     if (picker.home)
         return path.resolve(picker.home);
@@ -72,11 +72,11 @@ function delay(ms: number) {
  * The shape is a bare array, or `{ sessions: [] }`.
  *
  * @param {string} file Active-session file.
- * @param {{ readFileSync: Function, existsSync: Function, sleep?: Function }} io Filesystem and clock.
- *        `readFileSync` is `Function` so a test double with a narrower encoding parameter still assigns.
+ * @param {SessionFs & { sleep?: (ms: number) => unknown }} io Filesystem and clock.
+ *        `sleep` is optional; tests pass a synchronous or async stand-in for the retry delay.
  * @returns {Promise<{ entries: ActiveSessionEntry[], unreadable: boolean }>}
  */
-async function readActiveSessions(file: string, io: { readFileSync: Function; existsSync: Function; sleep?: Function }): Promise<{ entries: ActiveSessionEntry[]; unreadable: boolean }> {
+async function readActiveSessions(file: string, io: SessionFs & { sleep?: (ms: number) => unknown }): Promise<{ entries: ActiveSessionEntry[]; unreadable: boolean }> {
     if (!io.existsSync(file))
         return { entries: [], unreadable: false };
     const parse = (text: string) => {
@@ -163,10 +163,10 @@ function classifyGrokStatus(text: string, live: boolean, dropFirst: boolean) {
  *
  * @param {string} home Grok home directory.
  * @param {string} sessionId Session UUID.
- * @param {{ readFileSync: Function, existsSync: Function, sleep?: Function }} [io] Filesystem override.
+ * @param {SessionFs & { sleep?: (ms: number) => unknown }} [io] Filesystem override.
  * @returns {Promise<boolean>} True when injection must be refused.
  */
-export async function isGrokSessionLive(home: string, sessionId: string, io = fs) {
+export async function isGrokSessionLive(home: string, sessionId: string, io: SessionFs & { sleep?: (ms: number) => unknown } = fs) {
     const active = await readActiveSessions(path.join(home, 'active_sessions.json'), io);
     if (active.unreadable)
         return true;
@@ -220,7 +220,7 @@ export async function listGrokSessions(input: {
     const sessions = [];
     let sawSummary = false;
     let parsedSummary = false;
-    let names = [];
+    let names: string[];
     try {
         names = io.readdirSync(sessionsRoot);
     }
@@ -238,7 +238,7 @@ export async function listGrokSessions(input: {
         if (!matchSessionCwd(cwdName, scope))
             continue;
         const parent = path.join(sessionsRoot, encoded);
-        let ids = [];
+        let ids: string[];
         try {
             if (!io.statSync(parent).isDirectory())
                 continue;

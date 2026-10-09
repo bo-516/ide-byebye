@@ -5,6 +5,8 @@ import { parseInspPath } from './insp-path.js';
 import { normalizeRenderChain } from './render-chain.js';
 import { assertPathInsideRoot } from './security.js';
 import { extractSourceContext } from './source-context.js';
+import type { SourceContext } from './source-context.js';
+import type { RecordingWritePayload, ScreenshotWritePayload } from './screenshot.js';
 import { normalizeStyles } from './styles.js';
 
 /**
@@ -20,7 +22,7 @@ type BrowserSelection = {
 };
 
 /** Resolve/send body fields the pipeline reads. Artifact lists are copied through unchanged. */
-type IntentPayload = {
+export type IntentPayload = {
     selection?: BrowserSelection | null;
     references?: readonly (BrowserSelection | null | undefined)[] | null;
     pageUrl?: unknown;
@@ -29,6 +31,9 @@ type IntentPayload = {
     applyMode?: unknown;
     resume?: unknown;
     styles?: Parameters<typeof normalizeStyles>[0];
+    screenshot?: ScreenshotWritePayload | null;
+    screenshots?: readonly ScreenshotWritePayload[] | null;
+    recordings?: readonly RecordingWritePayload[] | null;
 };
 
 /**
@@ -40,11 +45,41 @@ type PipelineOptions = {
     applyMode?: unknown;
 };
 
+/** Browser selection after {@link resolveSourceSelection}: raw fields plus the validated file/line/column. */
+type ResolvedSelection = {
+    file: string;
+    line: number;
+    column: number;
+    [key: string]: unknown;
+};
+
 /** Output of {@link resolveSelection}, passed straight into {@link buildIntentRequest}. */
 type ResolvedIntent = {
-    selection: Record<string, unknown>;
-    source: unknown;
-    references?: unknown;
+    selection: ResolvedSelection;
+    source: SourceContext;
+    references?: readonly ResolvedIntent[];
+};
+
+/**
+ * Normalized request handed to prompt rendering and agent adapters.
+ * Boundary: page-payload fields stay `unknown`; only ids/timestamps are generated here.
+ */
+export type IntentRequest = {
+    id: string;
+    createdAt: string;
+    projectRoot: string;
+    pageUrl?: unknown;
+    intent: unknown;
+    agent?: unknown;
+    applyMode?: unknown;
+    resume: unknown;
+    selection: ResolvedSelection;
+    source: SourceContext;
+    references: readonly ResolvedIntent[];
+    styles: ReturnType<typeof normalizeStyles>;
+    screenshots?: readonly { filePath?: string }[];
+    screenshot?: { filePath?: string };
+    recordings?: readonly { stillFramePath?: string }[];
 };
 
 /**
@@ -80,7 +115,7 @@ export function resolveSourceSelection(selection: BrowserSelection | null | unde
         angular,
         projectRoot,
     });
-    const resolvedSelection: Record<string, unknown> = {
+    const resolvedSelection: ResolvedSelection = {
         ...selection,
         file: absFile,
         line: parsed.line,
@@ -145,9 +180,9 @@ export function resolveSelection(payload: IntentPayload | null | undefined, proj
  * @param {ResolvedIntent} resolved Resolved primary and extra source context. Paths are not revalidated here.
  * @param {string} projectRoot Absolute Vite project root.
  * @param {PipelineOptions} options Resolved inspector options. `applyMode` is copied when the payload omits one.
- * @returns {Record<string, unknown>} Intent request consumed by prompts and adapters.
+ * @returns {IntentRequest} Intent request consumed by prompts and adapters.
  */
-export function buildIntentRequest(payload: IntentPayload, resolved: ResolvedIntent, projectRoot: string, options: PipelineOptions): any {
+export function buildIntentRequest(payload: IntentPayload, resolved: ResolvedIntent, projectRoot: string, options: PipelineOptions): IntentRequest {
     return {
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),

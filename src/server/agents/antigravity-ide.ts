@@ -97,7 +97,7 @@ function runLauncher(launchPath: string) {
  * @param {Record<string, unknown>} config Antigravity IDE adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.
  */
-export function createAntigravityIdeAdapter(config: any = {}) {
+export function createAntigravityIdeAdapter(config: Record<string, unknown> = {}) {
     const sessions = createAntigravitySessionBridge(config);
     return {
         name: 'antigravity-ide',

@@ -12,6 +12,26 @@
 import fs from 'node:fs';
 import { injectNextBootstrap } from './entry-inject.js';
 
+/** JSON options the Next integration passes to this loader (Turbopack serializes them). */
+interface EntryLoaderOptions {
+    bootstrapFile?: string;
+    projectDir?: string;
+}
+
+/**
+ * webpack / Turbopack loader-context fields this loader reads.
+ *
+ * Boundary: structural so both hosts' contexts fit. `getOptions` is the webpack 5 / Turbopack API; `query` is the
+ * legacy fallback and holds the same options object because the integration always configures this loader with JSON.
+ */
+interface EntryLoaderContext {
+    getOptions?: () => EntryLoaderOptions | null | undefined;
+    query?: EntryLoaderOptions | null;
+    rootContext?: string;
+    resourcePath: string;
+    callback?: (error: Error | null, content: string, map?: unknown) => void;
+}
+
 /**
  * Whether a Pages Router directory holds a custom `_app` (any extension, including custom `pageExtensions`).
  *
@@ -34,10 +54,10 @@ function hasCustomApp(pagesDir: string) {
  * @param {unknown} [map] Incoming source map, forwarded unchanged.
  * @returns {string | void} Source when the loader context has no `callback`; otherwise results go through `callback`.
  */
-export default function ideByebyeNextEntryLoader(this: any, source: string, map?: unknown) {
-    const options = (typeof this.getOptions === 'function' ? this.getOptions() : this.query) || {};
+export default function ideByebyeNextEntryLoader(this: EntryLoaderContext, source: string, map?: unknown) {
+    const options: EntryLoaderOptions = (typeof this.getOptions === 'function' ? this.getOptions() : this.query) || {};
     const projectDir = this.rootContext || options.projectDir || process.cwd();
-    let output = source;
+    let output: string;
     try {
         output = injectNextBootstrap({
             source,
