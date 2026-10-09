@@ -4,7 +4,8 @@
  * Purpose: one function for every bundler. `family: 'rollup'` skips `*.vue?vue` subrequests (those
  * are already-stamped JS). `family: 'webpack'` stamps them because vue-loader hands the raw SFC to
  * the subrequest. Queries `raw`, `url`, `worker`, `sharedworker`, `inline`, and `type=style` are
- * never stamped. `/node_modules/` is skipped unless `include` matches; `exclude` always wins.
+ * never stamped. `/node_modules/` and files inside `cacheDir` (Vite's pre-bundled deps) are
+ * skipped unless `include` matches; `exclude` always wins.
  *
  * Boundary: returns null when the source must not change, including parse failures and thrown
  * bugs (one warning per process, with the file path). Does not read the disk. `id` may be a
@@ -24,6 +25,7 @@ const QUERY_SKIP = new Set(['raw', 'url', 'worker', 'sharedworker', 'inline']);
 let internalWarned = false;
 const warnedKeys = new Set<string>();
 
+/** One module a bundler adapter hands to {@link stampModule}. */
 export interface StampModuleInput {
     code: string;
     id: string;
@@ -32,6 +34,11 @@ export interface StampModuleInput {
     warnOnce?: (key: string, message: string) => void;
     /** Passed through to the JSX parser. Omit to follow raw-transfer support. */
     raw?: boolean;
+    /**
+     * Absolute directory the bundler serves pre-bundled dependencies from (Vite's resolved `cacheDir`).
+     * Files inside it are skipped like `node_modules`. Omit when the bundler has no such directory.
+     */
+    cacheDir?: string;
 }
 
 /**
@@ -95,6 +102,17 @@ function insertionsFor(input: StampModuleInput) {
     return stampJsx({ code: input.code, file: filePath, lang, escapeTags, raw: input.raw });
 }
 
+/**
+ * Whether a module must stay unchanged before it is parsed.
+ *
+ * Skips virtual ids, the skipped queries, CommonJS extensions, rollup `*.vue?vue` subrequests,
+ * `exclude` hits, and dependency files (`node_modules`, or inside `input.cacheDir`) that `include`
+ * does not name. A bad include/exclude pattern throws, and {@link stampModule} fails open.
+ *
+ * @param {{ filePath: string, query: string, ext: string, id: string }} split Parts from {@link splitId}.
+ * @param {StampModuleInput} input Reads `family`, `options`, and `cacheDir`. A missing `cacheDir` leaves only the `node_modules` rule.
+ * @returns {boolean} True when the module must not be stamped.
+ */
 function skipId(split: { filePath: string, query: string, ext: string, id: string }, input: StampModuleInput): boolean {
     const { filePath, query, ext, id } = split;
     if (id.startsWith('\0') || id.startsWith('virtual:') || filePath.startsWith('\0'))
@@ -109,6 +127,8 @@ function skipId(split: { filePath: string, query: string, ext: string, id: strin
     if (matches(input.options.exclude, posix) || matches(input.options.exclude, id))
         return true;
     if (isUnincludedNodeModule(posix, id, input.options.include))
+        return true;
+    if (isUnincludedCacheFile(posix, id, input.options.include, input.cacheDir))
         return true;
     return false;
 }
@@ -128,6 +148,31 @@ function skipId(split: { filePath: string, query: string, ext: string, id: strin
 export function isUnincludedNodeModule(filePath: string, id: string, include: Array<string | RegExp> | undefined): boolean {
     const posix = filePath.replace(/\\/g, '/');
     if (!posix.includes('/node_modules/'))
+        return false;
+    return !matches(include, posix) && !matches(include, id);
+}
+
+/**
+ * Whether a file inside the dependency cache directory is outside `include`.
+ *
+ * Vite serves pre-bundled deps from `<cacheDir>/deps`, `deps_temp_*`, and per-environment `deps_*`
+ * folders. The default cacheDir is under `node_modules`; a custom one (`cacheDir: '.vite'`) is not,
+ * and stamping those bundles sends a pick into generated code. Everything below the directory is
+ * skipped, like {@link isUnincludedNodeModule}. Paths are compared as POSIX strings, the way Vite
+ * matches its own optimized-dep ids, so symlinks are not resolved.
+ *
+ * @param {string} filePath Absolute path with the query already removed. Backslashes are normalized.
+ * @param {string} id Full module id, compared as given (a query can be what `include` names).
+ * @param {Array<string | RegExp> | undefined} include Resolved include patterns. A match keeps the file stamped.
+ * @param {string | undefined} cacheDir Absolute directory; backslashes and a trailing slash are normalized. Omit or pass `''` to turn the rule off.
+ * @returns {boolean} True when `filePath` is below `cacheDir` and neither `filePath` nor `id` matches.
+ */
+function isUnincludedCacheFile(filePath: string, id: string, include: Array<string | RegExp> | undefined, cacheDir: string | undefined): boolean {
+    if (!cacheDir)
+        return false;
+    const posix = filePath.replace(/\\/g, '/');
+    const prefix = `${cacheDir.replace(/\\/g, '/').replace(/\/+$/, '')}/`;
+    if (!posix.startsWith(prefix))
         return false;
     return !matches(include, posix) && !matches(include, id);
 }

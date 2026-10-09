@@ -347,11 +347,14 @@ export type EscapeTag = string | RegExp;
  */
 export interface SourceStampOptions {
   /**
-   * Paths to stamp even under `node_modules`.
+   * Paths to stamp even under `node_modules` or Vite's `cacheDir`.
    * A string matches as a substring; a RegExp is tested against the module id.
    */
   include?: string | RegExp | Array<string | RegExp>;
-  /** Extra paths to skip. `/node_modules/` is always skipped unless `include` matches. */
+  /**
+   * Extra paths to skip. `/node_modules/` and Vite's `cacheDir` (pre-bundled deps) are always
+   * skipped unless `include` matches.
+   */
   exclude?: string | RegExp | Array<string | RegExp>;
   /** Appended to the built-in escape tags. Strings are case-insensitive. */
   escapeTags?: EscapeTag[];

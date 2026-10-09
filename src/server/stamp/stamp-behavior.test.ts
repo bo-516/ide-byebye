@@ -2,6 +2,7 @@
  * Dispatch, options, fail-open, and esbuild behavior of the built-in stamper.
  *
  * Boundary: calls `stampModule` / the Vite and esbuild plugins — the same entry points bundlers use.
+ * The `cacheDir` test resolves a real Vite config so the plugin sees what Vite passes to `configResolved`.
  */
 
 import assert from 'node:assert/strict';
@@ -11,7 +12,9 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import * as esbuild from 'esbuild';
+import { resolveConfig } from 'vite';
 import { esbuild as esbuildPlugins } from '../../plugin.js';
+import type { IdeByebyeOptions } from '../../types.js';
 import { applyInsertions } from './stamp-edits.js';
 import { elementTable } from './element-table.js';
 import { stampJsx } from './stamp-jsx.js';
@@ -155,6 +158,35 @@ test('Vite SSR stamping matches the client transform', async () => {
     const server = await plugin.transform.handler(jsx, id, { ssr: true });
     assert.deepEqual(client, server);
     assert.match(client.code, /data-insp-path/);
+});
+
+test('Vite skips files inside a custom cacheDir unless include matches', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vite-cache-dir-'));
+    const bundle = 'export function Overlay(props){return React.createElement("div", props)}\n';
+    async function resolveStamp(options: IdeByebyeOptions) {
+        const config = await resolveConfig({ root, configFile: false, logLevel: 'silent', cacheDir: '.vite', plugins: [stampUnplugin.vite(options)] }, 'serve');
+        const plugin = config.plugins.find((item) => item.name === STAMP_NAME);
+        assert.ok(plugin, 'Vite keeps the stamp plugin in serve mode');
+        // unplugin's transform is `{ filter, handler }`; called without Vite's context, the handler applies the filter itself.
+        const { handler } = plugin.transform as unknown as { handler: (code: string, id: string) => { code: string } | null };
+        return { cacheDir: config.cacheDir, transform: (code: string, id: string) => handler(code, id)?.code ?? null };
+    }
+    try {
+        const { cacheDir, transform } = await resolveStamp({});
+        const dep = `${cacheDir}/deps/@radix-ui_react-dialog.js?v=4f3c2a1b`;
+        // Vite resolves `.vite` to an absolute path under the root (Vite 8.2 realpaths the root, 8.0 does not).
+        assert.equal(path.posix.basename(cacheDir), '.vite');
+        assert.equal(fs.realpathSync(path.dirname(cacheDir)), fs.realpathSync(root));
+        assert.equal(transform(bundle, dep), null);
+        assert.equal(transform(bundle, `${cacheDir}/deps_temp_9d8e7f6a/@radix-ui_react-dialog.js`), null);
+        assert.match(transform(jsx, `${path.dirname(cacheDir)}/src/App.jsx`) ?? '', /\/src\/App\.jsx:1:\d+:div/);
+        assert.match(transform(jsx, `${cacheDir}-ui/App.jsx`) ?? '', /\/\.vite-ui\/App\.jsx:1:\d+:div/);
+        const included = await resolveStamp({ sourceStamp: { include: [/\/\.vite\/deps\//] } });
+        assert.match(included.transform(bundle, dep) ?? '', /\/\.vite\/deps\/@radix-ui_react-dialog\.js:1:\d+:div/);
+    }
+    finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test('esbuild dev output contains data-insp-path and production output does not', async () => {

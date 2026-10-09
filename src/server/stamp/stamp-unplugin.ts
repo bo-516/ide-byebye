@@ -8,6 +8,8 @@
  * Boundary: stamping follows the same switch as bootstrap injection. `sourceStamp: false` and
  * `enabled: false` return the original source. Vite `apply: 'serve'` keeps production builds clean.
  * esbuild also skips `NODE_ENV=production`, and skips `node_modules` unless `include` matches.
+ * Vite also skips its resolved `cacheDir` (pre-bundled deps, wherever the cache lives) unless
+ * `include` matches; the other bundlers do not serve dependencies from a cache directory.
  * The Vite order warning fires once when a framework plugin is registered before this one.
  * unplugin 3.3's Farm adapter keeps a transform result only when `typeof result !== "string"`.
  * Vite, webpack, and rspack already accept `{ code }`, so a stamped module always returns that object.
@@ -53,10 +55,14 @@ export function resetVitePluginOrderWarning() {
 /**
  * unplugin instance. `vite` / `farm` / `webpack` / `rspack` / `esbuild` each call the factory
  * with their framework name so Vue subrequests are classified correctly.
+ * Each call builds a separate plugin, so the Vite `cacheDir` it captures belongs to the config
+ * that resolved it. When one instance is shared by two Vite configs, the later `configResolved` wins.
  */
 export const stampUnplugin = createUnplugin((options: IdeByebyeOptions = {}, meta: { framework?: string } = {}) => {
     const resolved = resolveStampOptions(options, (message) => console.warn(message));
     const framework = meta.framework ?? '';
+    /** Vite's resolved `cacheDir`, set in `configResolved`. Undefined before that and for every other bundler. */
+    let viteCacheDir: string | undefined;
     if (framework === 'esbuild') {
         return {
             name: STAMP_NAME,
@@ -81,6 +87,7 @@ export const stampUnplugin = createUnplugin((options: IdeByebyeOptions = {}, met
                     id,
                     family: familyOf(framework),
                     options: resolved,
+                    cacheDir: viteCacheDir,
                     warnOnce: (_key, message) => console.warn(message),
                 });
                 // Farm's unplugin adapter drops a string. The other bundlers accept `{ code }` too.
@@ -92,6 +99,8 @@ export const stampUnplugin = createUnplugin((options: IdeByebyeOptions = {}, met
         vite: {
             apply: 'serve' as const,
             configResolved(config) {
+                // Absolute and POSIX-normalized by Vite, including a relative `cacheDir: '.vite'`.
+                viteCacheDir = config?.cacheDir;
                 warnIfAfterFramework(config?.plugins);
             },
         },
