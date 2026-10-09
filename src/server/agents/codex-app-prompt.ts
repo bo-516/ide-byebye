@@ -1,5 +1,6 @@
 import { buildPromptReferenceLines } from '../prompt.js';
 import { buildPromptMarkdownReferenceLines } from '../prompt-markdown.js';
+import { buildRenderChainLines } from '../render-chain.js';
 import { buildStyleContextLines } from '../styles.js';
 
 /** Fields the Codex prompt builders forward into the shared formatters. */
@@ -12,10 +13,11 @@ type CodexPromptRequest = Parameters<typeof buildPromptReferenceLines>[0]
  *
  * Boundary: replacements are derived from server-resolved references, so user-written text that merely resembles a
  * reference is left alone unless it exactly matches a known label. References already present in the intent are removed
- * from the top context block so Codex App does not receive the same file link twice.
+ * from the top context block so Codex App does not receive the same file link twice. A portal pick's
+ * `Rendered via portal:` line (project-relative, like the links) closes the block.
  *
  * @param {CodexPromptRequest} request Normalized intent request containing `intent` and resolved references.
- * @returns {{ refs: string[], intent: string }} Top context refs and intent text safe for a Codex App deeplink.
+ * @returns {{ refs: string[], intent: string }} Top context lines and intent text safe for a Codex App deeplink.
  */
 function codexAppPromptParts(request: CodexPromptRequest) {
     let intent = String(request.intent ?? '').trim();
@@ -42,7 +44,7 @@ function codexAppPromptParts(request: CodexPromptRequest) {
     });
 
     return {
-        refs: markdownRefs.filter((ref, index) => ref && !inlineRefs.has(index)),
+        refs: [...markdownRefs.filter((ref, index) => ref && !inlineRefs.has(index)), ...buildRenderChainLines(request, 'relative')],
         intent,
     };
 }

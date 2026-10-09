@@ -1,4 +1,4 @@
-import { basename, parseInspPathLite } from '../inspect/dom.js';
+import { basename, parseInspPathLite } from '../inspect/insp-path-lite.js';
 import { t } from '../lib/i18n.js';
 import { validStyleKeys } from '../style/style-keys.js';
 import { clampNodeLimit, DEFAULT_NODE_LIMIT } from '../style/style-capture.js';

@@ -21,7 +21,7 @@ Multi-app / multi-bundler playground for **ide-byebye** (code-intent-inspector).
 | **SvelteKit 2** (`sveltekit/`) | Vite | `pnpm dev:sveltekit` | 5890 |
 | **Angular 22** (`angular/`) | Angular CLI | `pnpm dev:angular` | 5900 |
 
-React and Vue keep the todo pages. Every other app is a title plus one Ping button. Trigger the inspector by **holding ⌘ (Command) and clicking any element** (or `Alt+Shift+I` then click).
+React and Vue keep the todo pages, plus a row of portal / Teleport cases under the list. Next.js adds an overlay that portals into `<body>`. Every other app is a title plus one Ping button. Trigger the inspector by **holding ⌘ (Command) and clicking any element** (or `Alt+Shift+I` then click).
 
 > Vue source mapping comes from the built-in stamper (`data-insp-path` on rendered DOM). Prompt context for `.vue` SFCs comes from the project's `@vue/compiler-dom`, so the `@file #range` handed to the agent is the picked element's exact span.
 
@@ -68,6 +68,21 @@ From the package root, `npm test` boots each row on ports 35300–35315 and chec
 5. Click a footer agent: `Codex App` / `Claude App` / `Cursor` / `Grok Build`. The React demo also shows `Antigravity IDE` and `Antigravity` (the CLI).
 
 > After editing a bundler config the dev server restarts — **refresh the browser**.
+
+### Portal cases
+
+Open a case from the row under the task list, then ⌘ + click it. Each one should land on its own file, with the mount chain beside the chip:
+
+| App | Case | ⌘ + click | Expected location |
+| --- | --- | --- | --- |
+| React | Dialog (via `ModalHost` in `App.jsx`) | the mask | the mask's line in `PortalDemo.jsx`, chip followed by `‹ App.jsx ‹ main.jsx` |
+| React | Tight dialog | panel padding | the wrapper's line in `PortalDemo.jsx` |
+| React | Card | card padding | the card, not the container above the buttons |
+| React | Badge | the badge | the `<LibBadge>` line in `PortalDemo.jsx` |
+| React | Library dialog (`LibDialog.jsx`, unstamped) | the mask | the `<LibDialog>` line in `PortalDemo.jsx` |
+| Vue | Dialog (hand-written `<Teleport>`) | the mask | the mask's line in `TeleportDemo.vue`, chip followed by `‹ App.vue` |
+| Vue | Library dialog (`LibDialog.vue`, unstamped) | the title bar | the `<LibDialog>` line in `TeleportDemo.vue` |
+| Next.js | Open overlay (`LibOverlay.tsx`, unstamped) | the mask | the `<LibOverlay>` line in `app/PortalCase.tsx`, not `app/layout.tsx` |
 
 ## Key config
 

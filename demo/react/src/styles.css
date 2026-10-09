@@ -608,3 +608,114 @@ a {
 .link-btn:hover {
   text-decoration: underline;
 }
+
+/* ---------- portal cases (PortalDemo.jsx, LibDialog.jsx) ---------- */
+.portal-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.portal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.portal-title {
+  margin-right: 6px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* No padding or border: a portaled card fills this box exactly. */
+.portal-shell {
+  display: block;
+}
+
+.portal-card {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.portal-note {
+  margin: 6px 0 12px;
+  color: var(--ink-2);
+}
+
+.hand-mask,
+.lib-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(22, 36, 28, 0.32);
+}
+
+.hand-panel,
+.tight-panel {
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px 22px;
+  border-radius: var(--r);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hand-title {
+  margin: 0;
+  font-size: 17px;
+}
+
+/* No padding or border: the wrapper has exactly the panel's box. */
+.tight-wrap {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 50;
+  transform: translate(-50%, -50%);
+}
+
+.lib-box {
+  width: min(380px, calc(100vw - 32px));
+  border-radius: var(--r);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+}
+
+.lib-close {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 18px;
+}
+
+.lib-body {
+  padding: 4px 16px 8px;
+}
+
+.lib-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--brand-d);
+  font-weight: 600;
+}

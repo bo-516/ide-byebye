@@ -38,6 +38,8 @@ const STRINGS: Record<string, { zh: string; en: string }> = {
         zh: '当前选中的元素（不可移除）：{target}',
         en: 'Currently selected element (cannot be removed): {target}',
     },
+    'editor.renderChain.aria': { zh: '挂载链', en: 'Mount chain' },
+    'editor.renderChain.switch': { zh: '切换主定位到 {target}', en: 'Make {target} the primary target' },
     'mention.remove.aria': { zh: '移除 {label}', en: 'Remove {label}' },
     'dialog.pin.title': {
         zh: '固定为悬浮按钮，跨页面继续编辑',

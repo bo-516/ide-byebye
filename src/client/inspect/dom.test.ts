@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { promoteToOuterSameSizeElement } from './dom.js';
+import { promoteToOuterSameSizeElement } from './same-size.js';
 import { INSP_PATH_ATTR } from '../../shared/constants.js';
 
 // The promotion walk reads border widths through the browser-global `getComputedStyle`; node has none, so route it to
@@ -157,4 +157,15 @@ test('stops climbing once a level breaks the chain, even if higher levels match 
     const wideParent = makeEl({ left: 0, top: 0, width: 400, height: 52, inspPath: 'src/App.jsx:2:1', parent: grandparent });
     const child = makeEl({ left: 1, top: 1, width: 100, height: 50, inspPath: 'src/App.jsx:3:3', parent: wideParent });
     assert.equal(promoteToOuterSameSizeElement(child), child);
+});
+
+test('may land on a node stopAt marks (a portal root) but never climbs above it', () => {
+    // container (where the portal mounts) > wrapper (portal root) > panel, all drawn as the same box.
+    const container = makeEl({ left: 0, top: 0, width: 100, height: 50, inspPath: 'src/App.jsx:22:7' });
+    const wrapper = makeEl({ left: 0, top: 0, width: 100, height: 50, inspPath: 'src/Dialog.jsx:5:5', parent: container });
+    const panel = makeEl({ left: 0, top: 0, width: 100, height: 50, inspPath: 'src/Dialog.jsx:6:7', parent: wrapper });
+    const isWrapper = (node: unknown) => node === wrapper;
+    assert.equal(promoteToOuterSameSizeElement(panel), container);
+    assert.equal(promoteToOuterSameSizeElement(panel, undefined, isWrapper), wrapper);
+    assert.equal(promoteToOuterSameSizeElement(wrapper, undefined, isWrapper), wrapper);
 });

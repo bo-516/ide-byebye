@@ -91,6 +91,8 @@ export class PickerController {
             this.overlay.hide();
     }
     /**
+     * Pick `target` as the dialog's primary selection (a portal pick also carries its render chain).
+     *
      * @param {unknown} target Event target or test double.
      * @param {{ x: number, y: number }} point Viewport point passed to the dialog.
      * @returns {boolean} False when the dialog must stay closed.
@@ -109,7 +111,7 @@ export class PickerController {
             this.overlay.hide();
             return false;
         }
-        const selection = collectSelection(inspectable, this.config.maxDomSnippetLength);
+        const selection = collectSelection(inspectable, this.config.maxDomSnippetLength, { withChain: true });
         const screenshotTarget = resolveScreenshotTarget(target, inspectable);
         this.overlay.hide();
         this.hovered = null;
@@ -199,7 +201,10 @@ export class PickerController {
             return;
         this.onClick(event);
     };
-    /** `click` delivers a `MouseEvent`. `onPointerUp` forwards a `PointerEvent`, which extends it. */
+    /**
+     * Pick-mode click: opens the dialog with the primary selection (a portal pick also carries its render chain).
+     * `click` delivers a `MouseEvent`. `onPointerUp` forwards a `PointerEvent`, which extends it.
+     */
     onClick = (event: MouseEvent) => {
         if (isPluginNode(event.target))
             return;
@@ -211,7 +216,7 @@ export class PickerController {
                 this.overlay.showNoMapping(event.target);
             return;
         }
-        const selection = collectSelection(inspectable, this.config.maxDomSnippetLength);
+        const selection = collectSelection(inspectable, this.config.maxDomSnippetLength, { withChain: true });
         const screenshotTarget = resolveScreenshotTarget(event.target, inspectable);
         this.exit();
         this.dialog.open(selection, inspectable, { x: event.clientX, y: event.clientY }, screenshotTarget);

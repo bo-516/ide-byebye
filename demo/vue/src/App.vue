@@ -4,9 +4,9 @@ import Sidebar from './components/Sidebar.vue';
 import TodoHeader from './components/TodoHeader.vue';
 import AddTask from './components/AddTask.vue';
 import TaskItem from './components/TaskItem.vue';
+import TeleportDemo from './components/TeleportDemo.vue';
 
-// Every element carries a compiled-in data-insp-path (source file:line:col),
-// so ⌘ + clicking any of them jumps to the matching Vue SFC location.
+// Every element carries a compiled-in data-insp-path (file:line:col); ⌘ + click jumps to that Vue SFC location.
 const INITIAL_LISTS = [
   { id: 'today', icon: '◷', label: 'Today' },
   { id: 'upcoming', icon: '◍', label: 'Upcoming' },
@@ -125,6 +125,7 @@ const leftCount = computed(() =>
         <span>{{ leftCount }} items left</span>
         <button class="link-btn" type="button" @click="clearDone">Clear completed</button>
       </footer>
+      <TeleportDemo />
     </main>
   </div>
 </template>

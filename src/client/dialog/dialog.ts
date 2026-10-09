@@ -5,6 +5,7 @@ import { DialogRecordingController } from '../recording/dialog-recordings.js';
 import { DialogStyleController } from '../style/dialog-style.js';
 import { DialogPin } from './dialog-pin.js';
 import { createDialogEditor } from './dialog-editor.js';
+import { pickedLocation } from './dialog-render-chain.js';
 import { agentLabel, anchorFromElement, clamp, configuredActions, el, isAgentVisible, loadLastAgent, saveLastAgent, sourceReferenceLabel, } from './dialog-utils.js';
 import { deliverPromptToClient } from './dialog-delivery.js';
 import { DialogSessionController } from './dialog-session-picker.js';
@@ -202,6 +203,7 @@ export class Dialog {
         this.editor = createDialogEditor({
             placeholder: t('intent.placeholder'),
             onChange: () => this.repositionForContent(),
+            onSwitchPrimary: (inspPath: string) => this.switchPrimary(inspPath),
         });
         this.references = new DialogReferenceController(config, overlay, {
             captureIntentCursor: () => this.editor.captureCursor(),
@@ -763,10 +765,29 @@ export class Dialog {
         return payload;
     }
     /**
+     * Make another entry of a portal pick's mount chain the primary target.
+     *
+     * Boundary: only `inspPath` changes; the picked element, its attachments and the chain stay, so switching back
+     * restores the original target. The chip shows the client label until {@link resolve} upgrades it, and a failed
+     * resolve reports like any primary while the chain stays clickable. Ignored while sending.
+     *
+     * @param {string} inspPath Chain entry to use (`data-insp-path` form).
+     * @returns {void}
+     */
+    switchPrimary(inspPath: string) {
+        if (!this.selection || this.state === 'sending' || this.selection.inspPath === inspPath)
+            return;
+        this.selection = { ...this.selection, inspPath };
+        this.primaryLabel = sourceReferenceLabel(this.selection, 0);
+        this.editor.setPrimary({ label: this.primaryLabel, selection: this.selection });
+        void this.resolve(this.selection);
+    }
+    /**
      * Validate the primary selected node before the user sends an intent.
      *
      * Boundary: this resolve call does not include extra references because they can be added later and are validated
-     * again on send. A failed primary resolve disables app buttons to prevent an unusable prompt.
+     * again on send. A failed primary resolve disables app buttons to prevent an unusable prompt. A reply for a
+     * selection that is no longer current (the primary was switched, or another element picked) is dropped.
      *
      * @param {ElementSelection} selection Primary browser selection.
      * @returns {Promise<void>} Resolves after validation finishes.
@@ -782,6 +803,8 @@ export class Dialog {
                 resume: true,
                 selection,
             });
+            if (selection !== this.selection)
+                return;
             if (!res.ok) {
                 this.setState('failed');
                 this.showError(res.error ?? t('resolve.failed'));
@@ -800,6 +823,8 @@ export class Dialog {
             }
         }
         catch (err) {
+            if (selection !== this.selection)
+                return;
             this.setState('failed');
             this.showError(err instanceof Error ? err.message : String(err));
         }
@@ -1130,7 +1155,8 @@ export class Dialog {
                 ? { label: this.primaryLabel || sourceReferenceLabel(this.selection, 0), selection: this.selection }
                 : null,
             selection: this.selection,
-            selector: this.selection?.inspPath ?? null,
+            // The clicked element, even after the primary was switched to a mount point that has no DOM node.
+            selector: pickedLocation(this.selection),
             anchor: this.anchor,
             lastAgent: this.lastAgent,
         };
