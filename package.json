@@ -102,8 +102,7 @@
   "files": [
     "dist",
     "!dist/**/*.test.*",
-    "!dist/**/*.entry.tmp.js",
-    "!dist/code-intent-inspector.entry.tmp.js"
+    "!dist/**/*.entry.tmp.js"
   ],
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

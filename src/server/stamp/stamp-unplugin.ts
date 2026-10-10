@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { PluginBuild } from 'esbuild';
 import { createUnplugin } from 'unplugin';
+import { LOG_PREFIX } from '../../shared/constants.js';
 import type { IdeByebyeOptions } from '../../types.js';
 import { isEsbuildProductionBuild, isFarmProductionBuild } from '../build-mode.js';
 import { isUnincludedNodeModule, stampModule, type StampFamily } from './stamp-module.js';
@@ -216,7 +217,7 @@ function warnIfAfterFramework(plugins: ReadonlyArray<{ name?: string } | null | 
         const index = plugins.findIndex((plugin) => plugin?.name === framework.name);
         if (index !== -1 && index < mine) {
             orderWarned = true;
-            console.warn(`[code-intent-inspector] put inspector() before ${framework.pkg} so source stamps run before the framework transform`);
+            console.warn(`${LOG_PREFIX} put inspector() before ${framework.pkg} so source stamps run before the framework transform`);
             return;
         }
     }

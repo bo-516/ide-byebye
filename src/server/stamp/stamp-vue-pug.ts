@@ -13,6 +13,7 @@
  */
 
 import { requireFromProject, resolveFromProject } from '../ast/project-module.js';
+import { LOG_PREFIX } from '../../shared/constants.js';
 import { buildLineStartOffsets } from '../ast/line-offsets.js';
 import type { VueCompilerNode } from '../ast/vue-sfc.js';
 import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion } from './stamp-edits.js';
@@ -54,7 +55,7 @@ interface PugStampInput {
     warnOnce?: (key: string, message: string) => void;
 }
 
-const PUG_WARN = '[code-intent-inspector] Pug template stamping needs pug (pug-lexer / pug-parser). Run: npm i -D pug';
+const PUG_WARN = `${LOG_PREFIX} Pug template stamping needs pug (pug-lexer / pug-parser). Run: npm i -D pug`;
 
 const WALK_BLOCKS = new Set(['Case', 'Code', 'When', 'Each', 'While']);
 

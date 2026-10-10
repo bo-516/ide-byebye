@@ -3,6 +3,10 @@
  * free of Node-only APIs.
  */
 export const ROUTE_PREFIX = '/__intent-inspector';
+/** npm package name. Bundlers print it as the plugin name; the console prefix below is built from it. */
+export const PACKAGE_NAME = 'ide-byebye';
+/** Prefix on every console line the plugin prints, from Node and from the page alike. */
+export const LOG_PREFIX = `[${PACKAGE_NAME}]`;
 export const ENDPOINTS = {
     client: `${ROUTE_PREFIX}/client.js`,
     agents: `${ROUTE_PREFIX}/agents`,

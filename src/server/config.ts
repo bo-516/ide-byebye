@@ -124,7 +124,7 @@ export function resolvePromptPathStyleOptions(options: { pathStyle?: unknown, ar
 }
 
 /**
- * Resolves code-intent inspector runtime options.
+ * Resolves ide-byebye runtime options.
  *
  * Boundary: callers may pass partial plugin options; invalid optional values are normalized to safe defaults. Passing
  * the wrong `apiOrigin` can point browser inspector requests at the wrong server, while leaving it empty auto-detects

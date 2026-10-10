@@ -370,5 +370,5 @@ prompt 顺序：`@code` 引用 → 渲染样式（如有）→ 你的意图。
 - **不打点**：`.astro` 和 `.mdx` 文件。
 - **只用 Turbopack rules**：`turbopack.rules` 里的 `ide-byebye/turbopack` 仍可用；换成
   `ide-byebye/next` 可以同时覆盖 `--webpack`。
-- **不经 npm**：`npm run build` 会生成 `dist/code-intent-inspector.js`，一个内嵌浏览器运行时的
+- **不经 npm**：`npm run build` 会生成 `dist/ide-byebye.js`，一个内嵌浏览器运行时的
   单文件 Vite 插件。

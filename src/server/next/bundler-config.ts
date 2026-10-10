@@ -11,6 +11,7 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LOG_PREFIX } from '../../shared/constants.js';
 import { serializeStampOptions } from '../stamp/stamp-options.js';
 import type { NextInspector } from './next-inspector.js';
 import { detectNextVersion, nextMajor, usesStableTurbopackKey } from './next-project.js';
@@ -155,7 +156,7 @@ export function mergeTurbopackRules(nextConfig: NextConfigShape, rules: Record<s
     const userRules = holder.rules ?? {};
     for (const glob of Object.keys(userRules)) {
         if (Object.hasOwn(rules, glob))
-            console.warn(`[code-intent-inspector] your turbopack rule "${glob}" replaces ide-byebye's; inspector may miss those files`);
+            console.warn(`${LOG_PREFIX} your turbopack rule "${glob}" replaces ide-byebye's; inspector may miss those files`);
     }
     const merged = { ...holder, rules: { ...rules, ...userRules } };
     if (stableKey)

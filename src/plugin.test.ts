@@ -32,7 +32,7 @@ test('vite() returns the stamp plugin then the inspector, enforce pre and apply 
     assert.equal(plugins[0].enforce, 'pre');
     assert.equal(plugins[0].apply, 'serve');
     assert.ok(plugins[0].transform?.filter?.id, 'transform.filter is set');
-    assert.equal(plugins[1].name, 'code-intent-inspector');
+    assert.equal(plugins[1].name, 'ide-byebye');
 });
 
 test('webpack() and rspack() return appliable compiler plugins', () => {
@@ -63,7 +63,7 @@ test('applying the webpack plugin does not change cache.version', () => {
 test('rsbuild() returns a plugin with setup()', () => {
     // `PluginInstance` is `object`; the rsbuild instance exposes `name` and `setup`.
     const plugin = rsbuild({}) as { name?: string; setup?: unknown };
-    assert.equal(plugin.name, 'code-intent-inspector');
+    assert.equal(plugin.name, 'ide-byebye');
     assert.equal(typeof plugin.setup, 'function');
 });
 
@@ -84,7 +84,7 @@ test('farm() returns the stamp plugin and a callable configResolved', () => {
     }>;
     assert.equal(plugins.length, 2);
     assert.equal(plugins[0].name, STAMP_NAME);
-    assert.equal(plugins[1].name, 'code-intent-inspector');
+    assert.equal(plugins[1].name, 'ide-byebye');
     // Farm 1.7 calls this hook as a function. An `{ executor }` object makes the dev server exit.
     assert.equal(typeof plugins[1].configResolved, 'function');
     assert.equal(typeof plugins[1].configureDevServer, 'function');
