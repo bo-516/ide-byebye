@@ -102,15 +102,23 @@
   "files": [
     "dist",
     "!dist/**/*.test.*",
-    "!dist/**/*.entry.tmp.js",
-    "!dist/code-intent-inspector.entry.tmp.js"
+    "!dist/**/*.entry.tmp.js"
   ],
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=22.13.0",
+      "onFail": "error"
+    }
+  },
+  "packageManager": "pnpm@11.7.0",
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc && node --import tsx scripts/build-single-file.ts",
-    "test": "node scripts/ensure-demo-deps.mjs && node scripts/ensure-dist.mjs && node --import tsx --test --test-reporter=tap src/**/*.test.ts src/**/**/*.test.ts src/**/**/**/*.test.ts demo/matrix/matrix.test.ts",
+    "test": "node scripts/ensure-demo-deps.mjs && node scripts/ensure-dist.mjs && node --import tsx --test --test-reporter=tap 'src/**/*.test.ts' demo/matrix/matrix.test.ts",
+    "test:unit": "node scripts/ensure-dist.mjs && node --import tsx --test --test-reporter=tap 'src/**/*.test.ts'",
     "typecheck": "tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

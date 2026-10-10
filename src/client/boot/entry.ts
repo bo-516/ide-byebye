@@ -1,4 +1,4 @@
-import { CLIENT_CONFIG_GLOBAL } from '../../shared/constants.js';
+import { CLIENT_CONFIG_GLOBAL, LOG_PREFIX } from '../../shared/constants.js';
 import { DEFAULT_THEME, normalizeTheme } from '../../shared/theme.js';
 import { setLocale } from '../lib/i18n.js';
 import { createUi } from '../lib/style.js';
@@ -43,7 +43,7 @@ function main() {
     // The injected config is a named global, not a field on `Window`, so the lookup stays a record cast.
     const config = (window as unknown as Record<string, InjectedClientConfig | undefined>)[CLIENT_CONFIG_GLOBAL];
     if (!config) {
-        console.warn('[code-intent-inspector] missing injected client config; not starting.');
+        console.warn(`${LOG_PREFIX} missing injected client config; not starting.`);
         return;
     }
     if (window.__CII_INSTALLED__)
@@ -83,7 +83,7 @@ function main() {
         });
         // Log where Enter will actually go, not raw `config.defaultAgent`: the dialog ignores a `'clipboard'` /
         // `'file'` default and prefers the footer agent last clicked in this browser (`loadLastAgent`, re-read per pick).
-        console.info(`[code-intent-inspector] ready — press ${config.hotkey}` +
+        console.info(`${LOG_PREFIX} ready — press ${config.hotkey}` +
             `${describeClickModifier(clickModifier)} or long-press 1s (touch) / 4s (mouse) to pick an element ` +
             `(Enter → ${loadLastAgent(config)})`);
     };

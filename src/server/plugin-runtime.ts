@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { CLIENT_CONFIG_GLOBAL, ENDPOINTS, ROUTE_PREFIX } from '../shared/constants.js';
+import { CLIENT_CONFIG_GLOBAL, ENDPOINTS, LOG_PREFIX, PACKAGE_NAME, ROUTE_PREFIX } from '../shared/constants.js';
 import { resolveOptions } from './config.js';
 import { buildRegistry } from './agents/build.js';
 import { normalizeCustomAgents } from './agents/custom-client.js';
@@ -13,7 +13,8 @@ import { buildBootstrapStatement, consoleFilterSnippet } from './bootstrap-scrip
 import { stampUnplugin } from './stamp/stamp-unplugin.js';
 import type { IdeByebyeOptions } from '../types.js';
 
-export const PLUGIN_NAME = 'code-intent-inspector';
+/** Plugin name bundlers show for the inspector plugin (Vite plugin list, webpack tap names, rsbuild / Farm errors). */
+export const PLUGIN_NAME = PACKAGE_NAME;
 
 /**
  * Describe the configured custom prompt-delivery clients for the browser footer.
@@ -127,7 +128,7 @@ export function createInspectorRuntime(options: IdeByebyeOptions = {}, runtimeOp
      * `ensureServer` / HTML inject after `npm run build` can pick up the real bundle without restarting Vite.
      */
     const MISSING_CLIENT_STUB =
-        `console.warn(${JSON.stringify('[code-intent-inspector] client bundle missing; expected dist/client.js or an embedded single-file bundle. Run `npm run build` in the package root, then reload.')});`;
+        `console.warn(${JSON.stringify(LOG_PREFIX + ' client bundle missing; expected dist/client.js or an embedded single-file bundle. Run `npm run build` in the package root, then reload.')});`;
 
     function initPaths(rootDir: string | undefined) {
         ctx.projectRoot = rootDir || process.cwd();

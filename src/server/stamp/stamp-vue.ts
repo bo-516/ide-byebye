@@ -12,6 +12,7 @@
  */
 
 import { requireFromProject } from '../ast/project-module.js';
+import { LOG_PREFIX } from '../../shared/constants.js';
 import { innerContent, staticAttr, VUE_ELEMENT } from '../ast/vue-sfc.js';
 import type { VueCompilerNode } from '../ast/vue-sfc.js';
 import { buildLineStartOffsets } from '../ast/line-offsets.js';
@@ -19,7 +20,7 @@ import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion } from './stam
 import { stampJsx } from './stamp-jsx.js';
 import { stampPugTemplate } from './stamp-vue-pug.js';
 
-const VUE_WARN = '[code-intent-inspector] Vue SFC stamping needs @vue/compiler-dom, which Vue 2.7 does not install. Run: npm i -D @vue/compiler-dom';
+const VUE_WARN = `${LOG_PREFIX} Vue SFC stamping needs @vue/compiler-dom, which Vue 2.7 does not install. Run: npm i -D @vue/compiler-dom`;
 
 export interface StampVueInput {
     code: string;

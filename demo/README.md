@@ -1,6 +1,6 @@
 # ai-inspector demo
 
-Multi-app / multi-bundler playground for **ide-byebye** (code-intent-inspector).
+Multi-app / multi-bundler playground for **ide-byebye**.
 
 | App | Bundler | Command | Port |
 | --- | --- | --- | --- |

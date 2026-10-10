@@ -7,7 +7,8 @@
  *
  * Boundary: stamping follows the same switch as bootstrap injection. `sourceStamp: false` and
  * `enabled: false` return the original source. Vite `apply: 'serve'` keeps production builds clean.
- * esbuild also skips `NODE_ENV=production`, and skips `node_modules` unless `include` matches.
+ * Farm skips a production `compilation.mode` (`farm build`). esbuild skips a production build
+ * (`NODE_ENV=production` or a `"production"` define), and skips `node_modules` unless `include` matches.
  * Vite also skips its resolved `cacheDir` (pre-bundled deps, wherever the cache lives) unless
  * `include` matches; the other bundlers do not serve dependencies from a cache directory.
  * The Vite order warning fires once when a framework plugin is registered before this one.
@@ -19,7 +20,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { PluginBuild } from 'esbuild';
 import { createUnplugin } from 'unplugin';
+import { LOG_PREFIX } from '../../shared/constants.js';
 import type { IdeByebyeOptions } from '../../types.js';
+import { isEsbuildProductionBuild, isFarmProductionBuild } from '../build-mode.js';
 import { isUnincludedNodeModule, stampModule, type StampFamily } from './stamp-module.js';
 import { resolveStampOptions, type ResolvedStampOptions } from './stamp-options.js';
 
@@ -55,14 +58,16 @@ export function resetVitePluginOrderWarning() {
 /**
  * unplugin instance. `vite` / `farm` / `webpack` / `rspack` / `esbuild` each call the factory
  * with their framework name so Vue subrequests are classified correctly.
- * Each call builds a separate plugin, so the Vite `cacheDir` it captures belongs to the config
- * that resolved it. When one instance is shared by two Vite configs, the later `configResolved` wins.
+ * Each call builds a separate plugin, so the Vite `cacheDir` and the Farm mode it captures belong to the config
+ * that resolved it. When one instance is shared by two configs, the later `configResolved` wins.
  */
 export const stampUnplugin = createUnplugin((options: IdeByebyeOptions = {}, meta: { framework?: string } = {}) => {
     const resolved = resolveStampOptions(options, (message) => console.warn(message));
     const framework = meta.framework ?? '';
     /** Vite's resolved `cacheDir`, set in `configResolved`. Undefined before that and for every other bundler. */
     let viteCacheDir: string | undefined;
+    /** Farm only: `compilation.mode` is production (`farm build`). Set in `configResolved`; stamps nothing while true. */
+    let farmProduction = false;
     if (framework === 'esbuild') {
         return {
             name: STAMP_NAME,
@@ -80,7 +85,7 @@ export const stampUnplugin = createUnplugin((options: IdeByebyeOptions = {}, met
         transform: {
             filter: { id: ID_FILTER },
             handler(code: string, id: string) {
-                if (options?.enabled === false || !resolved.enabled)
+                if (farmProduction || options?.enabled === false || !resolved.enabled)
                     return null;
                 const stamped = stampModule({
                     code,
@@ -102,6 +107,12 @@ export const stampUnplugin = createUnplugin((options: IdeByebyeOptions = {}, met
                 // Absolute and POSIX-normalized by Vite, including a relative `cacheDir: '.vite'`.
                 viteCacheDir = config?.cacheDir;
                 warnIfAfterFramework(config?.plugins);
+            },
+        },
+        farm: {
+            // A plain function: Farm 1.7 calls `plugin.configResolved(config)` directly.
+            configResolved(config) {
+                farmProduction = isFarmProductionBuild(config);
             },
         },
     };
@@ -145,16 +156,17 @@ function familyOf(framework: string): StampFamily {
  * Load and stamp esbuild inputs. Returning null lets esbuild read the file itself.
  *
  * `node_modules` returns null before the read unless `include` matches that path or its query.
- * A bad include pattern falls through so {@link stampModule} can fail open.
+ * A bad include pattern falls through so {@link stampModule} can fail open. A production build
+ * ({@link isEsbuildProductionBuild}) returns null for every file.
  *
- * @param {object} build esbuild plugin build object.
+ * @param {object} build esbuild plugin build object; `initialOptions.define` is read for the production check.
  * @param {IdeByebyeOptions} options Raw options; `enabled: false` skips every file.
  * @param {ResolvedStampOptions} resolved Stamp switch from {@link resolveStampOptions}.
  * @returns {void}
  */
 function installEsbuild(build: PluginBuild, options: IdeByebyeOptions, resolved: ResolvedStampOptions) {
     build.onLoad({ filter: ESBUILD_FILTER }, async (args) => {
-        if (process.env.NODE_ENV === 'production' || options?.enabled === false || !resolved.enabled)
+        if (isEsbuildProductionBuild(build.initialOptions) || options?.enabled === false || !resolved.enabled)
             return null;
         const id = `${args.path || ''}${args.suffix || ''}`;
         try {
@@ -205,7 +217,7 @@ function warnIfAfterFramework(plugins: ReadonlyArray<{ name?: string } | null | 
         const index = plugins.findIndex((plugin) => plugin?.name === framework.name);
         if (index !== -1 && index < mine) {
             orderWarned = true;
-            console.warn(`[code-intent-inspector] put inspector() before ${framework.pkg} so source stamps run before the framework transform`);
+            console.warn(`${LOG_PREFIX} put inspector() before ${framework.pkg} so source stamps run before the framework transform`);
             return;
         }
     }

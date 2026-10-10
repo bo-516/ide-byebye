@@ -13,6 +13,7 @@
  */
 
 import path from 'node:path';
+import { LOG_PREFIX } from '../../shared/constants.js';
 import { applyInsertions, isStampIgnored } from './stamp-edits.js';
 import { stampJsx, type StampJsxInput } from './stamp-jsx.js';
 import { stampSvelte } from './stamp-svelte.js';
@@ -61,7 +62,7 @@ export function stampModule(input: StampModuleInput): string | null {
             internalWarned = true;
             const message = err instanceof Error ? err.message : String(err);
             const warn = input.warnOnce ?? ((key, text) => console.warn(text));
-            warn('stamp-internal', `[code-intent-inspector] stamp failed for ${input.id}: ${message}; leaving source unchanged`);
+            warn('stamp-internal', `${LOG_PREFIX} stamp failed for ${input.id}: ${message}; leaving source unchanged`);
         }
         return null;
     }

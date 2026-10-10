@@ -1,4 +1,4 @@
-const PREFIX = '[code-intent-inspector]';
+import { LOG_PREFIX } from '../shared/constants.js';
 
 /**
  * Console logger for one inspector output directory.
@@ -13,9 +13,9 @@ const PREFIX = '[code-intent-inspector]';
  */
 export function createLogger(_outputDirAbs: string) {
     return {
-        info: (...args: unknown[]) => console.info(PREFIX, ...args),
-        warn: (...args: unknown[]) => console.warn(PREFIX, ...args),
-        error: (...args: unknown[]) => console.error(PREFIX, ...args),
+        info: (...args: unknown[]) => console.info(LOG_PREFIX, ...args),
+        warn: (...args: unknown[]) => console.warn(LOG_PREFIX, ...args),
+        error: (...args: unknown[]) => console.error(LOG_PREFIX, ...args),
         audit: () => { },
     };
 }

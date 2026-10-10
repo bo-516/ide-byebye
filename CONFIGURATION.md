@@ -400,5 +400,5 @@ intent.
 - **Not stamped**: `.astro` and `.mdx` files.
 - **Turbopack rules only**: `ide-byebye/turbopack` in `turbopack.rules` still
   works; switch to `ide-byebye/next` to also cover `--webpack`.
-- **Without npm**: `npm run build` writes `dist/code-intent-inspector.js`, a
+- **Without npm**: `npm run build` writes `dist/ide-byebye.js`, a
   single-file Vite plugin with the browser runtime embedded.

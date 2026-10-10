@@ -11,6 +11,7 @@
  */
 
 import type { EscapeTag, IdeByebyeOptions, SourceStampOptions } from '../../types.js';
+import { LOG_PREFIX } from '../../shared/constants.js';
 
 const MAPPED = new Set(['include', 'exclude', 'escapeTags', 'close']);
 let deprecatedWarned = false;
@@ -59,7 +60,7 @@ export function resolveStampOptions(options: IdeByebyeOptions | undefined, warn:
             deprecatedWarned = true;
             const mappedText = mapped.length ? mapped.join(', ') : 'none';
             const ignoredText = ignored.length ? ` Ignored: ${ignored.join(', ')}.` : '';
-            warn(`[code-intent-inspector] "codeInspector" is deprecated. Mapped to sourceStamp: ${mappedText}.${ignoredText}`);
+            warn(`${LOG_PREFIX} "codeInspector" is deprecated. Mapped to sourceStamp: ${mappedText}.${ignoredText}`);
         }
     }
     if (stamp && typeof stamp === 'object') {

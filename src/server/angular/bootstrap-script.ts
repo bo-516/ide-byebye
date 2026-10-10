@@ -1,4 +1,4 @@
-import { CLIENT_CONFIG_GLOBAL, ENDPOINTS } from '../../shared/constants.js';
+import { CLIENT_CONFIG_GLOBAL, ENDPOINTS, LOG_PREFIX } from '../../shared/constants.js';
 
 /**
  * Package-relative path of the generated Angular bootstrap script (written by the build, listed in `angular.json`).
@@ -18,7 +18,7 @@ export const ANGULAR_BOOTSTRAP_SCRIPT = 'dist/angular/bootstrap.js';
  * @returns {string} JavaScript source for `dist/angular/bootstrap.js`.
  */
 export function buildAngularBootstrapScript() {
-    const hint = '[code-intent-inspector] Angular bootstrap: no inspector session. Add the ide-byebye proxyConfig to `ng serve` (see README).';
+    const hint = `${LOG_PREFIX} Angular bootstrap: no inspector session. Add the ide-byebye proxyConfig to \`ng serve\` (see README).`;
     return [
         '/* ide-byebye: Angular dev bootstrap. Add to the development "scripts" in angular.json; inert without angularProxy(). */',
         '(function () {',

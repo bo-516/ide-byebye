@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typecheck, build, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      # Installs the pnpm version pinned in package.json `packageManager`.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test:unit
+
+  node20:
+    # `engines.node` still promises ^20.19.0 to users; pnpm 11 itself needs Node >= 22.13, so install and build on
+    # Node 24, then run the built package's unit suite on the oldest supported runtime.
+    name: Unit tests on Node 20.19 (engines floor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20.19.0
+          # Otherwise setup-node sees `packageManager` and runs `pnpm store path`, which pnpm 11 cannot do on Node 20.
+          package-manager-cache: false
+      - name: Unit tests
+        shell: bash
+        # Node 20's test runner does not expand globs, so bash does.
+        run: |
+          shopt -s globstar
+          node --version
+          node --import tsx --test --test-reporter=tap src/**/*.test.ts
+
+  matrix:
+    name: Framework / bundler matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            demo/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+        working-directory: demo
+      - run: pnpm build
+      - run: node --import tsx --test --test-reporter=tap demo/matrix/matrix.test.ts

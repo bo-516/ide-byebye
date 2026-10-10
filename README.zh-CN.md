@@ -193,10 +193,13 @@ ideByebye({
 
 ## 开发
 
+需要 Node.js 22.13+ 和 pnpm 11（版本写在 `packageManager` 里，Corepack 或 pnpm 10
+会自动切过去）。只是使用插件的话，Node.js 20.19+ 就够了。
+
 ```sh
-npm install
-npm run build
-npm test
+pnpm install
+pnpm build
+pnpm test
 ```
 
 [`demo/`](./demo) 演示场为每种框架和构建工具组合都准备了 `pnpm dev:*` 脚本，见

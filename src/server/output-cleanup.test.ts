@@ -40,7 +40,9 @@ test('cleanup keeps recent handoffs and drops only expired markdown', () => {
     const notes = path.join(requests, 'notes.txt');
     const nested = path.join(requests, 'nested', 'hidden.md');
     const launch = path.join(outputDir, 'launches', 'run.prompt.txt');
-    const now = Date.now();
+    // Whole seconds: Node 20's `utimesSync` hands libuv float seconds and its libuv truncates to microseconds, so about
+    // half of millisecond timestamps read back 1 µs early and the exact-boundary file below would look expired.
+    const now = Math.floor(Date.now() / 1000) * 1000;
     try {
         write(fresh, 'fresh-body');
         write(stale, 'stale-body');

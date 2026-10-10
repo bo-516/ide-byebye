@@ -8,9 +8,9 @@ import { createCssTemplateMinifyPlugin } from './client-css-minifier.js';
 const ROOT_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const CLIENT_ENTRY = path.join(ROOT_DIR, 'src/client/boot/entry.ts');
-const SINGLE_FILE_ENTRY = path.join(DIST_DIR, 'code-intent-inspector.entry.tmp.js');
+const SINGLE_FILE_ENTRY = path.join(DIST_DIR, 'ide-byebye.entry.tmp.js');
 const CLIENT_OUTPUT_FILE = path.join(DIST_DIR, 'client.js');
-const SINGLE_FILE_OUTPUT = path.join(DIST_DIR, 'code-intent-inspector.js');
+const SINGLE_FILE_OUTPUT = path.join(DIST_DIR, 'ide-byebye.js');
 
 /**
  * Legacy browser bundle path used before all generated artifacts moved under `dist`.
@@ -164,7 +164,7 @@ async function writeSingleFileEntry(clientCode: string) {
  * bundle require optional packages even when their agents are disabled, or break on wrong platforms.
  *
  * @param {string} entry Absolute path to the temporary single-file entry.
- * @returns {Promise<void>} Resolves after `dist/code-intent-inspector.js` is written.
+ * @returns {Promise<void>} Resolves after `dist/ide-byebye.js` is written.
  */
 async function buildPluginBundle(entry: string) {
     await build({

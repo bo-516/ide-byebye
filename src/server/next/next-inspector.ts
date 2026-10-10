@@ -14,7 +14,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_OUTPUT_DIR } from '../../shared/constants.js';
+import { DEFAULT_OUTPUT_DIR, LOG_PREFIX } from '../../shared/constants.js';
 import { createInspectorRuntime } from '../plugin-runtime.js';
 import { NEXT_BOOTSTRAP_FILE, isBootstrapServerAlive, readBootstrapClientSrc, writeBootstrapModule } from './bootstrap-module.js';
 
@@ -67,7 +67,7 @@ function startNextInspector(root: string, options: object): NextInspector {
 
     /** Log a write failure without breaking config evaluation. */
     const warn = (file: string, err: unknown) => {
-        console.warn(`[code-intent-inspector] could not write ${file}: ${err instanceof Error ? err.message : String(err)}`);
+        console.warn(`${LOG_PREFIX} could not write ${file}: ${err instanceof Error ? err.message : String(err)}`);
     };
     /** Synchronous part: make sure the import target exists (placeholder only when missing). */
     const ensureExists = (file: string) => {
@@ -91,7 +91,7 @@ function startNextInspector(root: string, options: object): NextInspector {
             // missing / unreadable → write below
         }
         if (current && current !== readBootstrapClientSrc(statement) && await isBootstrapServerAlive(current)) {
-            console.info(`[code-intent-inspector] ${file} is served by another running inspector; leaving it as is`);
+            console.info(`${LOG_PREFIX} ${file} is served by another running inspector; leaving it as is`);
             return;
         }
         try {
@@ -118,7 +118,7 @@ function startNextInspector(root: string, options: object): NextInspector {
             await Promise.all([...targets].map(syncLive));
         })
         .catch((err) => {
-            console.warn(`[code-intent-inspector] inspector server failed to start: ${err instanceof Error ? err.message : String(err)}`);
+            console.warn(`${LOG_PREFIX} inspector server failed to start: ${err instanceof Error ? err.message : String(err)}`);
         });
     return { runtime, root, bootstrapFile, bootstrapFileFor };
 }

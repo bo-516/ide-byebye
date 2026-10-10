@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PACKAGE_NAME } from '../shared/constants.js';
 
 /**
  * Global key used by the single-file build to stash the browser client bundle.
@@ -58,7 +59,7 @@ function buildClientBundleCandidates(moduleUrl: string, cwd: string) {
  * error messages; `cwd` and `moduleUrl` should usually be omitted.
  * @returns {string} Browser client JavaScript to serve from `/__intent-inspector/client.js`.
  */
-export function loadClientCode({ pluginName = 'vite-plugin-code-intent-inspector', cwd = process.cwd(), moduleUrl = import.meta.url } = {}) {
+export function loadClientCode({ pluginName = PACKAGE_NAME, cwd = process.cwd(), moduleUrl = import.meta.url } = {}) {
     const embedded = readEmbeddedClientCode();
     if (embedded) {
         return embedded;

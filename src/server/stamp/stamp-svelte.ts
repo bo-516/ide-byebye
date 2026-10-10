@@ -11,10 +11,11 @@
  */
 
 import { requireFromProject } from '../ast/project-module.js';
+import { LOG_PREFIX } from '../../shared/constants.js';
 import { PATH_ATTR, formatInspValue, isEscapedTag, type Insertion, type StampNode } from './stamp-edits.js';
 import { buildLineStartOffsets, lineColumnFromOffset } from '../ast/line-offsets.js';
 
-const SVELTE_WARN = '[code-intent-inspector] Svelte stamping needs the project\'s svelte package (svelte/compiler).';
+const SVELTE_WARN = `${LOG_PREFIX} Svelte stamping needs the project's svelte package (svelte/compiler).`;
 
 const SCRIPT_RE = /<script(?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^>\s]*))?)?>[\s\S]*?<\/script>/gi;
 const STYLE_RE = /<style(?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^>\s]*))?)?>[\s\S]*?<\/style>/gi;
