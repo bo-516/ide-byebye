@@ -16,6 +16,7 @@ import {
     writeFarmHtml,
 } from './server/html-injection.js';
 import { isViteClientModule } from './server/vite-client.js';
+import { isEsbuildProductionBuild, isFarmProductionBuild, isProductionNodeEnv } from './server/build-mode.js';
 import { resolvePackageRoot } from './server/workspace-root.js';
 import { nextTurbopackRules } from './server/next/with-next.js';
 import type { IdeByebyeOptions, PluginInstance, VitePlugin } from './types.js';
@@ -30,12 +31,14 @@ export { PLUGIN_NAME } from './server/plugin-runtime.js';
  * start the loopback server. Vite uses `transformIndexHtml` and, for SSR frameworks whose HTML never reaches that hook
  * (Nuxt, SvelteKit, SolidStart, Astro, …), appends an idempotent JS bootstrap to `/@vite/client`; webpack/rspack
  * rewrite emitted `.html` assets; rsbuild uses `modifyHTMLTags`; farm uses `configureDevServer` in dev and
- * `transformHtml` for builds; esbuild starts the server
+ * `transformHtml` for non-production builds; esbuild starts the server
  * and rewrites HTML files listed via `options.htmlFiles` (or any `*.html` next to `outdir`/`outfile` after the build).
  *
  * Boundary: Vite / farm / esbuild entry helpers register the stamp plugin themselves because those ecosystems need a
  * separate plugin instance ahead of the framework transform. webpack / rspack register it from the compiler hook.
- * When `options.enabled` is false nothing is started or injected.
+ * When `options.enabled` is false nothing is started or injected. Production builds are never touched: each bundler
+ * hook checks its own mode (Vite `apply: 'serve'`, webpack / rspack `mode`, rsbuild `NODE_ENV`, Farm
+ * `compilation.mode`, esbuild `NODE_ENV` or its `define`; see `server/build-mode.ts`).
  *
  * @param {Record<string, unknown>} options Raw plugin options from the host bundler config.
  * @param {{ framework?: string }} meta unplugin meta (`vite` / `webpack` / `rspack` / `rsbuild` / `farm` / `esbuild` / …).
@@ -43,6 +46,8 @@ export { PLUGIN_NAME } from './server/plugin-runtime.js';
  */
 function inspectorFactory(options: IdeByebyeOptions = {}, meta: { framework?: string } = {}): UnpluginOptions {
     const runtime = createInspectorRuntime(options);
+    /** Farm only: `compilation.mode` is production (`farm build`). Set in `configResolved`, read by `transformHtml`. */
+    let farmProduction = false;
 
     function setupCompiler(compiler: Parameters<ReturnType<typeof stampUnplugin.webpack>['apply']>[0] | Parameters<ReturnType<typeof stampUnplugin.rspack>['apply']>[0]) {
         const bundler = meta.framework === 'rspack' ? 'rspack' : 'webpack';
@@ -93,7 +98,7 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: { framework?: st
                     return;
                 }
                 api.modifyRspackConfig((config) => {
-                    if (process.env.NODE_ENV === 'production')
+                    if (isProductionNodeEnv())
                         return config;
                     const plugins = config.plugins || (config.plugins = []);
                     plugins.push(stampUnplugin.rspack(options));
@@ -105,7 +110,7 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: { framework?: st
                     await runtime.ensureServer();
                 });
                 api.modifyHTMLTags(async ({ headTags, bodyTags }) => {
-                    if (process.env.NODE_ENV === 'production') {
+                    if (isProductionNodeEnv()) {
                         return { headTags, bodyTags };
                     }
                     runtime.initPaths(api.context?.rootPath || process.cwd());
@@ -128,15 +133,19 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: { framework?: st
          * before serving (`p.configResolved is not a function`).
          *
          * Dev `transformHtml` is handed an empty `bytes` array; Farm fills the document afterwards.
-         * {@link installFarmDevInjection} rewrites that response. `transformHtml` still covers
-         * `farm build`, where `bytes` already holds the document. Its `order` is `2` (post).
+         * {@link installFarmDevInjection} rewrites that response. `transformHtml` still covers a
+         * non-production `farm build` when `bytes` already holds the document. Its `order` is `2` (post).
          * Values outside `0 | 1 | 2` are ignored.
+         *
+         * Production (`compilation.mode: 'production'`, the `farm build` default) is left untouched: no paths, no
+         * artifact cleanup, no server, no HTML rewrite.
          */
         farm: {
             name: PLUGIN_NAME,
             priority: 1000,
             async configResolved(config) {
-                if (runtime.enabled) {
+                farmProduction = isFarmProductionBuild(config);
+                if (runtime.enabled && !farmProduction) {
                     runtime.initPaths(config?.root || process.cwd());
                 }
             },
@@ -148,7 +157,7 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: { framework?: st
             transformHtml: {
                 order: 2,
                 async executor({ htmlResource }) {
-                    if (!runtime.enabled || !htmlResource)
+                    if (!runtime.enabled || farmProduction || !htmlResource)
                         return htmlResource;
                     const html = readFarmHtml(htmlResource);
                     if (!html)
@@ -165,10 +174,13 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: { framework?: st
          * 2. otherwise any `*.html` already present in `outdir` / next to `outfile`
          *
          * For pure API usage without HTML on disk, call the returned plugin's companion helpers via {@link esbuild}.
+         *
+         * Production (`NODE_ENV=production`, or `define: { 'process.env.NODE_ENV': '"production"' }`) registers
+         * nothing: no server, no artifact cleanup, no HTML rewrite.
          */
         esbuild: {
             async setup(build) {
-                if (!runtime.enabled) {
+                if (!runtime.enabled || isEsbuildProductionBuild(build.initialOptions)) {
                     return;
                 }
                 const absWorkingDir = build.initialOptions.absWorkingDir || process.cwd();
@@ -259,6 +271,7 @@ export function rsbuild(options: IdeByebyeOptions = {}): PluginInstance {
  * Passing `{ executor }` makes `farm` exit before it serves.
  * The stamp transform returns `{ code }` for every bundler: unplugin 3.3's Farm adapter drops a string,
  * and Vite, webpack, and rspack already accept the object.
+ * A production build (`farm build`) gets neither stamps nor the bootstrap.
  *
  * @param {Record<string, unknown>} [options] Plugin options.
  * @returns {object[]} `[stampPlugin, inspectorFarmPlugin]`. Omitting options uses the runtime defaults.
@@ -271,7 +284,8 @@ export function farm(options: IdeByebyeOptions = {}): PluginInstance[] {
 }
 
 /**
- * esbuild entry. Stamps JSX by default in dev (`NODE_ENV` other than `production`) and rewrites HTML with the bootstrap.
+ * esbuild entry. Stamps JSX and rewrites HTML with the bootstrap in dev only. A production build — `NODE_ENV=production`
+ * or `define: { 'process.env.NODE_ENV': '"production"' }` — gets neither, and no inspector server starts.
  *
  * Pass `htmlFiles: ['./index.html']` when the HTML is not emitted into `outdir` (typical for a custom static server
  * that reads a source HTML and serves the esbuild bundle). After `context.rebuild()` / `build()`, those files are
