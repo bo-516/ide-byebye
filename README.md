@@ -357,13 +357,15 @@ From the package root, `npm test` installs demo dependencies when the lockfile c
   `data-insp-path`. Vue, pug, and Svelte stamping use the compiler installed in
   your project. `.astro` and `.mdx` are not stamped.
 - **Footer agents** — Codex App / Claude App / Cursor / Grok Build / Claude Code CLI /
-  OpenCode open via the OS default (`open` on macOS, `cmd /c start` on Windows,
-  `xdg-open` on Linux).
+  OpenCode / Devin CLI open via the OS default (`open` on macOS, `cmd /c start` on
+  Windows, `xdg-open` on Linux).
   Windows is zero-config for most setups; override only if the default opener
   fails (see [Windows](#windows)).
 - **Target agent installed** — Codex App / Claude App / Cursor /
   [Grok Build CLI](https://x.ai/cli) / [Claude Code](https://code.claude.com) /
-  [OpenCode](https://opencode.ai/download) (desktop app or CLI). No extra npm deps for these agents.
+  [OpenCode](https://opencode.ai/download) (desktop app or CLI) /
+  [Devin](https://devin.ai) (CLI, or Devin Desktop's bundled `devin` on macOS).
+  No extra npm deps for these agents.
 
 ## The intent dialog
 
@@ -401,7 +403,7 @@ Empty call is enough. You get:
 | Plugin on | `enabled: true` (dev only) |
 | Pick | hold ⌘ (macOS) / Ctrl → click; hotkey `Alt+Shift+I` |
 | Enter handoff | **Claude App** |
-| Footer agents | Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode — all on (a missing app or CLI greys its row out). Antigravity IDE and Antigravity CLI stay off until configured |
+| Footer agents | Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode / Devin CLI — all on (a missing app or CLI greys its row out). Antigravity IDE, Antigravity CLI, Devin Desktop, and Windsurf stay off until configured |
 | Backend agents | clipboard (**Copy prompt** button) + file (no UI entry point) — on; neither is an Enter target |
 | Recording | off; enable with `recording: true` (needs `@rrweb/record` + `@rrweb/replay`) |
 | UI locale | auto (`navigator.language` → else `zh`) |
@@ -472,7 +474,7 @@ ideByebye({
 | --- | --- |
 | **Type** | `string` |
 | **Default** | `'claude-app'` |
-| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'claude-cli'` / `'opencode'` / `'antigravity-ide'` / `'antigravity'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → Claude Code CLI → OpenCode → Antigravity IDE → Antigravity → custom); if none is enabled, Enter only shows a "not enabled" error. Once you pick another agent in the destination picker next to Send, Enter follows that choice instead (remembered in this browser). `'antigravity-ide'` and `'antigravity'` work only after those agents are turned on. |
+| **Set to** | Enter-key target: `'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'claude-cli'` / `'opencode'` / `'devin-cli'` / `'antigravity-ide'` / `'antigravity'` / `'devin-ide'` / `'windsurf-ide'`, or an [`agents.custom`](#agentscustom) name. `'clipboard'` / `'file'` are never Enter targets — like unknown / disabled values, they fall back to the first enabled footer agent (Codex → Claude → Cursor → Grok Build → Claude Code CLI → OpenCode → Devin → Antigravity IDE → Antigravity → Devin Desktop → Windsurf → custom); if none is enabled, Enter only shows a "not enabled" error. Once you pick another agent in the destination picker next to Send, Enter follows that choice instead (remembered in this browser). `'antigravity-ide'`, `'antigravity'`, `'devin-ide'`, and `'windsurf-ide'` work only after those agents are turned on. |
 
 #### `applyMode`
 
@@ -580,10 +582,12 @@ ideByebye({
 
 ### Agents
 
-Eight built-in agents, **all on by default**. Disable with `agents.<name>: false`
+Thirteen built-in agents, **nine on by default**. Disable with `agents.<name>: false`
 or `{ enabled: false }`. `true` is explicit on; an object keeps it on and
-overrides options. **Antigravity IDE** and the **Antigravity CLI** are built in
-but **off until you set them** — omit `antigravityIde` / `antigravity` and the
+overrides options. **Antigravity IDE**, the **Antigravity CLI**, **Devin Desktop**,
+and **Windsurf** are built in
+but **off until you set them** — omit `antigravityIde` / `antigravity` / `devinIde` /
+`windsurfIde` and the
 footer does not change. `agents.custom` adds footer agents of your own — see
 [`agents.custom`](#agentscustom).
 
@@ -603,8 +607,11 @@ writes the same `requests/` file, then opens that app.
 | `grokBuild` | `grok-build` | yes | Open **Grok Build** in Terminal with prompt prefilled. |
 | `claudeCli` | `claude-cli` | yes | Open **Claude Code CLI**: prefilled via `claude-cli://` in your terminal, or run in Terminal and submitted. |
 | `opencode` | `opencode` | yes | Open **OpenCode**: a prefilled desktop session (1.x on macOS), or the CLI in Terminal and submitted. |
+| `devinCli` | `devin-cli` | yes | Open **Devin** in Terminal with the prompt as the initial message; `›` resumes `devin list` sessions. |
 | `antigravityIde` | `antigravity-ide` | yes, **off by default** | Open **Antigravity IDE** on the project and put the prompt in the agent input. |
 | `antigravity` | `antigravity` | yes, **off by default** | Open the **Antigravity** desktop app and put the prompt in its composer. |
+| `devinIde` | `devin-ide` | yes, **off by default** | Open **Devin Desktop** on the project and put the prompt in the Cascade composer. |
+| `windsurfIde` | `windsurf-ide` | yes, **off by default** | Open **Windsurf** on the project and put the prompt in the Cascade composer. |
 
 ```js
 agents: {
@@ -618,31 +625,38 @@ agents: {
   claudeCli: { permissionMode: 'plan' }, // Terminal route only
   opencode: false,                        // remove a default agent
   clipboard: false,
-  // Opt-in. Omit either key and that button is not registered.
+  // Opt-in. Omit any of these keys and that button is not registered.
   antigravityIde: true,
   antigravity: { mode: 'plan' },
+  devinIde: true,                           // Devin Desktop Cascade composer
+  windsurfIde: { submit: true },            // classic Windsurf: submit, not just prefill
 }
 ```
 
 Buttons grey out when the agent binary is missing (Grok Build: `grok` not on
 PATH and not at `~/.grok/bin/grok`; Claude Code CLI: no `claude-cli://` handler
-and no `claude`; OpenCode: no 1.x desktop app and no `opencode` CLI;
+and no `claude`; OpenCode: no 1.x desktop app and no `opencode` CLI; Devin CLI:
+no `devin`, and no bundled CLI inside Devin Desktop on macOS;
 Antigravity IDE: `antigravity-ide`; Antigravity CLI: `agy`, then
-`~/.local/bin/agy`). The tooltip says what to install. Deeplink agents stay
+`~/.local/bin/agy`; Devin Desktop: `devin-desktop`, then the macOS app-bundle
+CLI; Windsurf: `windsurf`, then the macOS app-bundle CLI). The tooltip says what
+to install. Deeplink agents stay
 enabled; the OS reports an error if the app is not installed.
 
 #### Shared footer-agent options
 
-Codex / Claude / Cursor share these; Grok Build, Claude Code CLI, OpenCode and the
+Codex / Claude / Cursor share these; Grok Build, Claude Code CLI, OpenCode, Devin
+CLI and the
 Antigravity CLI reuse them for their deeplinks and Terminal launchers. Antigravity
-IDE ignores `openCommand` / `openArgs` — its own CLI starts the app.
+IDE, Devin Desktop, and Windsurf ignore `openCommand` / `openArgs` — their own
+CLI starts the app.
 
 | Option | Type | Default | What you can set |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` (when using an object) | `false` unregisters the agent. |
 | `openCommand` | `string` | `open` / `cmd` / `xdg-open` | Executable for deeplink / launcher. Override the platform default when needed. |
 | `openArgs` | `string[]` | platform prefix | Extra args **before** the URL / launcher path. Appended after the default prefix when `openCommand` is omitted. |
-| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` writes a Markdown handoff and sends a compact prompt pointing at it. In `'auto'`, Cursor / Grok / Claude Code CLI / OpenCode / Antigravity IDE / Antigravity may overflow to file; Claude / Codex only switch on explicit `'file'`. A prompt that starts with `-` always uses the file pointer for Antigravity IDE, so the CLI does not treat it as a flag. |
+| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` writes a Markdown handoff and sends a compact prompt pointing at it. In `'auto'`, Cursor / Grok / Claude Code CLI / OpenCode / Antigravity IDE / Antigravity may overflow to file; Claude / Codex only switch on explicit `'file'`. A prompt that starts with `-` always uses the file pointer for Antigravity IDE, so the CLI does not treat it as a flag. Devin CLI instead passes the full handoff to `devin --prompt-file`, so its first message keeps the whole request. |
 
 #### Windows
 
@@ -772,7 +786,27 @@ On by default. `launch: 'auto'` reads the desktop app's version on macOS:
 | `promptUrlLimit` | `number` | `8000` | App route: an encoded deeplink longer than this switches to a file pointer. |
 | `promptArgLimit` | `number` | `12000` | Terminal route: in `auto` mode, longer prompts switch to a file pointer. |
 
-#### `agents.antigravityIde`
+#### `agents.devinCli`
+
+On by default. A launcher runs `devin -- "<prompt>"`, which **submits** the prompt
+as the first message of a new session. Long prompts (over `promptArgLimit`) instead
+run `devin --prompt-file <handoff.md>`, and a picked session runs
+`devin -r "<sessionId>" -- "<prompt>"`. Prompts that begin with `-` always use
+`--prompt-file` so the CLI does not treat them as flags.
+
+| Option | Type | Default | What you can set |
+| --- | --- | --- | --- |
+| `command` | `string` | `'devin'`, then the CLI inside Devin Desktop (`Devin.app/Contents/Resources/app/extensions/windsurf/devin/bin/devin`) | CLI binary. Absolute path when Node’s PATH cannot see your login shell installs. |
+| `projectRoot` | `string` | Vite / bundler project root | `devin --cwd` and launcher `cd`. Relative `@` refs are stripped against this root. |
+| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | Source `@` refs in this prompt only. |
+| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in this prompt only. |
+| `permissionMode` | `string` | none | Passed as `--permission-mode` (`normal`, `accept-edits`, `smart`, `dangerous`, …). |
+| `model` | `string` | none | Passed as `--model`. |
+| `cloud` | `boolean` | none | `true` → `--cloud` (cloud VM). Omit for the CLI default. |
+| `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to `--prompt-file` (ARGV / ARG_MAX). |
+| `sessions` | `boolean \| { limit?, lookbackDays?, home? }` | on | `devin list --format json` session list. `false` removes the `›`. `limit` is 1–50 (default 20). `lookbackDays` filters by last activity (default 30). `home` overrides `~/.devin`. |
+
+#### `agents.devinIde`
 
 Off unless set. Opens the project with `antigravity-ide <projectRoot>`, then places the prompt in the agent input without submitting it. This IDE's `antigravity-ide chat` command does not reach that input. Referenced source files that stay inside the project root are mentioned with the prompt.
 
@@ -801,6 +835,38 @@ Off unless set. Opens the **Antigravity** desktop app and writes the prompt into
 | `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Screenshot / still paths in the Antigravity prompt. |
 | `mode` | `string` | none | Passed as `agy --mode` (`plan`, `accept-edits`). |
 | `promptArgLimit` | `number` | `12000` | In `auto` mode, longer prompts switch to file handoff. |
+
+#### `agents.devinIde`
+
+Off unless set. Opens the project with `devin-desktop <projectRoot>` (`--add` /
+`--new-window` follow the options below), then delivers the prompt into the
+Cascade composer through a local bridge extension installed under
+`~/.devin/extensions` on the first send. `submit: false` (default) leaves the
+prompt in the composer for you to send; `submit: true` asks the IDE to start a
+new conversation with it (`sendCascadeInputNewConversation` — on builds without
+that action the send fails visibly instead of typing into the wrong window).
+
+| Option | Type | Default | What you can set |
+| --- | --- | --- | --- |
+| `command` | `string` | `'devin-desktop'`, then the macOS app-bundle CLI | Absolute path when Node’s PATH cannot see the shell command. |
+| `projectRoot` | `string` | Vite / bundler project root | Folder the IDE opens. |
+| `submit` | `boolean` | `false` | `true` submits the prompt as a new conversation; `false` only places it in the composer. |
+| `reuseWindow` | `boolean` | `false` | `--reuse-window` on the folder open. Ignored when `newWindow` is true. |
+| `newWindow` | `boolean` | `false` | `--new-window`. Wins over `reuseWindow`. |
+
+#### `agents.windsurfIde`
+
+Off unless set. Same bridge as `agents.devinIde`, but for the classic standalone
+Windsurf editor (`windsurf <projectRoot>`, extension under
+`~/.windsurf/extensions`). Its command surface predates the submit action, so the
+default `submit: false` **inserts the prompt into the Cascade input without
+sending** — you press Enter. Only set `submit: true` on builds whose command
+palette accepts the new-conversation action.
+
+| Option | Type | Default | What you can set |
+| --- | --- | --- | --- |
+| `command` | `string` | `'windsurf'`, then the macOS app-bundle CLI | Absolute path when Node’s PATH cannot see the shell command. |
+| `projectRoot` / `submit` / `reuseWindow` / `newWindow` | — | same as `agents.devinIde` | — |
 
 #### `agents.custom`
 
@@ -899,8 +965,11 @@ Written under `outputDir` (default `.intent-inspector/`):
 | `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + prompt for `grok --verbatim`. |
 | `launches/<timestamp>-<id>.claude.command` + `.claude.prompt.txt` | Claude Code CLI Terminal launcher (Terminal route only; the deeplink writes nothing). |
 | `launches/<timestamp>-<id>.opencode.command` + `.opencode.prompt.txt` | OpenCode Terminal launcher (Terminal route only). |
+| `launches/<timestamp>-<id>.command` + `.prompt.txt` (untagged) | Devin CLI Terminal launcher; `requests/<timestamp>-<id>.md` holds the handoff when it goes through `--prompt-file`. |
 | `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE folder open and the prompt that was placed in the agent input (only after `agents.antigravityIde` is set). |
 | `launches/<timestamp>-<id>.agy.command` + `.agy.prompt.txt` | Antigravity CLI Terminal launcher (only after `agents.antigravity` is set). |
+| `launches/<timestamp>-<id>.devin-ide.command` + `.devin-ide.prompt.txt` | Devin Desktop folder open and the prompt sent to the Cascade composer (only after `agents.devinIde` is set). |
+| `launches/<timestamp>-<id>.windsurf-ide.command` + `.windsurf-ide.prompt.txt` | Windsurf folder open and the prompt sent to the Cascade composer (only after `agents.windsurfIde` is set). |
 | `recordings/<id>.rrweb.json` + `<id>.webp` | Event stream + still (when recording is used). |
 | screenshot artifacts | Referenced by the prompt. |
 | `next/bootstrap.js` (+ `.gitignore`) | Generated `'use client'` bootstrap for `next dev`; rewritten on every start, never committed. |
@@ -931,7 +1000,7 @@ ideByebye({ locale: 'en' });
 
 ## Send to an existing session
 
-Codex App, Grok Build, and (behind a flag) Antigravity IDE can take the next prompt in a session you already have. With no session picked, send behaves exactly as before: a new Codex thread, a new Grok terminal, or a new Antigravity chat. Claude Code CLI and OpenCode always start a new session.
+Codex App, Grok Build, Devin CLI, and (behind a flag) Antigravity IDE can take the next prompt in a session you already have. With no session picked, send behaves exactly as before: a new Codex thread, a new Grok terminal, a new Devin session, or a new Antigravity chat. Claude Code CLI and OpenCode always start a new session.
 
 Open the destination picker next to Send: agents that can continue a session show `›`, which opens this project's sessions (title, status, directory, relative time). Pick one and the next Enter (or Send) goes to that agent and that session; the picker then reads `Agent / session title`. The choice is remembered per agent in `localStorage`. **New session** clears only that agent. `sessions: false` removes that agent's `›`.
 
@@ -939,6 +1008,7 @@ Open the destination picker next to Send: agents that can continue a session sho
 | --- | --- | --- |
 | Codex App | Prefill | Opens `codex://threads/<id>` with the prompt in the composer. You still press Enter in Codex. |
 | Grok Build | Resume and submit | A new terminal runs `grok --resume <id>` and submits the prompt. A session that is already open in a terminal cannot be injected. |
+| Devin CLI | Resume and submit | A new terminal runs `devin -r <id> -- "<prompt>"` and submits the prompt. Sessions come from `devin list --format json`, filtered to the project directory. |
 | Antigravity IDE | Direct submit | The prompt is sent into the IDE conversation (not prefilled). Only when `agents.antigravityIde.experimentalSessions` is `true`. |
 
 The menu only shows sessions for the current project: the same directory, a child directory, or an ancestor that is not above the git root. Titles are a single line, capped at 120 characters. The page never receives absolute paths, process ids, transcripts, or tokens.
@@ -950,6 +1020,7 @@ ideByebye({
   agents: {
     codexApp: { sessions: { limit: 20, lookbackDays: 30 } },
     grokBuild: { sessions: true },
+    devinCli: { sessions: { limit: 20, lookbackDays: 30 } },
     antigravityIde: { experimentalSessions: true },
   },
 });

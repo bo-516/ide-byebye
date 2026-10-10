@@ -46,13 +46,17 @@ export const AGENT_LABELS = {
     opencode: 'OpenCode',
     'antigravity-ide': 'Antigravity IDE',
     antigravity: 'Antigravity',
+    'devin-cli': 'Devin',
+    'devin-ide': 'Devin Desktop',
+    'windsurf-ide': 'Windsurf',
     clipboard: 'Clipboard',
 };
 /**
  * App-agent actions offered as send destinations in the dialog.
  *
  * Boundary: this list is UI-only; an agent is offered only when `enabledAgents` includes its name. Antigravity IDE
- * and Antigravity stay off unless the plugin config registers them, so a zero-config page does not list them.
+ * Antigravity IDE / Antigravity / Devin Desktop / Windsurf stay off unless the plugin config registers them, so a
+ * zero-config page does not list them.
  * Adding an action without a matching registered adapter lists an unavailable destination instead of sending to a
  * missing route. `titleKey` is resolved to a localized title at call time by `configuredActions()`. `kind` describes the
  * handoff (`app` opens a desktop app, `ide` an editor, `terminal` a CLI in a new terminal) and picks the icon only
@@ -100,6 +104,12 @@ export const AGENT_ACTIONS = [
         kind: 'app',
     },
     {
+        name: 'devin-cli',
+        label: 'Devin',
+        titleKey: 'agent.devinCli.title',
+        kind: 'terminal',
+    },
+    {
         name: 'antigravity-ide',
         label: 'Antigravity IDE',
         titleKey: 'agent.antigravityIde.title',
@@ -110,6 +120,18 @@ export const AGENT_ACTIONS = [
         label: 'Antigravity',
         titleKey: 'agent.antigravity.title',
         kind: 'terminal',
+    },
+    {
+        name: 'devin-ide',
+        label: 'Devin Desktop',
+        titleKey: 'agent.devinIde.title',
+        kind: 'ide',
+    },
+    {
+        name: 'windsurf-ide',
+        label: 'Windsurf',
+        titleKey: 'agent.windsurfIde.title',
+        kind: 'ide',
     },
 ];
 

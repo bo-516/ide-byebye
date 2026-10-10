@@ -94,6 +94,18 @@ const STRINGS: Record<string, { zh: string; en: string }> = {
         zh: '在终端打开 Antigravity CLI，并预填本次 UI 修改意图。',
         en: 'Open the Antigravity CLI in Terminal with this UI change intent prefilled.',
     },
+    'agent.devinCli.title': {
+        zh: '在终端打开 Devin，并预填本次 UI 修改意图。',
+        en: 'Open Devin in a terminal with this UI change intent prefilled.',
+    },
+    'agent.devinIde.title': {
+        zh: '在 Devin 中打开聊天，并预填本次 UI 修改意图。',
+        en: 'Open Devin chat with this UI change intent prefilled.',
+    },
+    'agent.windsurfIde.title': {
+        zh: '在 Windsurf 中打开聊天，并预填本次 UI 修改意图。',
+        en: 'Open Windsurf chat with this UI change intent prefilled.',
+    },
     'agent.custom.title': {
         zh: '把本次 UI 修改意图发送给 {label}。',
         en: 'Send this UI change intent to {label}.',

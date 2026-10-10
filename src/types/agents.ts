@@ -210,6 +210,58 @@ export interface OpenCodeAgentOptions extends AgentOpenOptions {
 }
 
 /**
+ * Devin CLI (`devin`). On by default.
+ * Opens a Terminal session running interactive `devin` with the prompt as the initial message; long
+ * prompts and `promptMode: 'file'` switch to `devin --prompt-file` so the full request is delivered
+ * as the first message rather than as a pointer.
+ */
+export interface DevinCliAgentOptions extends AgentOpenOptions {
+  /** CLI binary. Default: `devin`, then the CLI bundled inside Devin Desktop on macOS. */
+  command?: string;
+  /** Session folder and launcher `cd`; relative `@` refs strip against this root. */
+  projectRoot?: string;
+  /** Source `@` refs in the Devin prompt only. Default `'relative'`. */
+  pathStyle?: PathStyle;
+  /** Screenshot / still paths in the Devin prompt. Default `'absolute'`. */
+  artifactPathStyle?: PathStyle;
+  /** Passed as `devin --permission-mode` (`normal`, `accept-edits`, `smart`, `dangerous`, `autonomous`). */
+  permissionMode?: string;
+  /** Passed as `devin --model`. Omitted → CLI default model. */
+  model?: string;
+  /** Passed as `devin --cloud` to start a Devin Cloud session instead of a local one. */
+  cloud?: boolean;
+  /** In `auto` mode, prompts over this length are delivered via `--prompt-file`. Default `12000`. */
+  promptArgLimit?: number;
+  /**
+   * Existing-session list (the `›` beside this agent in the destination picker), populated by
+   * `devin list --format json`. Default on. `false` removes it. Sends resume the chosen session
+   * with `devin -r <id>`.
+   */
+  sessions?: boolean | SessionPickerOptions;
+}
+
+/**
+ * Devin Desktop / Windsurf Cascade handoff. Off unless `agents.devinIde` / `agents.windsurfIde` is set.
+ * The IDE CLI opens the project folder; a locally installed bridge extension then places the prompt
+ * in the Cascade composer. `openCommand` / `openArgs` on this object are ignored.
+ */
+export interface CascadeIdeAgentOptions extends AgentOpenOptions {
+  /** IDE CLI binary. Default: `devin-desktop` / `windsurf`, then the macOS app-bundle path. */
+  command?: string;
+  /** Folder opened as the chat workspace. Default: bundler project root. */
+  projectRoot?: string;
+  /** Force the last active IDE window. Ignored when `newWindow` is true. */
+  reuseWindow?: boolean;
+  /** Open an empty new window for the chat. Wins over `reuseWindow`. */
+  newWindow?: boolean;
+  /**
+   * Submit the prompt as a new conversation (`sendCascadeInputNewConversation`) instead of leaving it
+   * in the composer. Default `false` — the text stays in the input for the user to send.
+   */
+  submit?: boolean;
+}
+
+/**
  * A client that receives the assembled prompt in its own input box instead of
  * having an app opened for it. Declared per project through `agents.custom`;
  * nothing is registered when the option is absent.
@@ -264,6 +316,20 @@ export interface AgentsOptions {
   claudeCli?: AgentEntry<ClaudeCliAgentOptions>;
   /** OpenCode handoff (`opencode`). On by default; `false` removes it. */
   opencode?: AgentEntry<OpenCodeAgentOptions>;
+  /** Devin CLI handoff (`devin-cli`). On by default; `false` removes it. */
+  devinCli?: AgentEntry<DevinCliAgentOptions>;
+  /**
+   * Devin Desktop chat handoff (`devin-ide`). Omit it (the default) and the button is not registered.
+   * `true` or an options object turns it on. The first send installs a local bridge extension under
+   * `~/.devin/extensions`.
+   */
+  devinIde?: AgentEntry<CascadeIdeAgentOptions>;
+  /**
+   * Windsurf chat handoff (`windsurf-ide`), for the pre-merge standalone editor. Omit it (the default)
+   * and the button is not registered. `true` or an options object turns it on. The first send installs
+   * a local bridge extension under `~/.windsurf/extensions`.
+   */
+  windsurfIde?: AgentEntry<CascadeIdeAgentOptions>;
   /**
    * Antigravity IDE chat handoff. Omit it (the default) and the button is not registered.
    * `true` or an options object turns it on.

@@ -122,6 +122,7 @@ test('buildRegistry registers custom clients and refuses built-in names', () => 
         'grok-build',
         'claude-cli',
         'opencode',
+        'devin-cli',
         'grok-desktop',
     ]);
 });
@@ -136,6 +137,7 @@ test('buildRegistry without agents.custom keeps the built-in agent set and leave
         'grok-build',
         'claude-cli',
         'opencode',
+        'devin-cli',
     ]);
     assert.equal(buildRegistry({ custom: [{ name: 'antigravity' }] }).has('antigravity'), false);
     // The new built-in names are reserved too, so a custom client cannot take them over.
