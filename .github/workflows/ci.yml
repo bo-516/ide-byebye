@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       # Installs the pnpm version pinned in package.json `packageManager`.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -49,6 +49,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 20.19.0
+          # Otherwise setup-node sees `packageManager` and runs `pnpm store path`, which pnpm 11 cannot do on Node 20.
+          package-manager-cache: false
       - name: Unit tests
         shell: bash
         # Node 20's test runner does not expand globs, so bash does.
@@ -63,7 +65,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 24
