@@ -113,5 +113,5 @@ export function formatLineColumn(line?: number, column?: number): string {
  * @returns {string} e.g. `1924 × 1120` (narrow no-break spaces keep it on one line).
  */
 export function formatBoxSize(width: number, height: number): string {
-    return `${Math.round(width)} × ${Math.round(height)}`;
+    return `${Math.round(width)}\u202f×\u202f${Math.round(height)}`;
 }
