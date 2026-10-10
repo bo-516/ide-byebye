@@ -2,41 +2,41 @@
 
 [English](./README.md) | [中文](./README.zh-CN.md)
 
-> ⌘-点击任意渲染节点，用自然语言描述改动，把 **源码位置 + 意图** 交给
-> **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode** —— 不用在 IDE 里翻文件。
+> **可能是让 AI 改前端最省心的办法。**
 
-仅用于开发环境的插件，支持 Vite / webpack / rspack / rsbuild / esbuild / Farm、
-Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。在运行中的应用上
-叠加可感知源码的选取器，拼出结构化 prompt（`file:line`、周围源码、意图，以及可选截图 /
-样式 / 录制），再通过 deeplink 或 Terminal 打开所选 Agent。
+它能大幅降低 AI 写前端时的幻觉。
 
-它是胶水，不是模型：不改文件、不内置 AI SDK。真正动手的是你交接出去的 Agent。
+AI 改前端翻车，问题很少出在代码本身，而是出在**改哪儿**。你给它一张截图，或者一句
+「首页那个黑色按钮」，它只能猜：哪个组件？哪个文件？页面上三个一模一样的按钮，你说的是
+哪一个？猜错了，它就一本正经地去改一个长得像的组件。
 
----
+ide-byebye 把「猜」这一步删掉了。在运行中的页面上按住 ⌘ 点一下那个元素，写一句要改
+什么，回车。Agent 读到的第一行就是精确位置：
 
-支持 **React**、**Vue**、**Svelte**、**Solid**、**Preact** 与 **Angular**，包括
-**Next.js**、**Nuxt**、**SvelteKit** 等 SSR 框架。详见 [框架支持](#框架支持)。
+```text
+@src/components/Hero.tsx #83
+
+文案改成 Start Writing
+```
+
+没什么可猜的，也就没什么可幻觉的。
+
+**和你正在用的 Agent 无缝衔接。** Claude、Codex、Cursor、Grok Build、Claude Code CLI、
+OpenCode、Devin、Antigravity、Windsurf：回车，它就在你的项目里打开，prompt 已经放好。
+不用复制粘贴，常用的几个也不用额外配置。还能把 prompt 直接发进你已经开着的 Codex、Grok
+或 Devin 会话。
 
 [![⌘-点击元素、描述改动、交给 Claude App 或已打开的 Codex 会话](./media/demo-handoff.zh-CN.gif)](./media/demo-handoff.zh-CN.mp4)
 
-**演示**（Vue demo 的动画演示；[MP4](./media/demo-handoff.zh-CN.mp4)）：
+## 实测数据
 
-1. **选取** — 按住 ⌘ 点击渲染节点；浮层把 `data-insp-path` 解析到源码
-   （演示中为 `src/App.vue #85-87`）。
-2. **描述** — 在弹窗里用自然语言写意图（可选 `@code`、截图、样式或录制）。
-3. **交接** — 选择 **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode**；
-   loopback 服务拼好结构化 prompt，打开 Agent 时已带上 `file:line` + 意图。演示里 prompt 先交给
-   Claude App，再把筛选栏（`#99-129`）发进一个已经打开的 Codex 会话（见 [发送到已有会话](#发送到已有会话)）。
-
-**为什么要给行号**：给 Agent 一张截图，或者一句「首页那个黑色按钮」，它得先猜代码在哪，
-再 grep、一个个读文件。这些都在烧 token、占上下文；线索越模糊，越容易改到长得像的组件上。
-给出 `@文件 #行号`，它直接从那几行开工。
+没有位置，Agent 只能自己找：grep、一个个读文件，一行代码还没改，token 和上下文已经
+涨上去了。
 
 [![一张截图加一句「首页那个黑按钮」：Agent 只能 grep、一个个读文件，Token 和上下文一路往上涨](./media/demo-pain.zh-CN.gif)](./media/demo-pain.zh-CN.mp4)
 
-用 Grok Build 在一个真实的 React 项目（875 个 TS/TSX 文件）里实测：3 处 UI 改动，分别用
-文字描述、截图 + 一句话、ide-byebye 的 `@文件 #行号` 告诉它改哪，每种跑 3 次。27 次都改到了
-正确的位置，差别全在「找」上（中位数）：
+用 Grok Build 在一个真实的 React 项目（875 个 TS/TSX 文件）里测：3 处 UI 改动，每处用
+三种方式告诉它改哪，每种跑 3 次。27 次最终都改对了地方，差别全在「找」花了多少（中位数）：
 
 | | 文字描述 | 截图 + 描述 | ide-byebye |
 | --- | --- | --- | --- |
@@ -45,144 +45,65 @@ Next.js（Turbopack + webpack）与 Angular CLI（Mako 仅做路径注入）。�
 | 读文件次数 | 11 | 11 | **3** |
 | 上下文峰值 | 4.0 万 | 3.8 万 | **1.8 万** |
 
-token 少约 2/3，耗时少一半左右，上下文峰值少一半多；按平均值算差距更大：token 少约 80%，
-耗时少约 60%。Codex / Claude / Cursor 收到的也是同一种 `@文件 #行号` prompt。
+token 少约 2/3，耗时少一半，上下文少一半。Codex、Claude、Cursor 等收到的也是同一种
+`@文件 #行号` prompt。
 
----
+## 支持范围
 
-## 目录
+| | |
+| --- | --- |
+| **框架** | React、Vue、Svelte、Solid、Preact、Angular，以及 Next.js、Nuxt、SvelteKit |
+| **构建工具** | Vite、webpack、rspack、rsbuild、esbuild、Farm、Next.js（Turbopack 和 webpack）、Angular CLI |
+| **Agent** | Codex App、Claude App、Cursor、Grok Build、Claude Code CLI、OpenCode、Devin CLI。可选开启：Antigravity、Devin Desktop、Windsurf，或者[你自己的客户端](./CONFIGURATION.zh-CN.md#agentscustom) |
 
-- [如何使用](#如何使用)
-- [工作原理](#工作原理)
-- [安装](#安装)
-- [快速开始](#快速开始)
-- [框架支持](#框架支持)
-- [演示](#演示)
-- [环境要求](#环境要求)
-- [意图弹窗](#意图弹窗)
-- [配置参考](#配置参考)
-  - [最小配置](#最小配置)
-  - [可选配置项（逐项）](#可选配置项逐项)
-  - [Agents](#agents)
-  - [Windows](#windows)
-  - [录制（rrweb）](#录制-rrweb)
-- [产物](#产物)
-- [本地化](#本地化)
-- [发送到已有会话](#发送到已有会话)
-- [安全与隐私](#安全与隐私)
-- [从源码构建](#从源码构建)
-- [许可证](#许可证)
+只在开发环境运行，不带模型、不带 AI SDK，也从不改你的文件。它负责拼好 prompt、打开
+Agent，改代码的是 Agent。
 
----
+## 安装
 
-## 如何使用
+### 让 Agent 帮你装
 
-复制下面的 GitHub README 地址，在已打开本项目的 Cursor / Claude / Codex / Grok
-里发给 AI：
+在 Codex、Claude、Cursor 或 Grok 里打开你的项目，发送：
 
-```
-https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md
-```
-
-然后发送：
-
-```
+```text
 按 https://github.com/bo-516/ide-byebye/blob/main/README.zh-CN.md 把 ide-byebye 接到这个项目里
 ```
 
-英文 README：`https://github.com/bo-516/ide-byebye`
-
-也可以自己按 [安装](#安装) / [快速开始](#快速开始) 接入。
-
-## 工作原理
-
-1. **选取** — 快捷键（默认 `Alt+Shift+I`）或按住 `clickModifier`（⌘ / Ctrl）再点击。
-   源码来自内置打点器写入的 `data-insp-path`（Angular 则来自 Angular 开发模式的组件调试信息）。
-2. **描述** — 在元素上打开意图弹窗。可附加 `@code` 引用、截图、计算样式或交互录制。
-3. **交接** — 点击 **Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode**。本地 loopback
-   服务（`127.0.0.1`、按进程 token）拼好 prompt，再打开 Agent（deeplink 或 Terminal）。
-
-**弹窗和浮层**：用 React `createPortal` 或 Vue `<Teleport>` 渲染的内容，定位到它自己的文件，
-而不是它挂载到的 `<body>` 或容器。选取在 portal 根处停下；库渲染、没有打点的部分（比如 Radix 的遮罩）
-沿组件树找到最近的打点用法，比如你写 `<DialogContent>` 的那一行。打点器也让 `createPortal` 的内容保留
-自身位置，不再透传组件的调用处。弹窗是从哪里挂载的（`App.tsx #24 <ModalHost>` 等）显示在 chip 旁边，
-点一下即可切换为主定位；交给 Agent 的 prompt 里也会多一行 `Rendered via portal:`。
-
-除你主动触发的 deeplink 外，数据不会离开本机。适配器只注入一段 bootstrap：注入 HTML，
-或者——当框架自己渲染 HTML 时——注入每个页面本来就会加载的模块（`/@vite/client`、
-Next.js 根 layout / `_app`、Angular 开发脚本）。
-
-## 安装
+### 或者自己装
 
 ```sh
 npm i -D ide-byebye
 ```
 
-只需要这一条。JSX 用 `oxc-parser` 打点。Vue 3 用项目里的 `@vue/compiler-dom`
-（Vue 2.7 请再执行 `npm i -D @vue/compiler-dom`）。pug 模板需要 `pug`。
-Svelte 用项目里的 `svelte`。
-
-可选 — 元素行为录制（默认关闭，懒加载）：
-
-```sh
-npm i -D @rrweb/record @rrweb/replay
-```
-
-需要时设 `recording: true` 或传入 `recording` 配置对象即可开启。
-
-## 快速开始
-
-### Vite（默认导出）
+**Vite**（React、Vue、Svelte、Solid、Preact、Nuxt、SvelteKit、Astro……）：
 
 ```js
 // vite.config.js
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react'; // 或 @vitejs/plugin-vue
-import ideByebye from 'ide-byebye';       // 等同于 'ide-byebye/vite'
+import react from '@vitejs/plugin-react';
+import ideByebye from 'ide-byebye';
 
 export default defineConfig({
-  plugins: [
-    // 零配置：内置打点、⌘/Ctrl-点击选取、
-    // 全部页脚 Agent + 剪贴板/文件、录制关闭、Enter → Claude App。
-    ideByebye(),
-    react(),
-  ],
+  plugins: [ideByebye(), react()], // 放在框架插件之前
 });
 ```
 
-### Next.js
+**Next.js**（14.2+，Turbopack 或 `--webpack`，App Router 或 Pages Router）：
 
 ```js
-// next.config.mjs（next.config.ts / .js 写法相同）
+// next.config.mjs
 import withIdeByebye from 'ide-byebye/next';
 
-export default withIdeByebye(
-  { reactStrictMode: true },      // 你的 Next 配置：对象、函数或 Promise 均可
-  { defaultAgent: 'codex-app' },  // ide-byebye 配置（可选）
-);
+export default withIdeByebye({ reactStrictMode: true }); // 你的 Next 配置
 ```
 
-- 覆盖 `next dev` 的 **Turbopack**（Next 16 默认）与 `--webpack` 两种模式，App Router
-  与 Pages Router 均可，应用里不用写任何代码：包装器加上 `data-insp-path` 规则，外加一个
-  loader，把生成的 `'use client'` bootstrap（`.intent-inspector/next/bootstrap.js`，已
-  git 忽略）渲染为每个根 layout `<body>` 的最后一个子节点，或由 `_app` 引入。
-- 只作用于 `next dev` 的 dev server 进程：`next build` / `next start` 原样拿回你的配置，
-  你自己的 `turbopack.rules` / `webpack()` 都会保留。
-- 已在 Next 14.2、15.2、16.3 上验证。monorepo 下项目目录取自 `next.config.*` 所在目录
-  （可用 `root` 配置项覆盖）。
-- 已经在 `turbopack.rules` 里用 `ide-byebye/turbopack`？它现在也会自动挂载 bootstrap；
-  换成 `ide-byebye/next` 可同时覆盖 `--webpack`。
-
-### Angular (CLI)
-
-Angular CLI 没有打包器插件钩子，所以用 `angular.json` 里的两处配置完成接入——只影响
-`ng serve`，生产构建不受影响：
+**Angular CLI**：CLI 没有插件钩子，所以在 `angular.json` 里加两处配置。
 
 ```js
 // ide-byebye.proxy.mjs（workspace 根目录）
 import { angularProxy } from 'ide-byebye/angular';
 
-export default await angularProxy(); // 已有代理配置时，与自己的条目展开合并
+export default await angularProxy();
 ```
 
 ```jsonc
@@ -193,748 +114,93 @@ export default await angularProxy(); // 已有代理配置时，与自己的条�
 "serve": { "options": { "proxyConfig": "ide-byebye.proxy.mjs" } }
 ```
 
-Angular 模板无法注入 `data-insp-path`。选取器改为读取 Angular 开发模式的调试信息
-（所属组件及其源文件），服务端再用你项目里的 `@angular/compiler` 解析该组件模板并匹配
-元素——prompt 指向 `src/app/app.html #9-12`（或内联 `template:` 中的位置）。匹配依据标签、
-静态属性、文本以及同一模板声明的祖先链：常规模板是精确的，极度动态的模板为尽力匹配
-（匹配不到时指向整个模板）。已在 Angular 22 上验证。若 `development` 已有 `scripts`，把
-这一项加进原数组即可。
+**其他构建工具**：导入对应的子路径。
 
-### 其他打包器
-
-按子路径导入匹配适配器 — **不要**自己传 `bundler` 字符串：
-
-| 打包器 | 导入 | 说明 |
+| 构建工具 | 导入 | 写法 |
 | --- | --- | --- |
-| **Vite** | `ide-byebye` / `ide-byebye/vite` | 完整零配置（默认）。 |
-| **webpack** | `ide-byebye/webpack` | 注入到 HtmlWebpackPlugin 输出。 |
-| **rspack** | `ide-byebye/rspack` | 与 webpack 同形。 |
-| **rsbuild** | `ide-byebye/rsbuild` | `plugins: [inspector()]`。 |
-| **esbuild** | `ide-byebye/esbuild` | 若 HTML 不在 `outdir`，传 `htmlFiles: ['./index.html']`。 |
-| **Farm** | `ide-byebye/farm` | 返回 `[stamp, inspector]` — 展开进 Farm plugins。 |
-| **Next.js** | `ide-byebye/next` | `withIdeByebye(nextConfig)` — Turbopack + webpack，见 [Next.js](#nextjs)。 |
-| **Turbopack**（仅 rules） | `ide-byebye/turbopack` | 放进 `turbopack.rules`；`next dev` 下自动挂载 bootstrap。 |
-| **Angular CLI** | `ide-byebye/angular` | `proxyConfig` + 开发环境 `scripts`，见 [Angular](#angular-cli)。 |
-| **Mako**（Umi） | `ide-byebye/mako` | 仅路径注入（`data-insp-path`）；需自行挂载 bootstrap。 |
+| webpack | `ide-byebye/webpack` | `inspector()` 放进 `plugins`，和 `HtmlWebpackPlugin` 并列 |
+| rspack | `ide-byebye/rspack` | `inspector()` 放进 `plugins`，和 `HtmlRspackPlugin` 并列 |
+| rsbuild | `ide-byebye/rsbuild` | `plugins: [inspector()]` |
+| esbuild | `ide-byebye/esbuild` | `plugins: inspector({ htmlFiles: ['./index.html'] })`（HTML 不在 `outdir` 时才需要 `htmlFiles`） |
+| Farm | `ide-byebye/farm` | `plugins: [...inspector()]` |
+| Nuxt | `ide-byebye/vite` | `nuxt.config` 里写 `vite: { plugins: [inspector()] }` |
+| Mako（Umi） | `ide-byebye/mako` | 只做源码打点，bootstrap 需自行挂载 |
 
-```js
-// webpack.config.js
-import inspector from 'ide-byebye/webpack';
-export default {
-  plugins: [new HtmlWebpackPlugin({ template: './index.html' }), inspector()],
-};
-```
+然后：
 
-```js
-// rsbuild.config.ts
-import { defineConfig } from '@rsbuild/core';
-import inspector from 'ide-byebye/rsbuild';
-export default defineConfig({ plugins: [inspector()] });
-```
+- 把 `.intent-inspector/` 加进 `.gitignore`，截图和交接文件都写在这里。
+- Vue 2.7 还需要 `npm i -D @vue/compiler-dom`。
+- 想附带交互录制：`npm i -D @rrweb/record @rrweb/replay`，再设 `recording: true`。
+- Node 需要 `^20.19.0` 或 `>=22.12.0`。
 
-```js
-// esbuild
-import * as esbuild from 'esbuild';
-import inspector from 'ide-byebye/esbuild';
-await esbuild.context({
-  entryPoints: ['src/main.jsx'],
-  bundle: true,
-  outdir: 'dist',
-  plugins: inspector({ htmlFiles: ['./index.html'] }),
-});
-```
+## 使用
 
-只覆盖你需要的项：
+1. **选取**：按住 ⌘（Windows / Linux 上是 Ctrl）点击元素，或按 `Alt+Shift+I`。
+2. **描述**：写要改什么。还可以再选几个元素作为 `@code` 引用，或附上截图、计算样式、录制。
+3. **发送**：回车发给发送按钮旁显示的 Agent（默认 Claude App）。在那个选择器里可以切换
+   Agent，或者选一个已经开着的会话。⧉ 则改为复制 prompt。
+
+用 `createPortal` 或 `<Teleport>` 渲染的弹窗和浮层，会定位到它自己的源码，而不是 `<body>`。
+
+## Agent
+
+| Agent | 默认 | 打开方式 | 发进已有会话 |
+| --- | --- | --- | --- |
+| Claude App | 开启，Enter 目标 | 新会话，预填 | — |
+| Codex App | 开启 | 新线程，预填 | ✓ 预填进该线程 |
+| Cursor | 开启 | prompt 窗口，预填 | — |
+| Grok Build | 开启 | Terminal，直接提交 | ✓ 恢复已关闭的会话 |
+| Claude Code CLI | 开启 | 你的终端，预填（或 Terminal，直接提交） | — |
+| OpenCode | 开启 | 1.x 桌面版预填，或 CLI 直接提交 | — |
+| Devin CLI | 开启 | Terminal，直接提交 | ✓ 恢复该会话 |
+| Antigravity IDE | 需开启 | agent 输入框，预填 | 实验性 |
+| Antigravity | 需开启 | 桌面版输入框，预填 | — |
+| Devin Desktop | 需开启 | Cascade 输入框，预填 | — |
+| Windsurf | 需开启 | Cascade 输入框，预填 | — |
+| 你自己的客户端 | 需开启 | 经 `postMessage` 或 HTTP 送进已在运行的 app | — |
+
+没装对应的 App 或 CLI 时，按钮置灰，tooltip 会写明要装什么。
+
+## 配置
+
+零配置就能用。最常改的是这几项：
 
 ```js
 ideByebye({
-  defaultAgent: 'codex-app', // Enter → 某个页脚 Agent
+  defaultAgent: 'codex-app',  // Enter 目标（默认 'claude-app'）
+  theme: 'auto',              // 'light'（默认）| 'auto' | 'dark'
+  locale: 'zh',               // 界面语言（默认跟随浏览器）
+  recording: true,            // 需要 @rrweb/record + @rrweb/replay
   agents: {
     cursorApp: { workspace: 'my-app' },
     grokBuild: { permissionMode: 'plan' },
-    codexApp: false,  // 隐藏某个页脚 Agent
-    file: false,      // 关闭后端 Agent（剪贴板 / 文件）
-  },
-  recording: true,
-});
-```
-
-> 默认导出与具名导出 `codeIntentInspectorPlugin` 相同（Vite）。按喜好选用即可。
-
-## 框架支持
-
-prompt 引用的是被选元素的精确源码范围，由各框架自己的解析器定位：
-
-| 框架 | 元素 → 源码 | 源码上下文 |
-| --- | --- | --- |
-| React / Preact / Solid（JSX） | `data-insp-path`（内置打点器） | oxc AST：元素、所在组件、imports |
-| Vue 3 SFC | `data-insp-path` | 项目里的 `@vue/compiler-dom`，范围精确（多行标签、绑定里的 `>`、同名嵌套、slot）。pug 用项目里的 `pug` 打点；prompt 里 pug 仍是行窗口。Vue 2.7 需要 `npm i -D @vue/compiler-dom` |
-| Svelte 3 / 4 / 5 | `data-insp-path` | 项目自带 `svelte/compiler`，包括 Svelte 5 的 `{#snippet}` / `{@render}` |
-| Angular | Angular 开发模式组件信息 | 项目 `@angular/compiler` 模板 AST + 元素匹配（[详情](#angular-cli)） |
-
-SSR 框架自己渲染 HTML，bootstrap 改由每个页面本来就加载的模块携带：
-
-| 框架 | 接入方式 | 已验证 |
-| --- | --- | --- |
-| Next.js | [`ide-byebye/next`](#nextjs) | `pnpm dev:next`（5860）、`pnpm dev:next:webpack`（5870）+ 本机 `npm test`。Next 16.3.6 |
-| Nuxt | `nuxt.config` 里 `vite: { plugins: [inspector()] }` | `pnpm dev:nuxt`（5880）+ 本机 `npm test`。Nuxt 4.5.2 |
-| SvelteKit | `vite.config` 里 `plugins: [inspector(), sveltekit()]` | `pnpm dev:sveltekit`（5890）+ 本机 `npm test`。Kit 2.70.3 + Svelte 5.57.1 |
-| SolidStart / Astro / React Router / Vike / … | 照常使用 Vite 插件 | 同一机制，未逐个测试 |
-| Angular CLI | [`ide-byebye/angular`](#angular-cli) | `pnpm dev:angular`（5900）+ 本机 `npm test`。Angular CLI 22.2.0 |
-
-```ts
-// nuxt.config.ts
-import inspector from 'ide-byebye/vite';
-
-export default defineNuxtConfig({ vite: { plugins: [inspector()] } });
-```
-
-Vite 系框架的 JS bootstrap 追加在 `/@vite/client` 上；SPA 页面仍注入 HTML 标签（此时 JS
-路径不做任何事）。项目根取"拥有 Vite `root` 的那个包"——Nuxt 4 会把 `root` 设为 `app/`——
-所以引用形如 `app/app.vue #9-13`，相对于 Agent 打开的目录。JSX 框架（React、Solid、Preact）
-请把 `inspector()` 放在框架插件之前。
-
-## 演示
-
-演示场在 [`demo/`](./demo)。跑 `npm test` 前先停掉 `pnpm dev:*`——`src/` 比 `dist/` 新时测试会重新构建。
-
-```sh
-cd demo && pnpm install
-pnpm dev                 # react + vite          5300
-pnpm dev:react           # react + vite          5300
-pnpm dev:react:webpack   # react + webpack       5400
-pnpm dev:react:rspack    # react + rspack        5500
-pnpm dev:vue             # vue + vite            5600
-pnpm dev:vue:webpack     # vue + webpack         5700
-pnpm dev:svelte          # svelte + vite         5800
-pnpm dev:solid           # solid + vite          5810
-pnpm dev:preact          # preact + vite         5820
-pnpm dev:rsbuild         # react + rsbuild       5830
-pnpm dev:esbuild         # react + esbuild       5840
-pnpm dev:farm            # react + farm          5850
-pnpm dev:next            # next + turbopack      5860
-pnpm dev:next:webpack    # next + webpack        5870
-pnpm dev:nuxt            # nuxt + vite           5880
-pnpm dev:sveltekit       # sveltekit + vite      5890
-pnpm dev:angular         # angular + cli         5900
-```
-
-在包根目录执行 `npm test` 会在 lockfile 变化时安装 demo 依赖，在 `dist/` 缺失或旧于 `src/` 时先构建，再检查上表每一行的 bootstrap 注入和源码位置。按住 ⌘ 点击任意元素即可打开意图弹窗。细节见 [`demo/README.md`](./demo/README.md)。
-
-## 环境要求
-
-- **Node** — `^20.19.0` 或 `>=22.12.0`。
-- **打包器** — Vite `>=4`、webpack `>=5`、rspack、rsbuild、esbuild、Farm、Next.js
-  `>=14.2`（Turbopack 或 webpack）或 Angular CLI。Mako 只注入 `data-insp-path`。
-  Vue、pug、Svelte 的打点使用你项目里安装的编译器。`.astro` 和 `.mdx` 不打点。
-- **页脚 Agent** — Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode
-  用系统默认 opener 打开（macOS `open`，Windows `cmd /c start`，Linux `xdg-open`）。
-  Windows 多数情况零配置；只有默认 opener 失败时才需要覆盖（见 [Windows](#windows)）。
-- **目标 Agent 已安装** — Codex App / Claude App / Cursor /
-  [Grok Build CLI](https://x.ai/cli) / [Claude Code](https://code.claude.com) /
-  [OpenCode](https://opencode.ai/download)（桌面版或 CLI）。这些 Agent 无需额外 npm 依赖。
-
-## 意图弹窗
-
-| 能力 | 作用 |
-| --- | --- |
-| **元素选取** | ⌘-点击（或快捷键 + 点击）。SPA 重渲染后会重新解析 `data-insp-path`。 |
-| **Mention 编辑器** | 富文本 contenteditable；已选元素为置顶主引用。有附件时意图可为空。 |
-| **`@code` 引用** | 再选一个元素 → 在光标处插入 `@file #range`。去重并保持顺序。 |
-| **截图** | `selection` / `parent` / `viewport`（可多选）。作为 UI 偏好持久化。 |
-| **渲染样式** | 精选计算 CSS（约 110 项），元素或祖先链。需显式开启；发送时读取。 |
-| **录制** | rrweb 元素行为捕获 + 静帧。默认关闭；开启时需 `@rrweb/*`。 |
-| **发送** | 一个发送按钮（↑）和 Enter 都发给它旁边显示的目标。在这个目标选择器里切换 Agent（也能选已有会话）；选择会被记住，所以弹窗始终只有一行操作。**复制 Prompt**（⧉）则改为复制到剪贴板。 |
-| **Pin** | 收成跨页悬浮球。热恢复保留附件；整页刷新只保留文本。 |
-
-## 配置参考
-
-`ideByebye(options)` — **所有选项均可选**。非法值回退到下方默认。
-
-### 最小配置
-
-```js
-// vite.config.js
-import ideByebye from 'ide-byebye';
-
-export default {
-  plugins: [ideByebye()],
-};
-```
-
-空调用即可。默认行为：
-
-| 行为 | 默认 |
-| --- | --- |
-| 插件开启 | `enabled: true`（仅开发环境） |
-| 选取 | 按住 ⌘（macOS）/ Ctrl → 点击；快捷键 `Alt+Shift+I` |
-| Enter 交接 | **Claude App** |
-| 页脚 Agent | Codex App / Claude App / Cursor / Grok Build / Claude Code CLI / OpenCode — 全部开启（没装对应 App 或 CLI 时该行置灰）。Antigravity IDE 与 Antigravity CLI 需配置后才出现 |
-| 后端 Agent | clipboard（**复制 Prompt** 按钮）+ file（无 UI 入口）— 开启；都不是 Enter 目标 |
-| 录制 | 关闭；可设 `recording: true` 开启（需 `@rrweb/record` + `@rrweb/replay`） |
-| UI 语言 | auto（`navigator.language` → 否则 `zh`） |
-| 弹窗主题 | 浅色；`theme: 'auto'` 跟随系统，`'dark'` 固定深色 |
-| 交接文件目录 | `.intent-inspector/`（**请加入 gitignore** — 见 [产物](#产物)） |
-| 源码 `@` 路径 | 相对路径；截图 / 静帧用绝对路径 |
-| 打点 | 默认开启（绝对路径）。`sourceStamp: false` 可关闭 |
-
-只覆盖你需要的项：
-
-```js
-ideByebye({
-  defaultAgent: 'cursor-app',
-  locale: 'en',
-  recording: true,
-  agents: {
-    codexApp: false,
-    cursorApp: { workspace: 'my-app' },
+    codexApp: false,          // 隐藏某个 Agent
+    windsurfIde: true,        // 开启一个可选 Agent
   },
 });
 ```
 
-### 可选配置项（逐项）
+全部选项、各 Agent 的设置、Windows 打开方式、自定义客户端、录制和输出文件，见
+**[CONFIGURATION.zh-CN.md](./CONFIGURATION.zh-CN.md)**。
 
-#### `enabled`
+## 隐私与安全
 
-| | |
-| --- | --- |
-| **类型** | `boolean` |
-| **默认** | `true` |
-| **可配** | `false` 完全关闭（不启服务、不注入）。其它值保持开启。 |
+- **仅开发环境**：生产构建完全不受影响。
+- **只在本机**：页面只和 `127.0.0.1` 上的服务通信，每个进程一个 token。除了你发给
+  Agent 的 prompt，没有任何东西离开你的机器。
+- **限定在项目内**：页面传来的文件路径出不了项目根，交接文件也写在项目里。
+- **不碰你的代码**：它只写 prompt，代码由 Agent 来改。
 
-#### `locale`
-
-| | |
-| --- | --- |
-| **类型** | `'zh' \| 'en'` |
-| **默认** | auto — `config.locale` → `navigator.language` → `zh` |
-| **可配** | `'zh'` / `'en'`，或以 `zh` 开头 → 中文，否则英文。Prompt 文案与品牌名**不**本地化。 |
-
-#### `theme`
-
-| | |
-| --- | --- |
-| **类型** | `'light' \| 'auto' \| 'dark'` |
-| **默认** | `'light'` |
-| **可配** | `'auto'` 跟随系统深浅色，`'dark'` 固定深色。作用于弹窗、弹窗里的菜单和录屏编辑器。未配置（或取值不是这三个之一）时，页面加载完会在控制台打印一条带颜色的提示，说明这个配置项。 |
-
-#### `hotkey`
-
-| | |
-| --- | --- |
-| **类型** | `string` |
-| **默认** | `'Alt+Shift+I'` |
-| **可配** | `+` 连接的组合键，大小写不敏感。修饰键：`alt`/`option`、`shift`、`ctrl`/`control`、`meta`/`cmd`/`command`。最后一段是主键。用于切换选取器。 |
-
-#### `clickModifier`
-
-| | |
-| --- | --- |
-| **类型** | `string \| null \| false` |
-| **默认** | `'auto'` → macOS 用 ⌘，其它用 Ctrl |
-| **可配** | `'meta'` / `'ctrl'` / `'alt'` / `'shift'` 强制修饰键；`null` / `false` 关闭点击选取（快捷键仍可用）。 |
-
-#### `defaultAgent`
-
-| | |
-| --- | --- |
-| **类型** | `string` |
-| **默认** | `'claude-app'` |
-| **可配** | Enter 目标：`'codex-app'` / `'claude-app'` / `'cursor-app'` / `'grok-build'` / `'claude-cli'` / `'opencode'` / `'antigravity-ide'` / `'antigravity'`，或 [`agents.custom`](#agentscustom) 里的客户端名。`'clipboard'` / `'file'` 永远不是 Enter 目标 —— 和未知 / 已禁用的值一样，回退到第一个已启用的页脚 Agent（Codex → Claude → Cursor → Grok Build → Claude Code CLI → OpenCode → Antigravity IDE → Antigravity → 自定义）；一个都没启用时，Enter 只会报「未启用」。在发送按钮旁的目标选择器里换了 Agent 后，Enter 改为沿用那次的选择（记在当前浏览器里）。`'antigravity-ide'` / `'antigravity'` 只有在对应 Agent 打开之后才有效。 |
-
-#### `applyMode`
-
-| | |
-| --- | --- |
-| **类型** | `'prompt-only' \| 'agent-edit'` |
-| **默认** | `'prompt-only'` |
-| **可配** | 写入交接的提示：只出方案 vs 允许 Agent 改文件。 |
-
-#### `outputDir`
-
-| | |
-| --- | --- |
-| **类型** | `string` |
-| **默认** | `'.intent-inspector'` |
-| **可配** | 相对项目根的目录，供 `file` Agent / `promptMode: 'file'` / 溢出交接使用。必须落在项目根内。**强烈建议把该目录加入 `.gitignore`**（原因见 [产物](#产物)）。 |
-
-#### `maxSourceContextLines`
-
-| | |
-| --- | --- |
-| **类型** | `number` |
-| **默认** | `60` |
-| **可配** | 映射位置周围写入 prompt 的源码行数。 |
-
-#### `maxDomSnippetLength`
-
-| | |
-| --- | --- |
-| **类型** | `number` |
-| **默认** | `1000` |
-| **可配** | 捕获的 DOM/HTML 片段最大字符数。 |
-
-#### `apiOrigin`
-
-| | |
-| --- | --- |
-| **类型** | `string \| null` |
-| **默认** | auto（loopback inspector origin） |
-| **可配** | 绝对 `http(s)://…` origin（无尾斜杠），页面需打非默认 inspector 时设置。非法值 → auto。 |
-
-#### `pathStyle`
-
-| | |
-| --- | --- |
-| **类型** | `'relative' \| 'absolute'` |
-| **默认** | `'relative'` |
-| **可配** | 纯 `@` prompt（剪贴板 / 文件 / Grok）里**源码**路径风格。Grok monorepo 更宜用 `agents.grokBuild.projectRoot`，而不是强行绝对路径。 |
-
-#### `artifactPathStyle`
-
-| | |
-| --- | --- |
-| **类型** | `'relative' \| 'absolute'` |
-| **默认** | `'absolute'` |
-| **可配** | `@` prompt 里截图 / 录制静帧路径。绝对路径方便 Agent 不论 cwd 都能打开图；确定 Agent cwd 时才用 `'relative'`。 |
-
-#### `recording`
-
-| | |
-| --- | --- |
-| **类型** | `boolean \| object` |
-| **默认** | 关闭 — 见 [录制（rrweb）](#录制-rrweb) |
-| **可配** | `true` 或传对象开启 Record；对象还可调缓冲 / 遮罩。 |
-
-#### `agents`
-
-| | |
-| --- | --- |
-| **类型** | `object` |
-| **默认** | `{}`（八个 Agent **全部开启**） |
-| **可配** | 按 Agent 启用 / 覆盖 — 见 [Agents](#agents)。未知 key 忽略。 |
-
-#### `sourceStamp`
-
-| | |
-| --- | --- |
-| **类型** | `false \| { include?, exclude?, escapeTags? }` |
-| **默认** | 开启 |
-| **可配** | `false` 关闭打点且不警告。`include` 即使在 `node_modules` 下也打点。`exclude` 额外跳过。`escapeTags` 追加不打点的标签。 |
-
-#### `codeInspector`（已弃用）
-
-| | |
-| --- | --- |
-| **类型** | `object` |
-| **默认** | — |
-| **可配** | 0.6.0 弃用，0.7.0 删除。只映射 `include`、`exclude`、`escapeTags` 和 `close: true`（等同 `sourceStamp: false`）。其余键忽略，并警告一次。 |
-
-#### `htmlFiles`（仅 esbuild）
-
-| | |
-| --- | --- |
-| **类型** | `string[]` |
-| **默认** | 扫描 `outdir` 下 `*.html`，或 `outfile` 旁的 `index.html` |
-| **可配** | HTML 不在 `outdir` 时，显式指定要注入 bootstrap 的 HTML 路径。 |
-
-#### `root`（仅 Next.js / Angular）
-
-| | |
-| --- | --- |
-| **类型** | `string` |
-| **默认** | Next.js：调用 `withIdeByebye` 的 `next.config.*` 所在目录；Angular：`ng serve` 的 `process.cwd()` |
-| **可配** | 默认值不是 `app/` / `pages/`（Next.js）或 `angular.json`（Angular）所在目录时，显式指定项目目录。 |
-
-### Agents
-
-八个内置 Agent，**默认全部开启**。用 `agents.<name>: false` 或 `{ enabled: false }` 关闭。
-`true` 显式开启；对象则保持开启并覆盖选项。**Antigravity IDE** 和 **Antigravity CLI**
-虽然内置，但**不配置就不会出现** —— 不写 `antigravityIde` / `antigravity` 时页脚与以前相同。
-`agents.custom` 还可以加上你自己的页脚 Agent —— 见 [`agents.custom`](#agentscustom)。
-
-`clipboard` 就是页脚的 **复制 Prompt** 按钮（不会成为 Enter 目标），
-`clipboard: false` 会去掉这个按钮。`file` 在 UI 里没有入口：没有按钮，也不会成为
-Enter 目标。想从 UI 拿到它那份 Markdown 文件，就给页脚 Agent 设
-[`promptMode: 'file'`](#页脚-agent-共用选项) —— 会写出同样的 `requests/` 文件，再打开对应 App。
-
-| 键（`agents.*`） | Adapter id | 页脚 | 用途 |
-| --- | --- | --- | --- |
-| `clipboard` | `clipboard` | 是（复制 Prompt） | 复制 prompt 到剪贴板（安全兜底）。 |
-| `file` | `file` | 否 | 把请求 + prompt 写成 Markdown，落到 `outputDir/requests/`。 |
-| `codexApp` | `codex-app` | 是 | 打开并预填 **Codex App**。 |
-| `claudeApp` | `claude-app` | 是 | 打开并预填 **Claude App**；可附带文件与文件夹。 |
-| `cursorApp` | `cursor-app` | 是 | 打开并预填 **Cursor**（按 workspace 名路由）。 |
-| `grokBuild` | `grok-build` | 是 | 在 Terminal 打开 **Grok Build** 并预填 prompt。 |
-| `claudeCli` | `claude-cli` | 是 | 打开 **Claude Code CLI**：经 `claude-cli://` 在你的终端里预填，或在 Terminal 运行并直接提交。 |
-| `opencode` | `opencode` | 是 | 打开 **OpenCode**：桌面版新会话预填（macOS 上的 1.x），或在 Terminal 运行 CLI 并直接提交。 |
-| `antigravityIde` | `antigravity-ide` | 是，**默认关闭** | 打开 **Antigravity IDE** 项目，并把 prompt 放进 agent 输入框。 |
-| `antigravity` | `antigravity` | 是，**默认关闭** | 打开 **Antigravity** 桌面应用，并把 prompt 放进输入框。 |
-
-```js
-agents: {
-  codexApp: false,
-  cursorApp: { workspace: 'my-app' },
-  grokBuild: {
-    permissionMode: 'plan',
-    // monorepo：grok --cwd 在仓库根 → @apps/desktop/src/…
-    projectRoot: path.resolve(__dirname, '../..'),
-  },
-  claudeCli: { permissionMode: 'plan' }, // 只对 Terminal 路线生效
-  opencode: false,                        // 去掉某个默认 Agent
-  clipboard: false,
-  // 可选。不写就不会注册对应按钮。
-  antigravityIde: true,
-  antigravity: { mode: 'plan' },
-}
-```
-
-找不到 Agent 二进制时按钮变灰（Grok Build：PATH 上没有 `grok`，且不在
-`~/.grok/bin/grok`；Claude Code CLI：既没有 `claude-cli://` handler 也没有 `claude`；
-OpenCode：既没有 1.x 桌面版也没有 `opencode` CLI；Antigravity IDE：`antigravity-ide`；
-Antigravity CLI：`agy`，其次 `~/.local/bin/agy`），tooltip 会写明缺什么。Deeplink Agent
-保持可点；本机没装对应 App 时由系统报错。
-
-#### 页脚 Agent 共用选项
-
-Codex / Claude / Cursor 共用以下项；Grok Build、Claude Code CLI、OpenCode 与 Antigravity CLI 复用它们做 deeplink 和 Terminal launcher。
-Antigravity IDE 忽略 `openCommand` / `openArgs` —— 由它自己的 CLI 启动应用。
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | `true`（使用对象时） | `false` 取消注册。 |
-| `openCommand` | `string` | `open` / `cmd` / `xdg-open` | deeplink / launcher 可执行文件。覆盖平台默认值时再设。 |
-| `openArgs` | `string[]` | 平台前缀 | URL / launcher 路径**之前**的额外参数。未设 `openCommand` 时接在默认前缀后面。 |
-| `promptMode` | `'auto' \| 'file'` | `'auto'` | `'file'` 写 Markdown 交接文件，并发送指向它的精简 prompt。`'auto'` 下 Cursor / Grok / Claude Code CLI / OpenCode / Antigravity IDE / Antigravity 可能因超长溢出到文件；Claude / Codex 仅在显式 `'file'` 时切换。以 `-` 开头的 prompt 对 Antigravity IDE 总会改走文件指针，避免 CLI 把它当成 flag。 |
-
-#### Windows
-
-选取用手势是 **Ctrl-click**（或 `Alt+Shift+I`）。页脚 Agent 默认已经走
-`cmd /c start "" <url>` —— 只要本机装了 Cursor / Claude / Codex / Grok / Claude Code / OpenCode
-且协议能唤起，**不必**再写 `openCommand`。Windows 上 OpenCode 默认走 CLI，除非设
-`agents.opencode.launch: 'app'`；`claude-cli://` 链接超过 `cmd` 能承载的长度（约 8000 字符）时改走 Terminal launcher。
-
-只有默认 opener 失败时才设 `openCommand` / `openArgs`（WSL、自定义协议助手、`start` 被禁用）。
-一旦写了非空 `openCommand`，就会**整段替换**平台默认值，所以要把 `cmd` 的完整参数带上。
-不要写成 `openCommand: 'start'`（`start` 是 `cmd` 内置命令），也不要抄 Linux 的 `'xdg-open'`。
-空字符串 `""` 是 `start` 的窗口标题占位，避免 URL 被当成标题吃掉：
-
-```js
-const windowsOpener = {
-  openCommand: 'cmd',
-  openArgs: ['/c', 'start', '""'],
-};
-
-ideByebye({
-  agents: {
-    cursorApp: windowsOpener,
-    claudeApp: windowsOpener,
-    codexApp: windowsOpener,
-    grokBuild: windowsOpener,
-  },
-});
-```
-
-在 **WSL** 里不要用 `cmd`，把 `openCommand` 改成 `wslview` 或 `explorer.exe`。
-
-#### `agents.claudeApp`
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `scheme` | `string` | `'claude'` | Deeplink scheme（`claude://…`）。非法 scheme 会导致发送失败。 |
-| `route` | `string` | `'code'` | 路径 → `claude://<route>/new`。 |
-| `folders` | `string[]` | `[]`（始终再加项目根） | 与项目根一并打开的额外文件夹。相对路径相对进程 cwd 解析。 |
-| `attachFiles` | `boolean` | `true` | 把引用源文件（及截图）作为 deeplink `file` 参数附上。 |
-| `attachScreenshots` | `boolean` | `true` | 包含截图产物。`attachFiles` 为 `false` 时忽略。 |
-
-#### `agents.codexApp`
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `scheme` | `string` | `'codex'` | Deeplink scheme（`codex://new`）。 |
-| `projectRoot` | `string` | Vite / 打包器项目根 | deeplink 打开的文件夹。非空字符串覆盖；相对路径相对进程 cwd `path.resolve`。 |
-| `sessions` | `boolean \| { limit?, lookbackDays?, home? }` | 开启 | 已有线程列表。`false` 去掉 `›`。`limit` 为 1–50（默认 20）。`lookbackDays` 默认 30，按文件修改时间。`home` 覆盖 `$CODEX_HOME` / `~/.codex`。 |
-
-#### `agents.cursorApp`
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `workspace` | `string \| false` | 最近 git 根目录 basename（否则为运行目录名） | Cursor 路由用的 workspace **名**（不是路径）。窗口标题不同时请设字符串；`false` 省略该参数。 |
-| `projectRoot` | `string` | 未设 | 若设置，用该目录 basename 作 `workspace`（不再向上找 git）。 |
-| `mode` | `string` | 无 | 可选的 Cursor `mode` deeplink 参数。 |
-| `promptUrlLimit` | `number` | `10000` | `auto` 模式下，URL 编码后超此长度会切到文件交接。 |
-| `scheme` | `string` | `'cursor'` | Deeplink scheme。 |
-| `authority` | `string` | `'anysphere.cursor-deeplink'` | 仅自定义 Cursor 构建时改。 |
-| `route` | `string` | `'prompt'` | Deeplink 路由段。 |
-
-#### `agents.grokBuild`
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `command` | `string` | `'grok'`，其次 `~/.grok/bin/grok` | CLI 二进制。若 Node 的 PATH 与登录 shell 不同，请给绝对路径。 |
-| `projectRoot` | `string` | Vite / 打包器项目根 | `grok --cwd` 与 launcher 的 `cd`。相对 `@` 引用相对此根剥离。 |
-| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | **仅影响 Grok prompt** 里的源码 `@` 引用（monorepo 优先相对路径 + `projectRoot`）。 |
-| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Grok prompt 里截图 / 静帧路径。 |
-| `permissionMode` | `string` | 无 | 传给 `--permission-mode`（`plan`、`acceptEdits`、`default` 等）。 |
-| `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件交接（ARGV / ARG_MAX）。 |
-| `sessions` | `boolean \| { limit?, home? }` | 开启 | 已有会话列表。`false` 去掉 `›`。只能恢复已关闭的会话。`home` 覆盖 `~/.grok`。 |
-
-#### `agents.claudeCli`
-
-默认开启。有两条路线：
-
-- **Deeplink** — `claude-cli://open?cwd=<projectRoot>&q=<prompt>` 在你最近用过的终端里打开 Claude Code
-  （iTerm2、Ghostty、kitty、WezTerm、Alacritty、Terminal.app；Linux 用 `$TERMINAL`；Windows 用
-  Windows Terminal），prompt **只预填**，由你按 Enter 发送。这个 handler 由 CLI 自己注册：在交互式
-  `claude` 会话里第一次发 prompt 时完成，设置了 `disableDeepLinkRegistration` 则不注册。
-- **Terminal** — launcher 运行 `claude [--permission-mode <mode>] -- "<prompt>"`，prompt **直接提交**。
-
-`launch: 'auto'` 下，handler 已注册、且 prompt（经 CLI 自身清洗后不超过 5000 字符、不含控制字符）和
-目录（绝对路径、没有 `..`、不是 UNC、不含不可见字符）都被接受时走 deeplink；否则走 Terminal launcher；
-找不到 CLI 时发带[文件指针](#页脚-agent-共用选项)的 deeplink。macOS 上，CLI 被卸载后残留的 handler
-会被识别为未注册；Linux 和 Windows 上无法识别这种残留，链接打开后什么也不会发生 —— 遇到时请设
-`launch: 'terminal'`。
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `launch` | `'auto' \| 'deeplink' \| 'terminal'` | `'auto'` | 固定路线。`'deeplink'` 从不运行 launcher（超长时改用文件指针）；`'terminal'` 从不打开链接。 |
-| `command` | `string` | `'claude'`，其次 `~/.local/bin/claude`、`~/.claude/local/claude`，最后是 macOS handler 链接到的 CLI | Terminal 路线用的 CLI。若 Node 的 PATH 与登录 shell 不同，请给绝对路径。 |
-| `projectRoot` | `string` | Vite / 打包器项目根 | 两条路线的会话目录（`cwd`）。相对 `@` 引用相对此根剥离。 |
-| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | 只影响这个 prompt 里的源码 `@` 引用。 |
-| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | 只影响这个 prompt 里的截图 / 静帧路径。 |
-| `permissionMode` | `string` | 无 | 只对 Terminal 路线生效：`--permission-mode`（`plan`、`acceptEdits` 等）。deeplink 没有模式参数。 |
-| `promptArgLimit` | `number` | `12000` | Terminal 路线：`auto` 模式下更长的 prompt 改用文件指针。 |
-
-#### `agents.opencode`
-
-默认开启。`launch: 'auto'` 在 macOS 上读取桌面版的版本号：
-
-- **OpenCode 1.x 桌面版** — `opencode://new-session?directory=<projectRoot>&prompt=<prompt>` 打开新会话，
-  prompt **只预填**。桌面版连的是远程 server 时会忽略这个链接，此时请设 `launch: 'terminal'`。
-- **OpenCode 2.x 桌面版、只装了 CLI、或不是 macOS** — launcher 在 Terminal 运行
-  `opencode <projectRoot> --prompt=<prompt>`，等模型就绪后**直接提交**。2.x 桌面版虽然注册了
-  `opencode://`，但会丢弃链接；PATH 上没有 `opencode` 时，改用 App 自带的 CLI
-  （`OpenCode.app/Contents/Resources/opencode-cli`）。
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `launch` | `'auto' \| 'app' \| 'terminal'` | `'auto'` | 固定路线。`'app'` 不检查版本、总是发 deeplink（Windows / Linux 上的 1.x 桌面版）；`'terminal'` 总是用 CLI。 |
-| `appPath` | `string` | `/Applications/OpenCode.app`，其次 `~/Applications/OpenCode.app` | 桌面版 bundle（macOS），从它的 `Info.plist` 读版本号。 |
-| `command` | `string` | `'opencode'`，其次 `~/.opencode/bin/opencode`，最后是 App 自带的 CLI | Terminal 路线用的 CLI。 |
-| `projectRoot` | `string` | Vite / 打包器项目根 | 两条路线的会话目录。相对 `@` 引用相对此根剥离。 |
-| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | 只影响这个 prompt 里的源码 `@` 引用。 |
-| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | 只影响这个 prompt 里的截图 / 静帧路径。 |
-| `promptUrlLimit` | `number` | `8000` | App 路线：编码后的 deeplink 超过此长度时改用文件指针。 |
-| `promptArgLimit` | `number` | `12000` | Terminal 路线：`auto` 模式下更长的 prompt 改用文件指针。 |
-
-#### `agents.antigravityIde`
-
-不配置则关闭。用 `antigravity-ide <projectRoot>` 打开项目，再把 prompt 放进 agent 输入框，不会自动发送。这个 IDE 的 `antigravity-ide chat` 到不了那个输入框。仍位于项目根内的引用文件会随 prompt 一起附上。
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `command` | `string` | `'antigravity-ide'`，其次 macOS app 内的 CLI | Node 的 PATH 找不到 shell 命令时给绝对路径。 |
-| `projectRoot` | `string` | Vite / 打包器项目根 | IDE 打开的文件夹。 |
-| `mode` | `string` | 省略 | 为兼容保留。agent 输入框不接收 mode。 |
-| `reuseWindow` | `boolean` | `false` | 打开文件夹时的 `--reuse-window`。`newWindow` 为 true 时忽略。 |
-| `newWindow` | `boolean` | `false` | `--new-window`。优先于 `reuseWindow`。 |
-| `maximize` | `boolean` | `false` | 为兼容保留。不会作用到 agent 输入框。 |
-| `profile` | `string` | 无 | 为兼容保留。不会作用到 agent 输入框。 |
-| `addFiles` | `boolean` | `true` | `false` 不再附带文件。项目根以外的路径一律丢弃。 |
-| `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件指针。 |
-| `experimentalSessions` | `boolean` | `false` | 为 `true` 时，`›` 列出 IDE 里的会话，发送会直接投进选中的会话。默认关闭，因为会读取 IDE 进程里的 language-server CSRF token。 |
-
-#### `agents.antigravity`
-
-不配置则关闭。打开 **Antigravity** 桌面应用，并把 prompt 写进它的输入框。应用已安装但没在运行时，按钮仍然可用。只有没装桌面应用时，才会改用 `agy` CLI。
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `command` | `string` | `'agy'`，其次 `~/.local/bin/agy`（Windows：`%LOCALAPPDATA%\\agy\\bin\\agy.exe`） | Node 的 PATH 与登录 shell 不同时给绝对路径。 |
-| `projectRoot` | `string` | Vite / 打包器项目根 | launcher 的 `cd`。相对 `@` 引用相对此根剥离。 |
-| `pathStyle` | `'relative' \| 'absolute'` | `'relative'` | 仅影响 Antigravity prompt 里的源码 `@` 引用。 |
-| `artifactPathStyle` | `'relative' \| 'absolute'` | `'absolute'` | Antigravity prompt 里截图 / 静帧路径。 |
-| `mode` | `string` | 无 | 传给 `agy --mode`（`plan`、`accept-edits`）。 |
-| `promptArgLimit` | `number` | `12000` | `auto` 模式下，更长 prompt 会切到文件交接。 |
-
-#### `agents.custom`
-
-内置页脚 Agent 都是**打开一个 app**；自定义客户端相反：把整理好的 prompt 直接送进**已经在运行**
-的 app，落到它自己的输入框里 —— 正是「客户端用 webview / iframe 预览 dev server」这类场景需要的
-交接方式。不声明就什么都不变。
-
-```js
-agents: {
-  codexApp: false, claudeApp: false, cursorApp: false, grokBuild: false,
-  custom: [
-    // postMessage（默认）：被预览的页面 post 给嵌入它的窗口。
-    { name: 'grok-desktop', label: 'Grok Desktop', targetOrigin: 'http://localhost:1420' },
-    // http：改由 dev server 把 payload POST 给你的客户端。
-    // { name: 'grok-desktop', label: 'Grok Desktop', url: 'http://127.0.0.1:8787/api/prompt' },
-  ],
-},
-defaultAgent: 'grok-desktop',   // Enter 直接发给你的客户端
-```
-
-```js
-// 客户端侧：payload 里的 `prompt` 就是可直接填入输入框的文本。
-window.addEventListener('message', (event) => {
-  if (event.origin !== previewOrigin) return;
-  if (event.data?.source !== 'ide-byebye') return;
-  setComposerText(event.data.prompt);
-});
-```
-
-完整选项表与 payload 结构见
-[配置参考](docs/configuration.md#agentscustom--deliver-the-prompt-into-your-own-client)。
-
-### 录制（rrweb）
-
-用 [rrweb](https://github.com/rrweb-io/rrweb) 录制 **元素行为**：选范围 → 录制 → 交互 →
-停止 → 浏览器内裁剪。静帧（裁到范围）进 prompt；原始事件流只存盘供回放。Inspector UI
-从不进入任何录制。
-
-默认关闭；开启后懒加载。项目需有 `@rrweb/record` + `@rrweb/replay`。
-
-```js
-ideByebye({
-  recording: {
-    maxDurationMs: 30000, // 滚动缓冲；上限 300000（5 分钟）
-    mask: {
-      allInputs: false,       // 默认关：开发时保留真实表单状态
-      blockClass: 'rr-block', // 带此 class 的元素排除
-    },
-  },
-});
-```
-
-| 选项 | 类型 | 默认 | 可配内容 |
-| --- | --- | --- | --- |
-| `recording` / `recording.enabled` | `boolean \| object` | 未配置时为 `false` | `true` 或传对象显示 Record 按钮；`{ enabled: false }` 可隐藏。 |
-| `recording.maxDurationMs` | `number` | `30000` | 滚动缓冲长度；仅采纳正数；上限 ≤ `300000` ms。 |
-| `recording.mask.allInputs` | `boolean` | `false` | `true` 时在回放 / 静帧中遮罩输入值。 |
-| `recording.mask.blockClass` | `string` | `'rr-block'` | 标记排除元素的 class（非空字符串才覆盖）。 |
-
-rrweb ESM 从你的 `node_modules` 懒服务到
-`/__intent-inspector/vendor/{record,replay}`。静帧与截图同路径：
-SVG-`<foreignObject>` → canvas。无 CORS 的跨域资源可能空白，字体需已加载，
-且 **`canvas` / WebGL 不会被捕获**。
-
-## 产物
-
-**强烈建议把 `.intent-inspector/` 加入 git 忽略。**
-
-请写在**你的业务项目**的 `.gitignore` 里（不只是本插件仓库）：
-
-```gitignore
-# ide-byebye 本地交接与媒体产物（不要提交）
-.intent-inspector/
-```
-
-若自定义了 `outputDir`，改为忽略**那个**路径。
-
-### 为什么要 ignore
-
-`outputDir` 下全是**本机、会话级运行时产物**，不是源码：
-
-| 顾虑 | 说明 |
-| --- | --- |
-| **临时 / 可再生成** | 交接 Markdown、launcher 脚本、截图、rrweb 事件流都是「选取 → 发送」时现写的，不是事实来源，立刻会过期。 |
-| **仓库噪音与体积** | WebP 截图和 rrweb JSON 可能很大；提交只会撑大 clone 与 PR diff，几乎没有 review 价值。 |
-| **机器相关** | 路径和 UI 状态绑定你当前机器与页面，容易产生无意义冲突，别人 checkout 后也对不上。 |
-| **内容可能敏感** | 可能带上表单值、页面上的业务数据，或你写给 Agent 的意图原文。除非刻意分享某次交接，否则不要进远端历史。 |
-
-写入 `outputDir`（默认 `.intent-inspector/`）：
-
-| 路径 | 内容 |
-| --- | --- |
-| `requests/<timestamp>-<id>.md` | 完整请求 + prompt（`file` Agent，或任意页脚 Agent 在 `promptMode: 'file'` / auto 溢出时）。 |
-| `launches/<timestamp>-<id>.command` + `.prompt.txt` | Grok Build Terminal launcher + 供 `grok --verbatim` 的 prompt。 |
-| `launches/<timestamp>-<id>.claude.command` + `.claude.prompt.txt` | Claude Code CLI 的 Terminal launcher（只在 Terminal 路线写出；deeplink 不写文件）。 |
-| `launches/<timestamp>-<id>.opencode.command` + `.opencode.prompt.txt` | OpenCode 的 Terminal launcher（只在 Terminal 路线写出）。 |
-| `launches/<timestamp>-<id>.agy-ide.command` + `.agy-ide.prompt.txt` | Antigravity IDE 打开文件夹的 launcher，以及放进 agent 输入框的 prompt（仅在设置 `agents.antigravityIde` 之后）。 |
-| `launches/<timestamp>-<id>.agy.command` + `.agy.prompt.txt` | Antigravity CLI Terminal launcher（仅在设置 `agents.antigravity` 之后）。 |
-| `recordings/<id>.rrweb.json` + `<id>.webp` | 事件流 + 静帧（使用录制时）。 |
-| 截图产物 | 由 prompt 引用。 |
-| `next/bootstrap.js`（+ `.gitignore`） | 为 `next dev` 生成的 `'use client'` bootstrap；每次启动重写，不会被提交。 |
-
-Prompt 顺序：`@code` 引用 → **Rendered styles**（若附加）→ 意图。
-捕获样式里的绝对源码路径不会进入 deeplink prompt 文本。
-
-### 不经 npm 分发（可选）
-
-```sh
-npm run build
-# → dist/code-intent-inspector.js  （内嵌浏览器运行时）
-# → dist/client.js                 （仅浏览器运行时）
-```
-
-```js
-import codeIntentInspectorPlugin from './code-intent-inspector.js';
-```
-
-## 本地化
-
-UI 文案双语（`zh` / `en`）。解析顺序：
-`locale` 配置 → `navigator.language` → `zh`。
-
-```js
-ideByebye({ locale: 'en' });
-```
-
-## 发送到已有会话
-
-Codex App、Grok Build，以及（需开关）Antigravity IDE，可以把下一次 prompt 送进已经存在的会话。没有选中会话时，发送和现在一样：新开 Codex 线程、新开 Grok 终端，或新开 Antigravity 聊天。Claude Code CLI 和 OpenCode 总是新开会话。
-
-打开发送按钮旁的目标选择器：能续接会话的 agent 会显示 `›`，点开列出**当前项目**的会话（标题、状态、目录、相对时间）。选中后，下一次 Enter（或发送）发给这个 agent 的这个会话，选择器会显示成「Agent / 会话标题」。选择按 agent 记在 `localStorage` 里。「新会话」只清掉这个 agent。`sessions: false` 会去掉该 agent 的 `›`。
-
-| Agent | 投递方式 | 你会看到什么 |
-| --- | --- | --- |
-| Codex App | 预填 | 打开 `codex://threads/<id>`，prompt 在输入框里。你仍要在 Codex 里回车。 |
-| Grok Build | 恢复并直接发送 | 新终端执行 `grok --resume <id>` 并提交 prompt。已经开在终端里的会话不能注入。 |
-| Antigravity IDE | 直接提交 | prompt 直接进入 IDE 会话（不是预填）。仅当 `agents.antigravityIde.experimentalSessions` 为 `true`。 |
-
-菜单只显示当前项目的会话：同一目录、子目录，或祖先目录——在 git 根以内不限深度（开在仓库根的会话）；超出 git 根时，只算距项目根不超过两层的祖先（存放多个仓库的上级目录）。位于 home 目录或更高层的祖先不算。标题只取第一行，最多 120 字。页面拿不到绝对路径、进程号、会话正文或 token。
-
-Antigravity 默认关闭。服务端用 IDE 自带 CA，经回环访问 language server，CSRF token 来自该进程的命令行。不读取任何凭证文件。
-
-```js
-ideByebye({
-  agents: {
-    codexApp: { sessions: { limit: 20, lookbackDays: 30 } },
-    grokBuild: { sessions: true },
-    antigravityIde: { experimentalSessions: true },
-  },
-});
-```
-
-## 安全与隐私
-
-- **仅开发** — 适配器跳过生产（Vite `apply: 'serve'`、webpack `mode === 'production'`、
-  Next.js 只作用于 `next dev` 的 dev server 进程、Angular 只在 `ng serve` 的代理配置里启动）。
-- **Token 门禁** — 每个请求带按进程 token；浏览器打 `127.0.0.1`，不是你的应用 origin。
-  唯一会下发 token 的是 Angular 的 `/session` 路由（仅 `angularProxy` 创建）：只响应本地
-  `Host` 上的同源页面 fetch，且以不可执行的 JSON 返回。
-- **项目根约束** — 文件写入不离开项目；deeplink 只携带你选择发送的内容。
-- **固定的探测位置** — Agent 探测只看已知的安装位置（Claude Code 的 URL handler、OpenCode 的
-  App bundle 和 CLI）并执行 `--version`，不读取 OpenCode 后台 service 的密码，也不读 Claude Code 的会话文件。
-- **忽略产物目录** — 把 `.intent-inspector/`（或你的 `outputDir`）写入 `.gitignore`，
-  避免截图、录制与交接文案进 git（详见 [产物](#产物)）。
-- **样式净化** — 捕获的样式值在服务端净化（剥控制字符），避免伪造额外 prompt 行。
-- **已有会话** — 菜单只返回当前项目范围内的标题（没有绝对路径、正文或 token）。
-  Antigravity 的会话投递默认关闭，且不读取凭证文件。`sessions: false` 去掉该 agent 的菜单。
-
-## 从源码构建
+## 开发
 
 ```sh
 npm install
-npm run build    # 重新生成 dist/
-npm test         # node:test 套件
+npm run build
+npm test
 ```
 
-结构：`src/client/`（浏览器）、`src/server/`（loopback 服务 + agents；`ast/` 为各框架
-定位器，`next/`、`angular/` 为对应集成）、`src/shared/`（同构工具）、`src/plugin.ts`
-（unplugin 工厂）、`scripts/build-single-file.ts`。
+[`demo/`](./demo) 演示场为每种框架和构建工具组合都准备了 `pnpm dev:*` 脚本，见
+[`demo/README.md`](./demo/README.md)。
 
 ## 许可证
 
