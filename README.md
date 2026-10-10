@@ -941,7 +941,7 @@ Open the destination picker next to Send: agents that can continue a session sho
 | Grok Build | Resume and submit | A new terminal runs `grok --resume <id>` and submits the prompt. A session that is already open in a terminal cannot be injected. |
 | Antigravity IDE | Direct submit | The prompt is sent into the IDE conversation (not prefilled). Only when `agents.antigravityIde.experimentalSessions` is `true`. |
 
-The menu only shows sessions for the current project: the same directory, a child directory, or an ancestor that is not above the git root. Titles are a single line, capped at 120 characters. The page never receives absolute paths, process ids, transcripts, or tokens.
+The menu only shows sessions for the current project: the same directory, a child directory, or an ancestor — inside the git root at any depth (a session opened at the repo root), or within two directory levels of the project root (an umbrella directory holding your repos). Ancestors at or above your home directory never count. Titles are a single line, capped at 120 characters. The page never receives absolute paths, process ids, transcripts, or tokens.
 
 Antigravity stays off unless you opt in. The server talks to the IDE language server on loopback with the IDE's own CA and the CSRF token from that process. It does not read credential files.
 
