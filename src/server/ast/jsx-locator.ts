@@ -289,7 +289,16 @@ export function locateJsxAtPosition(code: string, line: number, column: number):
  */
 export function extractJsxFromCode(code: string, line: number, column: number, maxContextLines: number, maxComponentLines: number) {
     const lines = code.split('\n');
-    const out: any = {};
+    const out: {
+        selectedNodeCode?: string;
+        selectedNodeRange?: { startLine: number, endLine: number };
+        containingComponentCode?: string;
+        containingComponentRange?: { startLine: number, endLine: number };
+        importsCode?: string;
+        importsRange?: { startLine: number, endLine: number };
+        astError?: string;
+        [key: string]: unknown;
+    } = {};
     void maxContextLines;
 
     const { hit, imports, parseErrors, offsetToLine } = locateJsxAtPosition(code, line, column);

@@ -1,4 +1,5 @@
 import { ENDPOINTS, TOKEN_HEADER } from '../../shared/constants.js';
+import type { AgentAvailability, ResolveResult, SendResult } from '../dialog/dialog-types.js';
 
 /**
  * Builds an absolute inspector endpoint URL from the injected browser config.
@@ -30,7 +31,7 @@ function resolveEndpointUrl(config: { apiOrigin?: string; token: string }, endpo
  * @param {{ apiOrigin?: string, token: string }} config Browser config injected by the plugin (the live global object).
  *   `token` is sent as-is; a missing token still reaches `encodeURIComponent` only if the property is actually absent.
  * @returns {{ resolve: Function, send: Function, agents: Function, sessions: Function }} Inspector API methods used by the picker dialog.
- *   JSON bodies stay untyped (`Response.json` is `any`) so `resolve` / `send` / `agents` stay assignable to the dialog.
+ *   Response bodies are typed as each route's JSON shape but not validated here; the dialog reads fields defensively.
  */
 export function createApi(config: { apiOrigin?: string; token: string }) {
     /**
@@ -51,22 +52,22 @@ export function createApi(config: { apiOrigin?: string; token: string }) {
      *
      * @param {string} url Inspector endpoint path.
      * @param {object} body JSON payload sent to the inspector server. `object` (not a string index) matches the dialog.
-     * @returns {Promise<any>} Parsed JSON. Left as `any` so it satisfies `ResolveResult` / `SendResult`.
+     * @returns {Promise<T>} Parsed JSON, typed as the route's response shape (`ResolveResult` / `SendResult`). Not validated.
      */
-    async function postJson(url: string, body: object) {
+    async function postJson<T>(url: string, body: object): Promise<T> {
         const res = await fetch(`${resolveEndpointUrl(config, url)}?token=${encodeURIComponent(config.token)}`, {
             method: 'POST',
             headers: headers(),
             body: JSON.stringify(body),
             credentials: 'same-origin',
         });
-        return (await res.json());
+        return (await res.json()) as T;
     }
 
     return {
-        resolve: (payload: object) => postJson(ENDPOINTS.resolve, payload),
-        send: (payload: object) => postJson(ENDPOINTS.send, payload),
-        async agents() {
+        resolve: (payload: object) => postJson<ResolveResult>(ENDPOINTS.resolve, payload),
+        send: (payload: object) => postJson<SendResult>(ENDPOINTS.send, payload),
+        async agents(): Promise<{ agents: AgentAvailability[] }> {
             const res = await fetch(`${resolveEndpointUrl(config, ENDPOINTS.agents)}?token=${encodeURIComponent(config.token)}`, {
                 headers: headers(),
                 credentials: 'same-origin',
@@ -82,7 +83,7 @@ export function createApi(config: { apiOrigin?: string; token: string }) {
          * @param {string} agent Agent id (`codex-app`, `grok-build`, `antigravity-ide`).
          * @returns {Promise<Record<string, unknown>>} Catalog JSON (`ok`, `sessions`, `delivery`, optional `notice` / `code`).
          */
-        async sessions(agent: string) {
+        async sessions(agent: string): Promise<Record<string, unknown>> {
             const url = `${resolveEndpointUrl(config, ENDPOINTS.sessions)}?agent=${encodeURIComponent(agent)}&token=${encodeURIComponent(config.token)}`;
             const res = await fetch(url, {
                 headers: headers(),

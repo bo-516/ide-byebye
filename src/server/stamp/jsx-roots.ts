@@ -18,7 +18,11 @@ import type { Scope } from './jsx-bind.js';
 import { lookupBinding, singleAssignRight } from './jsx-bindings.js';
 import type { StampNode } from './stamp-edits.js';
 
-export type RootTarget = { type: 'jsx', node: any } | { type: 'createElement', node: any };
+/**
+ * One root of a returned expression: a JSX element, or a `createElement(...)` call.
+ * `node` is the parser node itself; callers read `openingElement.start` (JSX) or `start` (call) from it.
+ */
+export type RootTarget = { type: 'jsx', node: StampNode } | { type: 'createElement', node: StampNode };
 
 /**
  * Root elements of `node`, using `scope` for identifier lookup (the return's scope, or the

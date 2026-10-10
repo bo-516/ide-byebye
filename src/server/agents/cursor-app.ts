@@ -77,7 +77,7 @@ function shouldWritePromptFile(config: { promptMode?: unknown, promptUrlLimit?: 
  * @param {Record<string, unknown>} config Cursor App adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
  */
-export function createCursorAppAdapter(config: any = {}) {
+export function createCursorAppAdapter(config: Record<string, unknown> = {}) {
     return {
         name: 'cursor-app',
         async isAvailable() {
@@ -110,9 +110,9 @@ export function createCursorAppAdapter(config: any = {}) {
                 }
                 const mode = typeof config.mode === 'string' && config.mode.trim() ? config.mode.trim() : undefined;
                 const url = buildCursorAppDeepLink({
-                    scheme: config.scheme,
-                    authority: config.authority,
-                    route: config.route,
+                    scheme: config.scheme as string | undefined,
+                    authority: config.authority as string | undefined,
+                    route: config.route as string | undefined,
                     prompt,
                     workspace: resolveCursorAppWorkspace(config, context),
                     mode,

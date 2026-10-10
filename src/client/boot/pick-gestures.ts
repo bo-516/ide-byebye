@@ -311,7 +311,7 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
  * `null` skips modifier-picking but still installs long-press. Passing a picker whose `dialog` is missing will throw
  * on the first pointerdown.
  *
- * @param {{ picker: object, clickModifierRaw: any, platform: string, target?: EventTarget, view?: Window }} options
+ * @param {{ picker: GesturePicker, clickModifierRaw: string | false | null | undefined, platform: string, target?: EventTarget, view?: Window }} options
  * @returns {() => void} Detach function (tests; production boot never calls it).
  */
 export function installPickGestures(options: {

@@ -1,7 +1,17 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { findNearestGitRoot } from '../workspace-root.js';
 import type { SessionFs } from './file-window.js';
+
+/**
+ * How far above the git root (or above a non-git project) an ancestor session directory may sit and still count as
+ * this project: the parent and grandparent of `projectRoot`. Deeper ancestors are rejected so broadly-scoped
+ * sessions (an umbrella directory several levels up) do not appear in every project's menu.
+ *
+ * @type {number}
+ */
+const MAX_SCOPE_ANCESTOR_DEPTH = 2;
 
 /**
  * Path implementation for scope checks.
@@ -83,22 +93,23 @@ function classify(child: string, parent: string, platform: string) {
  * Build the set of directories that count as "this project".
  *
  * Boundary: roots are `projectRoot`, the nearest git root (when one exists), and any agent `projectRoot` override.
- * Paths are realpath'd. A missing git root leaves `gitRoot` null, which disables the ancestor exception — a session
- * opened above the package is then out of scope. `opts.platform` / `opts.realpath` exist so tests can simulate win32
- * without touching the disk.
+ * Paths are realpath'd. A missing git root leaves `gitRoot` null; ancestor matching then relies on the bounded-depth
+ * rule alone. `home` is the realpath'd user home — ancestors at or above it are always out of scope.
+ * `opts.platform` / `opts.realpath` / `opts.home` exist so tests can simulate win32 without touching the disk.
  *
  * @param {string} projectRoot Bundler / package root the inspector is serving.
  * @param {string[]} [extraRoots] Agent-configured project roots. Blank entries are ignored.
- * @param {{ platform?: string, realpath?: (input: string) => string, gitRoot?: string | null, io?: typeof fs }} [opts]
+ * @param {{ platform?: string, realpath?: (input: string) => string, gitRoot?: string | null, home?: string, io?: SessionFs }} [opts]
  *        Test hooks. Omit them in production.
- * @returns {{ projectRoot: string, gitRoot: string | null, roots: string[], platform: string }} Scope used by matchers.
+ * @returns {{ projectRoot: string, gitRoot: string | null, home: string, roots: string[], platform: string }} Scope used by matchers.
  */
-export function buildProjectScope(projectRoot: string, extraRoots: string[] = [], opts: any = {}) {
+export function buildProjectScope(projectRoot: string, extraRoots: string[] = [], opts: { platform?: string, realpath?: (input: string) => string, gitRoot?: string | null, home?: string, io?: SessionFs } = {}) {
     const platform = opts.platform ?? process.platform;
     const realpath = opts.realpath ?? ((input: string) => normalizeScopePath(input, opts.io));
     const root = realpath(projectRoot);
     const discovered = opts.gitRoot === undefined ? findNearestGitRoot(root) : opts.gitRoot;
     const gitRoot = discovered ? realpath(discovered) : null;
+    const home = realpath(opts.home ?? os.homedir());
     const extras = (Array.isArray(extraRoots) ? extraRoots : [])
         .filter((entry) => typeof entry === 'string' && entry.trim())
         .map((entry) => realpath(entry.trim()));
@@ -109,22 +120,25 @@ export function buildProjectScope(projectRoot: string, extraRoots: string[] = []
         if (!roots.some((existing) => classify(candidate, existing, platform) === 'equal'))
             roots.push(candidate);
     }
-    return { projectRoot: root, gitRoot, roots, platform };
+    return { projectRoot: root, gitRoot, home, roots, platform };
 }
 
 /**
  * Whether a session cwd belongs to this project.
  *
- * Boundary: in scope when the cwd equals a root, is inside a root, or is an ancestor of `projectRoot` that is not
- * above the git root (a session opened at the repo root while the plugin runs in a package). Symlinks are realpath'd
- * first. An ancestor above the git root is out of scope. A wrong `platform` flips win32 case-folding.
+ * Boundary: in scope when the cwd equals a root, is inside a root, or is an ancestor of `projectRoot` — the ancestor
+ * is allowed at any depth while it stays inside the git root (a session opened at the repo root while the plugin
+ * runs in a package), and up to {@link MAX_SCOPE_ANCESTOR_DEPTH} levels above the git root or a non-git root (an
+ * umbrella directory holding the project's repositories). Ancestors at or above the user's home directory are never
+ * in scope, which also excludes the filesystem root. Symlinks are realpath'd first. A wrong `platform` flips win32
+ * case-folding.
  *
  * @param {string} cwd Session working directory from the agent store (not from the page).
- * @param {{ projectRoot: string, gitRoot: string | null, roots: string[], platform?: string }} scope Result of {@link buildProjectScope}.
+ * @param {{ projectRoot: string, gitRoot: string | null, home?: string, roots: string[], platform?: string }} scope Result of {@link buildProjectScope}. A scope without `home` skips the home guard.
  * @param {{ platform?: string, realpath?: (input: string) => string }} [opts] Test hooks.
  * @returns {boolean} True when the session may be listed.
  */
-export function matchSessionCwd(cwd: string, scope: { projectRoot: string, gitRoot: string | null, roots: string[], platform?: string }, opts: any = {}) {
+export function matchSessionCwd(cwd: string, scope: { projectRoot: string, gitRoot: string | null, home?: string, roots: string[], platform?: string }, opts: { platform?: string, realpath?: (input: string) => string } = {}) {
     if (!cwd || typeof cwd !== 'string' || !scope?.projectRoot)
         return false;
     const platform = opts.platform ?? scope.platform ?? process.platform;
@@ -141,25 +155,31 @@ export function matchSessionCwd(cwd: string, scope: { projectRoot: string, gitRo
         if (relation === 'equal' || relation === 'inside')
             return true;
     }
-    if (!scope.gitRoot)
+    const api = pathApi(platform);
+    if (classify(scope.projectRoot, resolved, platform) !== 'inside')
         return false;
-    const ancestor = classify(scope.projectRoot, resolved, platform) === 'inside';
-    const notAboveGit = classify(resolved, scope.gitRoot, platform) !== 'outside';
-    return ancestor && notAboveGit;
+    // The session directory contains the project. Reject home and anything above it — that covers the filesystem
+    // root and any volume ancestor, which would match every project the user owns.
+    if (scope.home && classify(scope.home, resolved, platform) !== 'outside')
+        return false;
+    if (scope.gitRoot && classify(resolved, scope.gitRoot, platform) !== 'outside')
+        return true;
+    const depth = api.relative(resolved, scope.projectRoot).split(api.sep).length;
+    return depth <= MAX_SCOPE_ANCESTOR_DEPTH;
 }
 
 /**
  * `cwd` relative to the inspector project root, with `/` separators.
  *
- * Boundary: the same directory is `'.'`. Ancestors become `..` / `../..`, which the menu labels as the repo root.
- * The result is not an absolute path. A missing cwd returns `'.'`.
+ * Boundary: the same directory is `'.'`. Ancestors become `..` / `../..`; the menu shows the session directory's
+ * basename regardless. The result is not an absolute path. A missing cwd returns `'.'`.
  *
  * @param {string} cwd Normalized session cwd.
  * @param {string} projectRoot Normalized inspector project root.
  * @param {string} [platform=process.platform] Platform whose `relative` should run.
  * @returns {string} Relative location, never empty.
  */
-export function sessionLocation(cwd: string, projectRoot: string, platform = process.platform) {
+export function sessionLocation(cwd: string, projectRoot: string, platform: string = process.platform) {
     const rel = pathApi(platform).relative(projectRoot, cwd);
     if (!rel)
         return '.';
@@ -173,7 +193,7 @@ export function sessionLocation(cwd: string, projectRoot: string, platform = pro
  * @param {string} [platform=process.platform] Platform whose basename rules apply.
  * @returns {string} Final path segment, or the cwd itself when it has none.
  */
-export function sessionProjectName(cwd: string, platform = process.platform) {
+export function sessionProjectName(cwd: string, platform: string = process.platform) {
     const base = pathApi(platform).basename(cwd);
     return base || cwd;
 }

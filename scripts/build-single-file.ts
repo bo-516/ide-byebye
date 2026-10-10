@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'rolldown';
-import { EMBEDDED_CLIENT_CODE_GLOBAL } from '../src/server/client-code.js';
 import { ANGULAR_BOOTSTRAP_SCRIPT, buildAngularBootstrapScript } from '../src/server/angular/bootstrap-script.js';
 import { createCssTemplateMinifyPlugin } from './client-css-minifier.js';
 

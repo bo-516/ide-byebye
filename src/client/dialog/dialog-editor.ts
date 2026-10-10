@@ -1,98 +1,12 @@
 import { el } from './dialog-utils.js';
-import { splitMentionLabel } from './dialog-mention-label.js';
+import { createMentionElement } from './dialog-editor-mention.js';
+import { createEditorCaret } from './dialog-editor-caret.js';
 import { renderPinnedRow } from './dialog-render-chain.js';
 import { t } from '../lib/i18n.js';
+import { appendEditorTokens, serializeEditorNode } from './dialog-editor-serialize.js';
+import type { EditorSelection, EditorToken } from './dialog-editor-serialize.js';
 
-/**
- * Selection stored beside a mention. The editor only reads `inspPath`; the index signature matches the dialog's
- * `ElementSelection` so a picked element can be stored and handed back without a cast.
- */
-interface EditorSelection {
-    inspPath?: string;
-    [key: string]: unknown;
-}
-
-/** One ordered piece of editor content. `text` keeps raw characters; `ref` keeps the chip and its selection. */
-type EditorToken = { t: 'text'; v: string } | { t: 'ref'; label: string; selection: EditorSelection };
-
-/** Chip options. `static` chips have no remove button; `onRemove` is ignored when `static` is set. */
-interface MentionOptions {
-    refId?: string;
-    inspPath?: string;
-    static?: boolean;
-    onRemove?: (chip: HTMLElement) => void;
-}
-
-/**
- * displayMentionLabel(label): strip the prompt-facing leading `@` for chip display.
- *
- * Purpose: a mention chip shows `src/App.jsx #9-12`, while serialization into the prompt still uses the full label with
- * its leading `@`.
- * Boundary: empty input returns an empty string; non-strings are coerced via String() so a malformed label is surfaced
- * rather than thrown.
- *
- * @param {unknown} label Reference label resolved by the server, e.g. `@src/App.jsx #9-12`.
- * @returns {string} Display text without the leading `@`.
- */
-export function displayMentionLabel(label: unknown): string {
-    return String(label || '').replace(/^@/, '');
-}
-
-/**
- * createMentionElement(label, options): create one atomic mention chip node.
- *
- * Purpose: uses `contenteditable=false` so a reference behaves as a single unit the caret cannot split; static (primary)
- * chips have no remove button, supplementary references carry a `×`. The visible label is split by
- * {@link splitMentionLabel} into `.cii-mention-dir` (omitted without a directory), `.cii-mention-file`, and a
- * `.cii-mention-range` tag (omitted without a range) so the stylesheet can dim, emphasize, or hide each part.
- * Boundary: the node only handles display and remove interaction; the full prompt-facing label lives in `data-label`
- * (what serialization reads) and the selection data is kept by the caller in an external Map keyed by refId, so no
- * objects are stuffed into DOM attributes. A missing label renders an empty chip.
- *
- * @param {string} label Reference label (with `@`).
- * @param {MentionOptions} [options] Chip behavior config. Omitted means a removable chip with no ids.
- * @returns {HTMLElement} A mention node insertable into the contenteditable.
- */
-function createMentionElement(label: string, options: MentionOptions = {}) {
-    const text = String(label || '').trim();
-    const chip: HTMLElement = el('span', `cii-mention${options.static ? ' cii-mention-static' : ''}`);
-    chip.setAttribute('contenteditable', 'false');
-    chip.dataset.label = text;
-    if (options.inspPath)
-        chip.dataset.inspPath = options.inspPath;
-    if (options.refId)
-        chip.dataset.refId = options.refId;
-    chip.title = options.inspPath || text;
-
-    const parts = splitMentionLabel(text);
-    const labelEl = el('span', 'cii-mention-text');
-    if (parts.dir)
-        labelEl.append(el('span', 'cii-mention-dir', parts.dir));
-    labelEl.append(el('span', 'cii-mention-file', parts.file));
-    chip.append(el('span', 'cii-mention-icon'), labelEl);
-    if (parts.lines)
-        chip.append(el('span', 'cii-mention-range', parts.lines));
-
-    if (!options.static) {
-        const remove: HTMLButtonElement = el('button', 'cii-mention-remove', '×');
-        remove.type = 'button';
-        remove.setAttribute('contenteditable', 'false');
-        remove.setAttribute('aria-label', t('mention.remove.aria', { label: displayMentionLabel(text) }));
-        // `el()` is untyped, so the listener has no contextual event type.
-        remove.addEventListener('mousedown', (event: MouseEvent) => {
-            // In a contenteditable, mousedown moves the caret / starts a delete selection, so prevent default first.
-            event.preventDefault();
-            event.stopPropagation();
-        });
-        remove.addEventListener('click', (event: MouseEvent) => {
-            event.preventDefault();
-            event.stopPropagation();
-            options.onRemove?.(chip);
-        });
-        chip.append(remove);
-    }
-    return chip;
-}
+export { displayMentionLabel } from './dialog-editor-mention.js';
 
 /**
  * createDialogEditor(options): create the intent dialog's lightweight mention editor (tiptap-style contenteditable).
@@ -115,91 +29,29 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
     const placeholder = String(options.placeholder || '');
     const onChange = typeof options.onChange === 'function' ? options.onChange : () => {};
 
-    let fieldEl: HTMLElement | null = null;
     let pinnedEl: HTMLElement | null = null;
-    let editorEl: HTMLElement | null = null;
-    // `= null` would freeze these as `null` and reject the element / range / primary assigned later.
+    const caret = createEditorCaret();
+    const editorEl = () => caret.editorEl;
+    // `= null` would freeze these as `null` and reject the range / primary assigned later.
     let primary: { label: string; selection: EditorSelection } | null = null;
-    let savedRange: Range | null = null;
     let refSeq = 0;
     const selections = new Map<string, EditorSelection>();
-
-    // `getRootNode()` is typed as `Node`, which has no `getSelection`. The cast only restores the runtime check below.
-    const resolveSelectionRoot = () => (editorEl?.getRootNode?.() ?? document) as Node & { getSelection?: () => Selection | null };
-
-    /**
-     * readRange(): read the caret Range currently inside the contenteditable.
-     * Boundary: under shadow DOM it prefers root.getSelection(), falling back to window.getSelection(); returns null when
-     * the caret is not inside the editor.
-     * @returns {Range | null} A clone of the caret range, or null when the selection is elsewhere.
-     */
-    const readRange = (): Range | null => {
-        if (!editorEl)
-            return null;
-        const root = resolveSelectionRoot();
-        const selection = (root.getSelection && root.getSelection()) || window.getSelection?.();
-        if (!selection || selection.rangeCount === 0)
-            return null;
-        const range = selection.getRangeAt(0);
-        if (!editorEl.contains(range.commonAncestorContainer))
-            return null;
-        return range.cloneRange();
-    };
-
-    /** Caret at the end of the editor. Assumes `editorEl` is set; callers check that before using the range. */
-    const endRange = (): Range => {
-        const range = document.createRange();
-        range.selectNodeContents(editorEl as HTMLElement);
-        range.collapse(false);
-        return range;
-    };
-
-    const trackRange = () => {
-        const range = readRange();
-        if (range)
-            savedRange = range;
-    };
 
     /**
      * isEditorEmpty(): whether the editor has "no meaningful content" (no reference chip and no non-whitespace text).
      * Purpose: drives placeholder visibility; the primary pinned chip lives outside the editor and does not affect this.
      */
     const isEditorEmpty = () => {
-        if (!editorEl)
+        if (!caret.editorEl)
             return true;
-        if (editorEl.querySelector('.cii-mention'))
+        if (caret.editorEl.querySelector('.cii-mention'))
             return false;
         // An element's `textContent` is a string; `!` keeps the throw if a non-element ever lands here.
-        return editorEl.textContent!.trim().length === 0;
+        return caret.editorEl.textContent!.trim().length === 0;
     };
 
     const refreshEmptyState = () => {
-        editorEl?.classList.toggle('cii-editor-empty', isEditorEmpty());
-    };
-
-    /** @param {Range | null | undefined} caretRange Range to restore. Omitted or null leaves the browser's caret. */
-    const focusEditor = (caretRange: Range | null | undefined) => {
-        if (!editorEl)
-            return;
-        try {
-            editorEl.focus({ preventScroll: true });
-        }
-        catch {
-            editorEl.focus();
-        }
-        if (!caretRange)
-            return;
-        try {
-            const root = resolveSelectionRoot();
-            const selection = (root.getSelection && root.getSelection()) || window.getSelection?.();
-            if (selection) {
-                selection.removeAllRanges();
-                selection.addRange(caretRange);
-            }
-        }
-        catch {
-            // Failing to restore the selection is not fatal: the next click/typing re-establishes the caret.
-        }
+        caret.editorEl?.classList.toggle('cii-editor-empty', isEditorEmpty());
     };
 
     /**
@@ -211,40 +63,6 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
             renderPinnedRow(pinnedEl, primary, (label, inspPath) => createMentionElement(label, { static: true, inspPath }), options.onSwitchPrimary);
     };
 
-    /**
-     * serializeNode(node, refs): recursively turn one DOM node into prompt text, collecting reference selections in order.
-     * Boundary: a mention chip is restored to `@label` with surrounding spaces; <br>/block elements become newlines; an
-     * orphaned chip that lost its selection is skipped.
-     *
-     * @param {Node} node DOM node inside the contenteditable.
-     * @param {EditorSelection[]} refs Selection list appended in appearance order. Mutated; not copied.
-     * @returns {string} Prompt text for this node, or '' when the node contributes nothing.
-     */
-    const serializeNode = (node: Node, refs: EditorSelection[]): string => {
-        if (node.nodeType === Node.TEXT_NODE)
-            return (node as Text).data;
-        if (!(node instanceof HTMLElement))
-            return '';
-        if (node.tagName === 'BR')
-            return '\n';
-        if (node.classList.contains('cii-mention')) {
-            const refId = node.dataset.refId;
-            const selection = refId ? selections.get(refId) : null;
-            if (!selection)
-                return '';
-            refs.push(selection);
-            const label = node.dataset.label || '';
-            return ` ${label} `;
-        }
-        let text = '';
-        for (const child of node.childNodes)
-            text += serializeNode(child, refs);
-        // Some browsers wrap a new line in a <div>/<p> inside contenteditable, so add a newline boundary.
-        if (/^(DIV|P)$/.test(node.tagName))
-            text += '\n';
-        return text;
-    };
-
     return {
         /**
          * render(): build and return this dialog's `.cii-field` (pinned chip container + contenteditable).
@@ -253,13 +71,12 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          * @returns {HTMLElement} Field container ready to append into the dialog body.
          */
         render() {
-            const field: HTMLElement = el('div', 'cii-field');
-            const pinned: HTMLElement = el('div', 'cii-editor-pinned');
+            const field = el('div', 'cii-field');
+            const pinned = el('div', 'cii-editor-pinned');
             pinned.hidden = true;
-            const editor: HTMLElement = el('div', 'cii-editor');
-            fieldEl = field;
+            const editor = el('div', 'cii-editor');
             pinnedEl = pinned;
-            editorEl = editor;
+            caret.editorEl = editor;
             editor.setAttribute('contenteditable', 'true');
             editor.setAttribute('role', 'textbox');
             editor.setAttribute('aria-multiline', 'true');
@@ -268,22 +85,22 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
             editor.spellcheck = false;
 
             ['keyup', 'mouseup', 'input', 'focus'].forEach((eventName) => {
-                editor.addEventListener(eventName, trackRange);
+                editor.addEventListener(eventName, caret.trackRange);
             });
             editor.addEventListener('input', refreshEmptyState);
-            editor.addEventListener('paste', (event: ClipboardEvent) => {
+            editor.addEventListener('paste', (event) => {
                 // Accept plain text only, so external rich text cannot pollute the contenteditable structure.
                 event.preventDefault();
                 const text = event.clipboardData?.getData('text/plain') ?? '';
-                const range = readRange() ?? savedRange ?? endRange();
+                const range = caret.readRange() ?? caret.savedRange ?? caret.endRange();
                 range.deleteContents();
                 const node = document.createTextNode(text);
                 range.insertNode(node);
                 const after = document.createRange();
                 after.setStartAfter(node);
                 after.collapse(true);
-                savedRange = after.cloneRange();
-                focusEditor(after);
+                caret.savedRange = after.cloneRange();
+                caret.focusEditor(after);
                 refreshEmptyState();
             });
 
@@ -299,7 +116,7 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          * @returns {HTMLElement | null}
          */
         getEditorElement() {
-            return editorEl;
+            return editorEl();
         },
 
         /**
@@ -307,9 +124,9 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          * Boundary: degrades safely when the editor is not rendered.
          */
         focus() {
-            if (!editorEl)
+            if (!caret.editorEl)
                 return;
-            focusEditor(endRange());
+            caret.focusEditor(caret.endRange());
         },
 
         /**
@@ -338,8 +155,8 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          * @returns {Range | null} The most recent Range that fell inside the editor.
          */
         captureCursor() {
-            trackRange();
-            return savedRange;
+            caret.trackRange();
+            return caret.savedRange;
         },
 
         /**
@@ -350,10 +167,10 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          * @returns {boolean}
          */
         hasReference(inspPath: string) {
-            if (!editorEl || !inspPath)
+            if (!caret.editorEl || !inspPath)
                 return false;
             // `dataset` is typed on HTMLElement. The cast erases, so an SVG mention is still matched by its attribute.
-            return Array.from(editorEl.querySelectorAll('.cii-mention')).some((node) => (node as HTMLElement).dataset.inspPath === inspPath);
+            return Array.from(caret.editorEl.querySelectorAll('.cii-mention')).some((node) => (node as HTMLElement).dataset.inspPath === inspPath);
         },
 
         /**
@@ -371,7 +188,8 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
         insertReference(item?: { label?: unknown; selection?: EditorSelection | null; range?: Range | null } | null) {
             const label = String(item?.label || '').trim();
             const selection = item?.selection;
-            if (!editorEl || !label || !selection)
+            const editorNode = caret.editorEl;
+            if (!editorNode || !label || !selection)
                 return false;
             if (selection.inspPath && this.hasReference(selection.inspPath))
                 return false;
@@ -384,14 +202,13 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
                 onRemove: (node) => this.removeMention(node),
             });
 
-            // `editorEl` is a `let` closed over here, so the null check above does not narrow it inside the predicate.
-            const insideEditor = (range: Range | null | undefined): range is Range => !!range && editorEl!.contains(range.commonAncestorContainer);
+            const insideEditor = (range: Range | null | undefined): range is Range => !!range && editorNode.contains(range.commonAncestorContainer);
             const requested = item?.range;
             const targetRange = insideEditor(requested)
                 ? requested
-                : insideEditor(savedRange)
-                    ? savedRange
-                    : endRange();
+                : insideEditor(caret.savedRange)
+                    ? caret.savedRange
+                    : caret.endRange();
             const range = targetRange.cloneRange();
             range.deleteContents();
             const fragment = document.createDocumentFragment();
@@ -401,8 +218,8 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
             const after = document.createRange();
             after.setStartAfter(mention.nextSibling ?? mention);
             after.collapse(true);
-            savedRange = after.cloneRange();
-            focusEditor(after);
+            caret.savedRange = after.cloneRange();
+            caret.focusEditor(after);
             refreshEmptyState();
             onChange();
             return true;
@@ -416,7 +233,7 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          * @param {HTMLElement | null | undefined} node The mention node created by insertReference. Null is a no-op.
          */
         removeMention(node: HTMLElement | null | undefined) {
-            if (!node || !editorEl?.contains(node))
+            if (!node || !caret.editorEl?.contains(node))
                 return;
             const next = node.nextSibling;
             const prev = node.previousSibling;
@@ -428,7 +245,7 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
             if (node.dataset.refId)
                 selections.delete(node.dataset.refId);
             node.remove();
-            trackRange();
+            caret.trackRange();
             refreshEmptyState();
             onChange();
             this.focus();
@@ -446,11 +263,11 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          */
         serialize() {
             const refs: EditorSelection[] = [];
-            if (!editorEl)
+            if (!caret.editorEl)
                 return { intent: '', references: refs };
             let text = '';
-            for (const child of editorEl.childNodes)
-                text += serializeNode(child, refs);
+            for (const child of caret.editorEl.childNodes)
+                text += serializeEditorNode(child, refs, selections);
             const intent = text
                 .replace(/[ \t]+/g, ' ')
                 .split('\n')
@@ -473,35 +290,10 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          */
         exportContent() {
             const tokens: EditorToken[] = [];
-            if (!editorEl)
+            if (!caret.editorEl)
                 return tokens;
-            const walk = (node: Node) => {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    const text = (node as Text).data;
-                    if (text)
-                        tokens.push({ t: 'text', v: text });
-                    return;
-                }
-                if (!(node instanceof HTMLElement))
-                    return;
-                if (node.tagName === 'BR') {
-                    tokens.push({ t: 'text', v: '\n' });
-                    return;
-                }
-                if (node.classList.contains('cii-mention')) {
-                    const refId = node.dataset.refId;
-                    const selection = refId ? selections.get(refId) : null;
-                    if (selection)
-                        tokens.push({ t: 'ref', label: node.dataset.label || '', selection });
-                    return;
-                }
-                for (const child of node.childNodes)
-                    walk(child);
-                if (/^(DIV|P)$/.test(node.tagName))
-                    tokens.push({ t: 'text', v: '\n' });
-            };
-            for (const child of editorEl.childNodes)
-                walk(child);
+            for (const child of caret.editorEl.childNodes)
+                appendEditorTokens(child, tokens, selections);
             return tokens;
         },
 
@@ -515,18 +307,18 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          * @returns {void}
          */
         importContent(tokens?: Array<Record<string, unknown>> | null) {
-            if (!editorEl || !Array.isArray(tokens))
+            if (!caret.editorEl || !Array.isArray(tokens))
                 return;
             for (const token of tokens) {
                 if (token?.t === 'text' && token.v) {
-                    const range = endRange();
+                    const range = caret.endRange();
                     // `token.v` is `unknown` on the loose import type; exports store a string and `createTextNode` coerces.
                     const node = document.createTextNode(token.v as string);
                     range.insertNode(node);
                     const after = document.createRange();
                     after.setStartAfter(node);
                     after.collapse(true);
-                    savedRange = after.cloneRange();
+                    caret.savedRange = after.cloneRange();
                 }
                 else if (token?.t === 'ref' && token.label && token.selection) {
                     this.insertReference({ label: token.label, selection: token.selection as EditorSelection });
@@ -540,10 +332,10 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          * @param {boolean} disabled Whether to disable.
          */
         setDisabled(disabled: boolean) {
-            if (!editorEl)
+            if (!caret.editorEl)
                 return;
-            editorEl.setAttribute('contenteditable', disabled ? 'false' : 'true');
-            editorEl.classList.toggle('cii-editor-disabled', Boolean(disabled));
+            caret.editorEl.setAttribute('contenteditable', disabled ? 'false' : 'true');
+            caret.editorEl.classList.toggle('cii-editor-disabled', Boolean(disabled));
         },
 
         /**
@@ -552,11 +344,11 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
          */
         reset() {
             primary = null;
-            savedRange = null;
+            caret.savedRange = null;
             refSeq = 0;
             selections.clear();
-            if (editorEl)
-                editorEl.innerHTML = '';
+            if (caret.editorEl)
+                caret.editorEl.innerHTML = '';
             renderPinned();
             refreshEmptyState();
         },

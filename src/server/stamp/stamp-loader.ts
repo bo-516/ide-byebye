@@ -13,6 +13,24 @@
 import { stampModule } from './stamp-module.js';
 import { reviveStampOptions } from './stamp-options.js';
 
+/** JSON loader options as serialized by the Next integration; RegExps arrive as `{ source, flags }`. */
+type StampLoaderOptions = Parameters<typeof reviveStampOptions>[0];
+
+/**
+ * webpack / Turbopack loader-context fields this loader reads.
+ *
+ * Boundary: structural so both hosts' contexts fit. `getOptions` is the webpack 5 / Turbopack API; `query` is the
+ * legacy fallback and holds the same options object because the integration always configures this loader with JSON.
+ */
+interface StampLoaderContext {
+    cacheable?: (flag: boolean) => void;
+    getOptions?: () => StampLoaderOptions;
+    query?: StampLoaderOptions;
+    resourcePath?: string;
+    resourceQuery?: string;
+    callback?: (error: Error | null, content: string, map?: unknown) => void;
+}
+
 /**
  * Loader entry (`this` is the webpack / Turbopack loader context).
  *
@@ -20,11 +38,11 @@ import { reviveStampOptions } from './stamp-options.js';
  * @param {unknown} [map] Incoming source map, forwarded unchanged.
  * @returns {string | void} Source when there is no `callback`; otherwise the result goes through `callback`.
  */
-export default function ideByebyeStampLoader(this: any, source: string, map?: unknown) {
+export default function ideByebyeStampLoader(this: StampLoaderContext, source: string, map?: unknown) {
     this.cacheable?.(true);
     const raw = (typeof this.getOptions === 'function' ? this.getOptions() : this.query) || {};
     const options = reviveStampOptions(raw);
-    let output = source;
+    let output: string;
     try {
         const id = `${this.resourcePath || ''}${this.resourceQuery || ''}`;
         output = stampModule({

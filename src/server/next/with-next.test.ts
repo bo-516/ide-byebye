@@ -159,10 +159,12 @@ test('typed rules (Next 14) emit one rule per JSX extension with a matching `as`
 
 test('wrapWebpack adds a pre stamp rule and the entry rule only for dev compilations, using context.dir', () => {
     const hook = wrapWebpack(undefined, {}, FAKE_INSPECTOR);
-    const prod = hook({ plugins: [], module: { rules: [] } }, { dev: false });
+    // The hook's declared config shape keeps optional fields; the test configs always carry them.
+    type HookResult = { plugins: unknown[]; cache: { version: string }; module: { rules: any[] } };
+    const prod = hook({ plugins: [], module: { rules: [] } }, { dev: false }) as HookResult;
     assert.equal(prod.plugins.length, 0);
     assert.equal(prod.module.rules.length, 0);
-    const dev = hook({ plugins: ['next'], module: { rules: ['next-rule'] }, cache: { type: 'filesystem', version: 'v1' } }, { dev: true, isServer: false, dir: '/work/other' });
+    const dev = hook({ plugins: ['next'], module: { rules: ['next-rule'] }, cache: { type: 'filesystem', version: 'v1' } }, { dev: true, isServer: false, dir: '/work/other' }) as HookResult;
     assert.deepEqual(dev.plugins, ['next']);
     assert.equal(dev.cache.version, 'v1');
     assert.equal(dev.module.rules[0], 'next-rule');

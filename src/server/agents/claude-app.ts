@@ -52,7 +52,7 @@ export function buildClaudeAppDeepLink(input: {
  * @param {{ includeScreenshots?: boolean }} [options] Whether to append screenshot paths.
  * @returns {string[]} Unique absolute file paths to attach to the deeplink.
  */
-export function collectClaudeAppFiles(request: Parameters<typeof buildPromptReferenceLines>[0], options: any = {}) {
+export function collectClaudeAppFiles(request: Parameters<typeof buildPromptReferenceLines>[0], options: { includeScreenshots?: boolean } = {}) {
     const { includeScreenshots = true } = options;
     const files: string[] = [];
     const add = (filePath: unknown) => {
@@ -129,7 +129,7 @@ function shouldWritePromptFile(config: { promptMode?: unknown }, prompt: string)
         return true;
     return false;
 }
-export function createClaudeAppAdapter(config: any = {}) {
+export function createClaudeAppAdapter(config: Record<string, unknown> = {}) {
     return {
         name: 'claude-app',
         async isAvailable() {
@@ -171,8 +171,8 @@ export function createClaudeAppAdapter(config: any = {}) {
                 }
                 const folders = resolveClaudeAppFolders(config, context);
                 const url = buildClaudeAppDeepLink({
-                    scheme: config.scheme,
-                    route: config.route,
+                    scheme: config.scheme as string | undefined,
+                    route: config.route as string | undefined,
                     prompt,
                     folders,
                     files,

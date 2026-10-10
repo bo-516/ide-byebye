@@ -158,9 +158,9 @@ export function readAntigravityIdeBridgeAck(id: string, home = os.homedir()) {
  * @param {{ home?: string, now?: number, pidAlive?: (pid: number) => boolean }} [options] Clock and pid probe.
  * @returns {boolean} True when the extension is running in that window.
  */
-export function antigravityIdeBridgeIsRunning(workspacePath: string, options: any = {}) {
+export function antigravityIdeBridgeIsRunning(workspacePath: string, options: { home?: string, now?: number, pidAlive?: (pid: number) => boolean } = {}) {
     const dir = antigravityIdeBridgePaths(options.home).windows;
-    let names = [];
+    let names: string[];
     try {
         names = fs.readdirSync(dir);
     }

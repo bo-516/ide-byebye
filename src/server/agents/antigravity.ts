@@ -65,7 +65,7 @@ function launchAntigravityApp(appPath: string) {
  * @param {Record<string, unknown>} config Antigravity adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.
  */
-export function createAntigravityAdapter(config: any = {}) {
+export function createAntigravityAdapter(config: Record<string, unknown> = {}) {
     return {
         name: 'antigravity',
         async isAvailable() {

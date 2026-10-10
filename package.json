@@ -112,6 +112,8 @@
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc && node --import tsx scripts/build-single-file.ts",
     "test": "node scripts/ensure-demo-deps.mjs && node scripts/ensure-dist.mjs && node --import tsx --test --test-reporter=tap src/**/*.test.ts src/**/**/*.test.ts src/**/**/**/*.test.ts demo/matrix/matrix.test.ts",
     "typecheck": "tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "prepublishOnly": "npm run typecheck && npm test",
     "release": "node --import tsx scripts/publish.ts",
     "release:dry": "node --import tsx scripts/publish.ts --dry-run"
@@ -122,14 +124,17 @@
   },
   "devDependencies": {
     "@angular/compiler": "^22.1.7",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.2.0",
     "@vue/compiler-dom": "^3.5.39",
     "code-inspector-plugin": "1.6.2",
+    "eslint": "^10.11.0",
     "pug": "^3.0.4",
     "rolldown": "^1.0.0-rc.12",
     "svelte": "^5.57.1",
     "tsx": "^4.23.12",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.71.0"
   },
   "peerDependencies": {
     "@vue/compiler-dom": ">=3",

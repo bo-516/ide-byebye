@@ -45,7 +45,7 @@ interface GrokBuildLauncherInput {
  * @param {Record<string, unknown>} [config] Grok Build adapter config.
  * @returns {{ pathStyle: 'relative' | 'absolute', artifactPathStyle: 'relative' | 'absolute' }} Path options for prompts.
  */
-export function resolveGrokBuildPathStyleOptions(config: any = {}) {
+export function resolveGrokBuildPathStyleOptions(config: Record<string, unknown> = {}) {
     return resolvePromptPathStyleOptions(config);
 }
 
@@ -77,7 +77,7 @@ export function resolveGrokBuildProjectRoot(config: { projectRoot?: unknown } | 
  * @param {Record<string, unknown>} [config] Grok Build adapter config (optional `projectRoot` override).
  * @returns {Record<string, unknown>} Request view whose `projectRoot` matches Grok's cwd.
  */
-export function withGrokBuildPathRoot(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
+export function withGrokBuildPathRoot(request: Parameters<typeof buildPrompt>[0], config: { projectRoot?: unknown } = {}) {
     return withAgentPathRoot(request, config);
 }
 
@@ -93,7 +93,7 @@ export function withGrokBuildPathRoot(request: Parameters<typeof buildPrompt>[0]
  * @param {Record<string, unknown>} [config] Grok Build adapter config (path style + optional `projectRoot`).
  * @returns {string} Final prompt text ending with a trailing newline.
  */
-export function buildGrokBuildPrompt(request: Parameters<typeof buildPrompt>[0], config: any = {}) {
+export function buildGrokBuildPrompt(request: Parameters<typeof buildPrompt>[0], config: Record<string, unknown> = {}) {
     return buildAgentPrompt(request, config);
 }
 
@@ -109,7 +109,7 @@ export function buildGrokBuildPrompt(request: Parameters<typeof buildPrompt>[0],
  * @param {Record<string, unknown>} [config] Grok Build adapter config (path style + optional `projectRoot`).
  * @returns {string} Grok Build handoff prompt ending with a newline.
  */
-export function buildGrokBuildFilePrompt(request: Parameters<typeof buildPrompt>[0], promptPath: string, config: any = {}) {
+export function buildGrokBuildFilePrompt(request: Parameters<typeof buildPrompt>[0], promptPath: string, config: Record<string, unknown> = {}) {
     return buildAgentFilePrompt(request, promptPath, config);
 }
 

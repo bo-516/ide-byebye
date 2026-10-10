@@ -46,7 +46,6 @@ export interface SessionMenuRow {
     disabled: boolean;
     statusKey: string;
     reasonKey: string;
-    locationKey: string;
     locationText: string;
     relativeTime: string;
 }
@@ -93,7 +92,6 @@ export const SESSION_COPY_KEYS = [
     'session.reason.openInTerminal',
     'session.reason.liveUnknown',
     'session.reason.cwdMissing',
-    'session.location.repoRoot',
     'session.untitled',
     'session.target.label',
     'session.error.targetMissing',
@@ -117,19 +115,6 @@ const DELIVERY_KEYS: Record<string, string> = {
  */
 export function deliveryCopyKey(delivery: string): string {
     return DELIVERY_KEYS[delivery] ?? DELIVERY_KEYS.prefill;
-}
-
-/**
- * Whether `location` should be labeled as the repo root.
- *
- * Boundary: `'.'` and ordinary child paths are not the repo root. `'..'` and `'../…'` are.
- *
- * @param {unknown} location Catalog `location` (`'.'`, `'src'`, `'..'`, `'../..'`). Non-strings are stringified,
- * so a missing location is not the repo root.
- * @returns {boolean} True when the menu should say "repo root" instead of the directory name.
- */
-export function isRepoRootLocation(location: unknown): boolean {
-    return location === '..' || String(location ?? '').startsWith('../');
 }
 
 /**
@@ -179,7 +164,8 @@ export function formatSessionAge(updatedAt: string, now = Date.now(), locale = '
  *
  * Boundary: a non-targetable row is disabled and uses the `◌` marker plus its reason key. A targetable session that
  * is not live is "closed" (`○`), even when the server status is `idle`. `working` / `waiting` markers are `●` / `◐`.
- * Ancestor locations expose `locationKey` instead of the basename.
+ * Every location shows the session directory's basename (`projectName`) — ancestor directories included, since an
+ * umbrella directory is not necessarily a repo root.
  *
  * @param {Record<string, unknown> | null | undefined} session Public catalog row. A missing row renders as a closed,
  * untitled session. Non-objects are read the same way (missing fields), so the menu does not throw on a bad element.
@@ -188,7 +174,6 @@ export function formatSessionAge(updatedAt: string, now = Date.now(), locale = '
  * @returns {SessionMenuRow} Row the menu renders. `disabled` rows must not be selectable.
  */
 export function sessionMenuRow(session: Record<string, unknown> | null | undefined, now = Date.now(), locale = 'zh'): SessionMenuRow {
-    const repoRoot = isRepoRootLocation(session?.location);
     let marker = '○';
     let statusKey = 'session.status.idle';
     let reasonKey = '';
@@ -225,8 +210,7 @@ export function sessionMenuRow(session: Record<string, unknown> | null | undefin
         disabled,
         statusKey,
         reasonKey,
-        locationKey: repoRoot ? 'session.location.repoRoot' : '',
-        locationText: repoRoot ? '' : (session?.projectName ?? '') as string,
+        locationText: (session?.projectName ?? '') as string,
         // The cast erases. A missing timestamp still reaches `Date.parse` as null or undefined, both of which return ''.
         relativeTime: formatSessionAge(session?.updatedAt as string, now, locale),
     };
@@ -249,7 +233,8 @@ export function readSessionTargets(store?: SessionTargetStore): Record<string, S
         return {};
     const targets: Record<string, SessionTarget> = {};
     // The stored map is untrusted JSON; `id` / `title` are checked before an entry is kept.
-    for (const [agent, entry] of Object.entries(value as Record<string, any>)) {
+    for (const [agent, raw] of Object.entries(value as Record<string, unknown>)) {
+        const entry = raw as { id?: unknown; title?: unknown } | null;
         if (entry && typeof entry.id === 'string' && entry.id)
             targets[agent] = { id: entry.id, title: typeof entry.title === 'string' ? entry.title : '' };
     }

@@ -98,11 +98,12 @@ export function findComponentTemplate(code: string, file: string, target: { clas
     }
     const lineStarts = buildLineStartOffsets(code);
     const components: Array<{ node: ComponentClass, metadata: AstExpr }> = [];
-    walkAst(program, (node: any) => {
-        if ((node.type === 'ClassDeclaration' || node.type === 'ClassExpression') && Array.isArray(node.decorators)) {
-            const metadata = node.decorators.map(componentMetadata).find(Boolean);
+    walkAst(program, (node) => {
+        const classNode = node as typeof node & { decorators?: AstExpr[], id?: ComponentClass['id'] };
+        if ((classNode.type === 'ClassDeclaration' || classNode.type === 'ClassExpression') && Array.isArray(classNode.decorators)) {
+            const metadata = classNode.decorators.map(componentMetadata).find(Boolean);
             if (metadata)
-                components.push({ node, metadata });
+                components.push({ node: classNode as ComponentClass, metadata });
         }
     });
     const byName = components.find((c) => target.className && c.node.id?.name === target.className);

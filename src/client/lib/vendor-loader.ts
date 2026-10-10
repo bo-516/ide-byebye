@@ -7,19 +7,33 @@ import { t } from './i18n.js';
  * the dev server recovers; concurrent callers before settlement still share the single in-flight promise.
  */
 /**
- * rrweb's `record` export. `any` is required: recording code stores the stop function and passes rrweb options the
- * dialog's types do not name. A narrower return makes `stopFn = mod.record(...)` fail outside this file.
+ * rrweb's `record` export, narrowed to the one call the recorder makes.
+ * Boundary: options stay an open record because the recorder passes rrweb options the client types do not name. The
+ * return is rrweb's stop handle, or `undefined` when rrweb fails to start; the recorder maps that to `null`.
  */
 interface RrwebRecordModule {
-    record: (...args: any[]) => any;
+    record: (options: Record<string, unknown>) => (() => void) | undefined;
 }
 
 /**
- * rrweb's `Replayer` constructor. `any` is required so `new Replayer(...)` stays usable from the still-frame and
- * viewer code, which only cast the instance afterwards.
+ * Replayer instance members the still-frame bridge and the viewer call.
+ * Boundary: a structural subset of `@rrweb/replay`'s `Replayer` (rrweb is an optional peer, so its types are not
+ * imported). `getMetaData` is optional because the still bridge feature-checks it before calling.
+ */
+interface RrwebReplayer {
+    iframe?: HTMLIFrameElement | null;
+    pause(timeOffset?: number): void;
+    play(timeOffset?: number): void;
+    getCurrentTime?(): number;
+    getMetaData?(): { totalTime?: number };
+}
+
+/**
+ * rrweb's `Replayer` constructor.
+ * Boundary: events are passed through as recorded; the config stays an open record of rrweb replay options.
  */
 interface RrwebReplayModule {
-    Replayer: new (...args: any[]) => any;
+    Replayer: new (events: readonly unknown[], config: Record<string, unknown>) => RrwebReplayer;
 }
 
 let recordPromise: Promise<RrwebRecordModule> | null = null;
@@ -52,7 +66,7 @@ function vendorUrl(config: object, name: string): string {
  * dialog can surface it. Returns the module namespace whose `record` export starts a recording.
  *
  * @param {object} config Browser config injected by the plugin.
- * @returns {Promise<{ record: (...args: any[]) => any }>} The `@rrweb/record` module namespace. Never null.
+ * @returns {Promise<RrwebRecordModule>} The `@rrweb/record` module namespace. Never null.
  */
 export function loadRrwebRecord(config: object): Promise<RrwebRecordModule> {
     if (!recordPromise) {
@@ -73,7 +87,7 @@ export function loadRrwebRecord(config: object): Promise<RrwebRecordModule> {
  * rebuilds recorded events into a live DOM.
  *
  * @param {object} config Browser config injected by the plugin.
- * @returns {Promise<{ Replayer: new (...args: any[]) => any }>} The `@rrweb/replay` module namespace. Never null.
+ * @returns {Promise<RrwebReplayModule>} The `@rrweb/replay` module namespace. Never null.
  */
 export function loadRrwebReplay(config: object): Promise<RrwebReplayModule> {
     if (!replayPromise) {

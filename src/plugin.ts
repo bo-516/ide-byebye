@@ -41,7 +41,7 @@ export { PLUGIN_NAME } from './server/plugin-runtime.js';
  * @param {{ framework?: string }} meta unplugin meta (`vite` / `webpack` / `rspack` / `rsbuild` / `farm` / `esbuild` / …).
  * @returns {import('unplugin').UnpluginOptions} unplugin definition with per-framework hooks.
  */
-function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}): UnpluginOptions {
+function inspectorFactory(options: IdeByebyeOptions = {}, meta: { framework?: string } = {}): UnpluginOptions {
     const runtime = createInspectorRuntime(options);
 
     function setupCompiler(compiler: Parameters<ReturnType<typeof stampUnplugin.webpack>['apply']>[0] | Parameters<ReturnType<typeof stampUnplugin.rspack>['apply']>[0]) {
@@ -200,7 +200,7 @@ function inspectorFactory(options: IdeByebyeOptions = {}, meta: any = {}): Unplu
 }
 
 /** The raw unplugin instance; exposes `.vite`/`.webpack`/`.rspack`/`.rsbuild`/`.farm`/`.esbuild`/… entry points. */
-const unplugin = createUnplugin(inspectorFactory as any);
+const unplugin = createUnplugin(inspectorFactory as unknown as Parameters<typeof createUnplugin>[0]);
 
 /**
  * Vite entry. Returns an array so the stamp plugin (which must run before the framework transform to inject

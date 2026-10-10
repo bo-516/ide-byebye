@@ -163,7 +163,7 @@ function sourceReferenceLine(selection: PromptSelection, source: PromptSource, p
  *   - `artifactPathStyle`: screenshots / recording stills (default `absolute`).
  * @returns {string[]} Prompt reference lines.
  */
-export function buildPromptReferenceLines(request: PromptRequest, options: any = {}) {
+export function buildPromptReferenceLines(request: PromptRequest, options: { pathStyle?: 'relative' | 'absolute', artifactPathStyle?: 'relative' | 'absolute' } = {}) {
     const { pathStyle, artifactPathStyle } = resolvePromptPathStyleOptions(options);
     const refs: string[] = [];
     if (request.selection && request.source) {
@@ -220,7 +220,7 @@ export function filterInlineReferenceLines(refs: string[], intent: string) {
  * @param {{ pathStyle?: 'relative' | 'absolute', artifactPathStyle?: 'relative' | 'absolute' }} [options] Path formatting for `@` refs.
  * @returns {string} Final prompt text ending with a trailing newline.
  */
-export function buildPrompt(request: PromptRequest, options: any = {}) {
+export function buildPrompt(request: PromptRequest, options: { pathStyle?: 'relative' | 'absolute', artifactPathStyle?: 'relative' | 'absolute' } = {}) {
     const intent = String(request.intent ?? '').trim();
     const chainLines = buildRenderChainLines(request, resolvePromptPathStyleOptions(options).pathStyle);
     const refs = [...filterInlineReferenceLines(buildPromptReferenceLines(request, options), intent), ...chainLines];

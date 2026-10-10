@@ -34,6 +34,7 @@ export type ClaudeCliRoute =
     | { route: 'unavailable', reason: 'handler' | 'cli' | 'missing' | 'cwd' };
 
 /** Control characters the handler rejects in `q`; `\t` and `\n` are allowed, `\r` becomes `\n` first. */
+// eslint-disable-next-line no-control-regex -- deliberate: enumerates exactly the control range the deeplink handler rejects.
 const QUERY_CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/;
 /** Characters the handler strips from `q` before measuring it: format, private-use, and unassigned code points. */
 const QUERY_STRIPPED = /[\p{Cf}\p{Co}\p{Cn}]/gu;

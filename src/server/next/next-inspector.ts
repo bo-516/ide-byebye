@@ -39,7 +39,7 @@ export interface NextInspector {
  * @returns {NextInspector} Shared handle for this process.
  */
 export function getNextInspector(root: string, options: object): NextInspector {
-    const registry: Map<string, NextInspector> = (globalThis as any)[REGISTRY_KEY] ??= new Map();
+    const registry = ((globalThis as Record<PropertyKey, unknown>)[REGISTRY_KEY] ??= new Map()) as Map<string, NextInspector>;
     const key = path.resolve(root);
     if (!registry.has(key))
         registry.set(key, startNextInspector(key, options));
