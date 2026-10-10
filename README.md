@@ -201,10 +201,13 @@ output files are in **[CONFIGURATION.md](./CONFIGURATION.md)**.
 
 ## Develop
 
+Needs Node.js 22.13+ and pnpm 11 (pinned in `packageManager`; Corepack or pnpm 10
+switches to it). Using the plugin only needs Node.js 20.19+.
+
 ```sh
-npm install
-npm run build
-npm test
+pnpm install
+pnpm build
+pnpm test
 ```
 
 The playground in [`demo/`](./demo) has a `pnpm dev:*` script for every
