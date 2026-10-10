@@ -22,6 +22,7 @@ const MAX_VALUE_LENGTH = 240;
 /** Max characters kept for a node label. */
 const MAX_LABEL_LENGTH = 200;
 /** Control characters (CR/LF/TAB and friends) collapsed to a space so a value cannot forge extra prompt lines. */
+// eslint-disable-next-line no-control-regex -- deliberate: sanitizes control characters out of untrusted values.
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]+/g;
 
 /** One browser node before normalization. Fields are untrusted client JSON. */

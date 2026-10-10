@@ -1,138 +1,10 @@
 import { el } from '../dialog/dialog-utils.js';
 import { loadRrwebReplay } from '../lib/vendor-loader.js';
-import { captureRecordingStill, type RecordingStillImage } from './recording-still.js';
+import { captureRecordingStill } from './recording-still.js';
 import { recordingDurationMs, normalizeSegments, segmentsDuration, cutSegments } from './recorder.js';
 import { t } from '../lib/i18n.js';
-
-/** Largest on-screen size for the embedded player; the recorded scope is scaled to fit inside this box. */
-const VIEWER_MAX_W = 760;
-const VIEWER_MAX_H = 430;
-/** rrweb `EventType.Meta` numeric tag; carries the recorded viewport size. */
-const RRWEB_META_EVENT = 4;
-/** Pointer travel (px) above which a track press is a range-drag rather than a seek click. */
-const DRAG_THRESHOLD_PX = 4;
-
-/** One kept interval, milliseconds from the start of the recording. */
-interface TimeSegment {
-    t0: number;
-    t1: number;
-}
-
-/** Recording fields the editor mutates in place. Extra dialog fields (id, scope, …) are left untouched. */
-interface ViewerRecording {
-    events: Array<Record<string, unknown>>;
-    durationMs: number;
-    segments: TimeSegment[];
-    stillAt?: number;
-    still: RecordingStillImage | null;
-}
-
-/**
- * Viewer mount options.
- * `config` is `object` so the dialog's index-signature-free page config stays assignable. `parent` is a `ParentNode`
- * because `Node` has no `append` and the shell is mounted with `parent.append`.
- */
-interface ViewerOptions {
-    parent: ParentNode;
-    config: object;
-    recording: ViewerRecording;
-    blockClass?: string;
-    scopeSelector?: string;
-    onUpdate: (recording: ViewerRecording) => void;
-    showError: (text: string) => void;
-}
-
-/** Subset of `@rrweb/replay`'s Replayer this viewer calls. The loader's return is untyped, so the instance is cast. */
-interface ReplayHandle {
-    iframe?: HTMLIFrameElement | null;
-    pause: (timeOffset?: number) => void;
-    play: (timeOffset?: number) => void;
-    getCurrentTime?: () => number;
-}
-
-/** Width and height carried on an rrweb Meta event. */
-interface MetaViewportData {
-    width?: unknown;
-    height?: unknown;
-}
-
-/**
- * Read the recorded viewport size from an rrweb event stream.
- * @param {Array<Record<string, unknown>>} events rrweb event stream.
- * @returns {{ width: number, height: number } | null} Recorded viewport size, or null.
- */
-function recordedViewport(events: Array<Record<string, unknown>>): { width: number; height: number } | null {
-    for (const event of events) {
-        const raw = event && typeof event === 'object' ? event.data : null;
-        // Meta `data` is an untyped rrweb payload; only width/height are read.
-        const data = raw && typeof raw === 'object' ? raw as MetaViewportData : null;
-        if (event?.type === RRWEB_META_EVENT && data && Number(data.width) > 0) {
-            return { width: Math.ceil(Number(data.width)), height: Math.ceil(Number(data.height)) };
-        }
-    }
-    return null;
-}
-
-/**
- * Format a millisecond offset as `m:ss.t` for compact timeline labels.
- * @param {number} ms Offset in milliseconds.
- * @returns {string} Human-readable timecode.
- */
-function formatMs(ms: number): string {
-    const total = Math.max(0, Math.round(ms));
-    const seconds = Math.floor(total / 1000);
-    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}.${Math.floor((total % 1000) / 100)}`;
-}
-
-/**
- * Size the replay iframe to the recorded viewport and crop/scale the stage to the recorded scope node.
- * Boundary: the bare `@rrweb/replay` engine leaves its iframe at 0×0 until playback advances, so the viewer must set the
- * dimensions explicitly. The scope node is located by selector and the wrapper is translated+scaled so only that subtree
- * fills the stage. Falls back to the whole recorded viewport when the node is not found. Idempotent.
- * @param {HTMLElement} stage Container holding the replayer wrapper.
- * @param {ReplayHandle} replayer The rrweb Replayer. `iframe` may be missing until the engine builds it.
- * @param {{ width: number, height: number }} viewport Recorded viewport size.
- * @param {string | undefined} scopeSelector Selector locating the scope node in the replay document. Omitted shows the whole viewport.
- * @returns {void}
- */
-function focusStage(stage: HTMLElement, replayer: ReplayHandle, viewport: { width: number; height: number }, scopeSelector: string | undefined): void {
-    if (!viewport.width || !viewport.height)
-        return;
-    const iframe = replayer.iframe;
-    if (iframe instanceof HTMLElement) {
-        iframe.setAttribute('width', String(viewport.width));
-        iframe.setAttribute('height', String(viewport.height));
-        iframe.style.width = `${viewport.width}px`;
-        iframe.style.height = `${viewport.height}px`;
-        iframe.style.border = '0';
-        iframe.style.background = '#ffffff';
-    }
-    let box = { left: 0, top: 0, width: viewport.width, height: viewport.height };
-    const doc = iframe && iframe.contentDocument;
-    if (doc && scopeSelector) {
-        try {
-            const node = doc.querySelector(scopeSelector);
-            if (node) {
-                const rect = node.getBoundingClientRect();
-                if (rect.width >= 1 && rect.height >= 1)
-                    box = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-            }
-        }
-        catch {
-            // keep full viewport
-        }
-    }
-    const scale = Math.min(VIEWER_MAX_W / box.width, VIEWER_MAX_H / box.height, 1);
-    const wrapper = stage.querySelector('.replayer-wrapper');
-    if (wrapper instanceof HTMLElement) {
-        wrapper.style.width = `${viewport.width}px`;
-        wrapper.style.height = `${viewport.height}px`;
-        wrapper.style.transformOrigin = 'top left';
-        wrapper.style.transform = `scale(${scale}) translate(${-box.left}px, ${-box.top}px)`;
-    }
-    stage.style.width = `${Math.round(box.width * scale)}px`;
-    stage.style.height = `${Math.round(box.height * scale)}px`;
-}
+import { DRAG_THRESHOLD_PX, focusStage, formatMs, recordedViewport } from './recording-viewer-types.js';
+import type { ReplayHandle, TimeSegment, ViewerOptions } from './recording-viewer-types.js';
 
 /**
  * Open the recording editor: a lightbox (in the UI theme set by the `theme` option) that plays one recording, lets the
@@ -155,14 +27,14 @@ export async function openRecordingViewer(opts: ViewerOptions): Promise<void> {
         recording.stillAt = recording.segments[recording.segments.length - 1].t1;
 
     // --- shell (themed by RECORDING_EDITOR_STYLE) ---
-    const lightbox = el('div', 'cii-recording-lightbox') as HTMLElement;
-    const frame = el('div', 'cii-recording-frame') as HTMLElement;
-    const header = el('div', 'cii-rv-header') as HTMLElement;
-    const close = el('button', 'cii-rv-close', '×') as HTMLButtonElement;
+    const lightbox = el('div', 'cii-recording-lightbox');
+    const frame = el('div', 'cii-recording-frame');
+    const header = el('div', 'cii-rv-header');
+    const close = el('button', 'cii-rv-close', '×');
     close.type = 'button';
     close.setAttribute('aria-label', t('rv.close.aria'));
     header.append(el('span', 'cii-rv-title', t('rv.title')), close);
-    const stage = el('div', 'cii-recording-stage') as HTMLElement;
+    const stage = el('div', 'cii-recording-stage');
     frame.append(header, stage);
     lightbox.append(frame);
     parent.append(lightbox);
@@ -199,7 +71,7 @@ export async function openRecordingViewer(opts: ViewerOptions): Promise<void> {
         showError(err instanceof Error ? err.message : String(err));
         return;
     }
-    // `loadRrwebReplay` is untyped; the cast names only the methods this viewer calls.
+    // The loader types a wider rrweb instance; the cast narrows it to the methods this viewer calls.
     replayer = new Replayer(recording.events, {
         root: stage,
         speed: 1,
@@ -215,40 +87,40 @@ export async function openRecordingViewer(opts: ViewerOptions): Promise<void> {
     window.setTimeout(() => focusStage(stage, replayer, viewport, opts.scopeSelector), 80);
 
     // --- transport: play/pause + scrubber + time ---
-    const transport = el('div', 'cii-rv-row') as HTMLElement;
-    const playBtn = el('button', 'cii-rv-btn', '▶') as HTMLButtonElement;
+    const transport = el('div', 'cii-rv-row');
+    const playBtn = el('button', 'cii-rv-btn', '▶');
     playBtn.type = 'button';
-    const seek = el('input', 'cii-rv-seek') as HTMLInputElement;
+    const seek = el('input', 'cii-rv-seek');
     seek.type = 'range';
     seek.min = '0';
     seek.max = String(Math.round(duration));
     seek.value = '0';
-    const timeLabel = el('span', 'cii-rv-time', `0:00.0 / ${formatMs(duration)}`) as HTMLElement;
+    const timeLabel = el('span', 'cii-rv-time', `0:00.0 / ${formatMs(duration)}`);
     transport.append(playBtn, seek, timeLabel);
 
     // --- timeline track: segments + selection + playhead ---
-    const timeline = el('div', 'cii-rv-track') as HTMLElement;
-    const playheadEl = el('div', 'cii-rv-playhead') as HTMLElement;
-    const selEl = el('div', 'cii-rv-sel') as HTMLElement;
+    const timeline = el('div', 'cii-rv-track');
+    const playheadEl = el('div', 'cii-rv-playhead');
+    const selEl = el('div', 'cii-rv-sel');
     selEl.hidden = true;
     timeline.append(selEl, playheadEl);
 
     // --- segment controls (cut model: default keeps everything, drag a range and cut it out) ---
-    const hint = el('div', 'cii-rv-hint', t('rv.hint')) as HTMLElement;
-    const segBar = el('div', 'cii-rv-row cii-rv-segbar') as HTMLElement;
-    const cutBtn = el('button', 'cii-rv-chip-btn', t('rv.cut')) as HTMLButtonElement;
+    const hint = el('div', 'cii-rv-hint', t('rv.hint'));
+    const segBar = el('div', 'cii-rv-row cii-rv-segbar');
+    const cutBtn = el('button', 'cii-rv-chip-btn', t('rv.cut'));
     cutBtn.type = 'button';
     cutBtn.disabled = true;
-    const resetBtn = el('button', 'cii-rv-chip-btn', t('rv.reset')) as HTMLButtonElement;
+    const resetBtn = el('button', 'cii-rv-chip-btn', t('rv.reset'));
     resetBtn.type = 'button';
-    const cutInfo = el('span', 'cii-rv-time', '') as HTMLElement;
+    const cutInfo = el('span', 'cii-rv-time', '');
     segBar.append(cutBtn, resetBtn, cutInfo);
 
     // --- actions ---
-    const actions = el('div', 'cii-rv-row cii-rv-actions') as HTMLElement;
-    const stillBtn = el('button', 'cii-btn cii-btn-primary', t('rv.useStill')) as HTMLButtonElement;
+    const actions = el('div', 'cii-rv-row cii-rv-actions');
+    const stillBtn = el('button', 'cii-btn cii-btn-primary', t('rv.useStill'));
     stillBtn.type = 'button';
-    const doneBtn = el('button', 'cii-btn cii-btn-secondary cii-rv-done', t('rv.done')) as HTMLButtonElement;
+    const doneBtn = el('button', 'cii-btn cii-btn-secondary cii-rv-done', t('rv.done'));
     doneBtn.type = 'button';
     doneBtn.addEventListener('click', teardown);
     actions.append(stillBtn, doneBtn);
@@ -265,10 +137,10 @@ export async function openRecordingViewer(opts: ViewerOptions): Promise<void> {
     const renderSegments = () => {
         timeline.querySelectorAll('.cii-rv-seg').forEach((node) => node.remove());
         for (const seg of recording.segments) {
-            const block = el('div', 'cii-rv-seg') as HTMLElement;
+            const block = el('div', 'cii-rv-seg');
             block.style.left = pct(seg.t0);
             block.style.width = pct(seg.t1 - seg.t0);
-            const remove = el('button', 'cii-rv-seg-x', '×') as HTMLButtonElement;
+            const remove = el('button', 'cii-rv-seg-x', '×');
             remove.type = 'button';
             remove.title = t('rv.seg.remove.title');
             remove.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
@@ -305,7 +177,7 @@ export async function openRecordingViewer(opts: ViewerOptions): Promise<void> {
             window.cancelAnimationFrame(rafId);
         const target = atT == null ? playhead : atT;
         try {
-            replayer.pause(target);
+            replayer?.pause(target);
         }
         catch {
             // ignore
@@ -318,20 +190,20 @@ export async function openRecordingViewer(opts: ViewerOptions): Promise<void> {
             return;
         // A `let` whose declared type includes `undefined` stays possibly undefined inside `tick`, even after the guard.
         let seg: TimeSegment = initial;
-        let from = playhead < seg.t0 ? seg.t0 : playhead;
+        const from = playhead < seg.t0 ? seg.t0 : playhead;
         playing = true;
         playBtn.textContent = '⏸';
-        replayer.play(from);
+        replayer?.play(from);
         const tick = () => {
             if (!playing)
                 return;
-            const cur = replayer.getCurrentTime ? replayer.getCurrentTime() : from;
+            const cur = replayer?.getCurrentTime ? replayer.getCurrentTime() : from;
             setPlayhead(cur);
             if (cur >= seg.t1 - 16) {
                 const next = segmentAfter(seg.t1);
                 if (next) {
                     seg = next;
-                    replayer.play(seg.t0); // jump-cut = the compressed frame
+                    replayer?.play(seg.t0); // jump-cut = the compressed frame
                 }
                 else {
                     stopPlay(seg.t1);

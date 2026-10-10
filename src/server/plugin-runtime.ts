@@ -11,6 +11,7 @@ import { cleanupInspectorArtifacts } from './output-cleanup.js';
 import { loadClientCode } from './client-code.js';
 import { buildBootstrapStatement, consoleFilterSnippet } from './bootstrap-script.js';
 import { stampUnplugin } from './stamp/stamp-unplugin.js';
+import type { IdeByebyeOptions } from '../types.js';
 
 export const PLUGIN_NAME = 'code-intent-inspector';
 
@@ -27,8 +28,8 @@ export const PLUGIN_NAME = 'code-intent-inspector';
  */
 function customAgentActions(resolved: ReturnType<typeof resolveOptions>, registry: ReturnType<typeof buildRegistry>) {
     return normalizeCustomAgents(resolved.agents?.custom)
-        .filter((target: any) => registry.has(target.name))
-        .map((target: any) => ({ name: target.name, label: target.label, title: target.title }));
+        .filter((target) => registry.has(target.name))
+        .map((target) => ({ name: target.name, label: target.label, title: target.title }));
 }
 
 /**
@@ -80,7 +81,7 @@ function makeClientConfig(resolved: ReturnType<typeof resolveOptions>, registry:
  * lifetime, and one-shot builds or helper processes that merely load the config (esbuild `build()`, Next's telemetry
  * flush) must still exit on their own.
  *
- * @param {Record<string, unknown>} [options] Raw plugin options from the host bundler config.
+ * @param {IdeByebyeOptions} [options] Raw plugin options from the host bundler config.
  * @param {{ exposeSession?: boolean }} [runtimeOptions] `exposeSession: true` enables the same-origin `/session`
  *   route (Angular CLI bootstrap through the dev-server proxy); every other adapter leaves it off.
  * @returns {{
@@ -96,7 +97,7 @@ function makeClientConfig(resolved: ReturnType<typeof resolveOptions>, registry:
  *   outputDirAbs: () => string,
  * }} Shared runtime used by every bundler adapter.
  */
-export function createInspectorRuntime(options: any = {}, runtimeOptions: { exposeSession?: boolean } = {}) {
+export function createInspectorRuntime(options: IdeByebyeOptions = {}, runtimeOptions: { exposeSession?: boolean } = {}) {
     const resolved = resolveOptions(options);
     const token = crypto.randomUUID();
     /** Fields that stay null until `initPaths` or the first successful client/server load. */

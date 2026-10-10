@@ -116,7 +116,7 @@ export function normalizeArtifactPathStyle(value: unknown): 'relative' | 'absolu
  * @param {{ pathStyle?: unknown, artifactPathStyle?: unknown }} [options] Raw path-style fields from plugin or agent config.
  * @returns {{ pathStyle: 'relative' | 'absolute', artifactPathStyle: 'relative' | 'absolute' }} Options for `buildPrompt`.
  */
-export function resolvePromptPathStyleOptions(options: any = {}): { pathStyle: 'relative' | 'absolute', artifactPathStyle: 'relative' | 'absolute' } {
+export function resolvePromptPathStyleOptions(options: { pathStyle?: unknown, artifactPathStyle?: unknown } = {}): { pathStyle: 'relative' | 'absolute', artifactPathStyle: 'relative' | 'absolute' } {
     return {
         pathStyle: normalizePathStyle(options.pathStyle),
         artifactPathStyle: normalizeArtifactPathStyle(options.artifactPathStyle),
@@ -150,7 +150,7 @@ export function resolveOptions(options: {
     recording?: unknown;
     pathStyle?: unknown;
     artifactPathStyle?: unknown;
-    agents?: Record<string, unknown>;
+    agents?: object;
 }) {
     const pathStyles = resolvePromptPathStyleOptions(options);
     return {
@@ -175,7 +175,8 @@ export function resolveOptions(options: {
         // Source defaults relative (`@src/App.tsx`); screenshots default absolute (`@/abs/…/screenshots/x.webp`).
         pathStyle: pathStyles.pathStyle,
         artifactPathStyle: pathStyles.artifactPathStyle,
-        agents: options.agents ?? {},
+        // `object` above so the public `AgentsOptions` interface (no index signature) assigns; consumers read by key.
+        agents: (options.agents ?? {}) as Record<string, unknown>,
     };
 }
 /**

@@ -3,10 +3,12 @@ import { buildPrompt } from '../prompt.js';
 import { collectClaudeAppFiles } from './claude-app.js';
 import {
     DEFAULT_DELIVERY_MESSAGE_TYPE,
+    DEFAULT_DELIVERY_TIMEOUT_MS,
     DELIVERY_PAYLOAD_VERSION,
     DELIVERY_SOURCE,
     normalizeCustomAgents,
 } from './custom-client-config.js';
+import type { CustomAgentTarget } from './custom-client-config.js';
 
 export {
     DEFAULT_DELIVERY_MESSAGE_TYPE,
@@ -16,6 +18,23 @@ export {
     normalizeCustomAgent,
     normalizeCustomAgents,
 } from './custom-client-config.js';
+export type { CustomAgentTarget } from './custom-client-config.js';
+
+/** Subset of `RequestInit` the delivery path sets. Kept local so test doubles do not need DOM fetch types. */
+interface DeliveryInit {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    signal?: AbortSignal;
+}
+
+/** Fetch signature the delivery path needs (subset of the global `fetch`). */
+type DeliveryFetch = (url: string, init: DeliveryInit) => Promise<{ ok?: boolean, status?: number, text?: () => Promise<unknown> }>;
+
+/** Injectable dependencies for {@link createCustomAgentAdapter}; method syntax keeps narrow-parameter test doubles assignable. */
+interface CustomAgentDeps {
+    fetch?(url: string, init: DeliveryInit): Promise<{ ok?: boolean, status?: number, text?: () => Promise<unknown> }>;
+}
 
 /** Max characters of a failing HTTP response echoed back into the dialog error. */
 const ERROR_DETAIL_LIMIT = 200;
@@ -32,7 +51,7 @@ const ERROR_DETAIL_LIMIT = 200;
  * @param {Record<string, unknown>} target Normalized custom-client descriptor.
  * @returns {string} Prompt text to hand to the client.
  */
-export function resolveDeliveryPrompt(request: Parameters<typeof buildPrompt>[0], context: any, target: any) {
+export function resolveDeliveryPrompt(request: Parameters<typeof buildPrompt>[0], context: { prompt: string }, target: CustomAgentTarget) {
     return target.pathStyles ? buildPrompt(request, target.pathStyles) : context.prompt;
 }
 
@@ -52,7 +71,7 @@ export function resolveDeliveryPrompt(request: Parameters<typeof buildPrompt>[0]
  * @param {Record<string, unknown>} target Normalized custom-client descriptor.
  * @returns {Record<string, unknown>} Delivery payload sent over HTTP or `postMessage`.
  */
-export function buildDeliveryPayload(request: any, prompt: string, target: any) {
+export function buildDeliveryPayload(request: Parameters<typeof buildPrompt>[0] & Record<string, unknown>, prompt: string, target: CustomAgentTarget) {
     const screenshots = (request.screenshots ?? []).map((shot: { filePath?: unknown } | null | undefined) => shot?.filePath).filter(Boolean);
     const recordings = (request.recordings ?? []).map((clip: { stillFramePath?: unknown } | null | undefined) => clip?.stillFramePath).filter(Boolean);
     return {
@@ -83,9 +102,9 @@ export function buildDeliveryPayload(request: any, prompt: string, target: any) 
  * @param {Record<string, unknown>} res Fetch response for a failed delivery.
  * @returns {Promise<string>} Collapsed, truncated body text, or an empty string.
  */
-async function readErrorDetail(res: any) {
+async function readErrorDetail(res: { text?: () => Promise<unknown> } | null | undefined) {
     try {
-        const text = await res.text();
+        const text = await res?.text?.();
         return truncateSnippet(collapseWhitespace(String(text ?? '')), ERROR_DETAIL_LIMIT) ?? '';
     }
     catch {
@@ -105,12 +124,12 @@ async function readErrorDetail(res: any) {
  * @param {Record<string, unknown>} payload Delivery payload.
  * @returns {Promise<void>} Resolves when the client accepted the prompt.
  */
-async function postDelivery(fetchImpl: (url: string, init: Record<string, unknown>) => Promise<{ ok?: boolean, status?: number, text?: () => Promise<unknown> }>, target: any, payload: Record<string, unknown>) {
-    const res = await fetchImpl(target.url, {
+async function postDelivery(fetchImpl: DeliveryFetch, target: CustomAgentTarget, payload: Record<string, unknown>) {
+    const res = await fetchImpl(target.url ?? '', {
         method: target.method,
         headers: { 'Content-Type': 'application/json', ...target.headers },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(target.timeoutMs),
+        signal: AbortSignal.timeout(target.timeoutMs ?? DEFAULT_DELIVERY_TIMEOUT_MS),
     });
     if (!res?.ok) {
         const detail = await readErrorDetail(res);
@@ -133,8 +152,8 @@ async function postDelivery(fetchImpl: (url: string, init: Record<string, unknow
  * @param {{ fetch?: Function }} [deps] Injectable dependencies; defaults to the global `fetch`.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
  */
-export function createCustomAgentAdapter(target: any, deps: any = {}) {
-    const fetchImpl = deps.fetch ?? ((...args: unknown[]) => (globalThis as any).fetch(...args));
+export function createCustomAgentAdapter(target: CustomAgentTarget, deps: CustomAgentDeps = {}) {
+    const fetchImpl: DeliveryFetch = deps.fetch ?? ((url, init) => globalThis.fetch(url, init));
     return {
         name: target.name,
         async isAvailable() {
@@ -206,6 +225,6 @@ export function createCustomAgentAdapter(target: any, deps: any = {}) {
  * @param {{ fetch?: Function }} [deps] Injectable dependencies forwarded to each adapter.
  * @returns {Array<{ name: string, isAvailable: Function, send: Function }>} Adapters ready to register.
  */
-export function createCustomAgentAdapters(value: unknown, deps: any = {}) {
+export function createCustomAgentAdapters(value: unknown, deps: CustomAgentDeps = {}) {
     return normalizeCustomAgents(value).map((target) => createCustomAgentAdapter(target, deps));
 }

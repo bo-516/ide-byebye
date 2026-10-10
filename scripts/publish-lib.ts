@@ -231,7 +231,7 @@ export function resolveNextVersion(current: string, bump: string) {
  * @param {{ allowFail?: boolean }} [opts] When `allowFail`, return the result instead of throwing.
  * @returns {import('node:child_process').SpawnSyncReturns<string>} Command result.
  */
-export function run(cwd: string, command: string, args: string[], opts: any = {}) {
+export function run(cwd: string, command: string, args: string[], opts: { allowFail?: boolean } = {}) {
     const result = spawnSync(command, args, {
         cwd,
         encoding: 'utf8',

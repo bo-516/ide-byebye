@@ -1,33 +1,27 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { antigravityIdeWorkspaceId, antigravityIdeWorkspaceSlug } from '../agents/antigravity-ide-bridge-host.js';
 import { buildPrompt } from '../prompt.js';
 import { callLanguageServer, certPathForLanguageServer, discoverLanguageServers } from './antigravity-ls.js';
+import type { LanguageServerProcess, LanguageServerRequest, LanguageServerResponse } from './antigravity-ls.js';
 import { readSessionPicker } from './options.js';
 import { buildProjectScope, matchSessionCwd, normalizeScopePath, sessionLocation, sessionProjectName } from './project-scope.js';
+import { buildCascadeSendBody, statusOf, cwdFromWorkspace, updatedAtFrom, workspaceMatches } from './antigravity-trajectory.js';
+import type { TrajectorySummary } from './antigravity-trajectory.js';
 import { sessionErrorText, sessionTitle } from './types.js';
 
-/** Run states treated as `working`. `undefined` is included so a missing status can be passed to `Set.has` and stays idle. */
-const WORKING_STATUSES = new Set<string | undefined>([
-    'CASCADE_RUN_STATUS_RUNNING',
-    'CASCADE_RUN_STATUS_CANCELING',
-    'CASCADE_RUN_STATUS_BUSY',
-]);
+export { buildCascadeSendBody } from './antigravity-trajectory.js';
 
 /**
  * Test double for discovery and the loopback RPC. Every field is optional; production passes `{}` or omits `io`.
  *
  * Boundary: `processText` skips the process spawn. `readCert` and `exchange` replace the cert read and HTTPS call.
- * `readCert` / `exchange` stay `Function` so a test method with a narrower parameter still assigns.
  * `platform` is a plain string: callers pass `'darwin'` / `'win32'`, and the cert helper only compares it to `'win32'`.
  */
 interface AntigravitySessionIo {
     processText?: string;
     uid?: number | null;
     platform?: string;
-    readCert?: Function;
-    exchange?: Function;
+    readCert?(ls: { port: number; csrfToken: string; exe?: string }): Promise<string | Buffer> | string | Buffer;
+    exchange?(request: LanguageServerRequest): Promise<LanguageServerResponse | null | undefined>;
 }
 
 /**
@@ -55,160 +49,15 @@ interface AntigravityServerRef {
 }
 
 /**
- * Map a trajectory summary's run state onto the shared status codes.
- *
- * Boundary: `killed` rows are omitted by the caller before this runs. Running, canceling, busy, or `notFullyIdle`
- * are `working` even when `waitingSteps` is also set. A non-empty `waitingSteps` is otherwise `waiting`.
- *
- * @param {{ status?: string, notFullyIdle?: unknown, waitingSteps?: unknown } | null | undefined} summary
- *        One `CascadeTrajectorySummary`. A missing object is idle. `waitingSteps` is only tested with `Array.isArray`.
- * @returns {'working' | 'waiting' | 'idle'}
- */
-function statusOf(summary: { status?: string; notFullyIdle?: unknown; waitingSteps?: unknown } | null | undefined) {
-    if (WORKING_STATUSES.has(summary?.status) || summary?.notFullyIdle === true)
-        return 'working';
-    if (Array.isArray(summary?.waitingSteps) && summary.waitingSteps.length > 0)
-        return 'waiting';
-    return 'idle';
-}
-
-/**
- * Turn `file://` workspace URIs into a filesystem path.
- *
- * @param {unknown} uri `workspaceFolderAbsoluteUri` or a raw path. Non-strings become `''`.
- * @returns {string} Absolute path, or `''` when the URI cannot be parsed.
- */
-function cwdFromWorkspace(uri: unknown) {
-    if (typeof uri !== 'string' || !uri)
-        return '';
-    if (uri.startsWith('file:')) {
-        try {
-            return fileURLToPath(uri);
-        }
-        catch {
-            return '';
-        }
-    }
-    return uri;
-}
-
-/**
- * Directory strings whose Antigravity workspace encodings should be tried.
- *
- * Boundary: the IDE hashes the folder it was opened with, which can be the pre-realpath path (`/var` vs
- * `/private/var`). A missing directory still contributes `path.resolve`. Duplicate strings are dropped.
- *
- * @param {string | string[]} projectRoots Inspector root and its realpath, either or both.
- * @returns {string[]} Distinct directories.
- */
-function workspaceRoots(projectRoots: string | string[]) {
-    const roots: string[] = [];
-    const push = (value: unknown) => {
-        if (typeof value === 'string' && value && !roots.includes(value))
-            roots.push(value);
-    };
-    for (const root of Array.isArray(projectRoots) ? projectRoots : [projectRoots]) {
-        push(root);
-        try {
-            push(path.resolve(root));
-        }
-        catch {
-            // Ignore a root path.resolve cannot handle.
-        }
-        try {
-            push(fs.realpathSync.native(root));
-        }
-        catch {
-            // Missing folder: the resolved string above is still hashed.
-        }
-    }
-    return roots;
-}
-
-/**
- * Whether this language server's `--workspace_id` is the project we are serving.
- *
- * Boundary: a match is the raw path, its `file://` URL, `antigravityIdeWorkspaceId` (sha256 of that URL), or
- * `antigravityIdeWorkspaceSlug` (`file_` + underscores). A mismatch does not drop the row; it only loses the dedupe
- * tie-break, so the first server that returned the cascade is kept.
- *
- * @param {string} workspaceId Flag value from the language server.
- * @param {string | string[]} projectRoots Inspector project root, before and after realpath.
- * @returns {boolean} True when the flag points at this project.
- */
-function workspaceMatches(workspaceId: string, projectRoots: string | string[]) {
-    if (!workspaceId)
-        return false;
-    for (const root of workspaceRoots(projectRoots)) {
-        if (workspaceId === root || workspaceId === pathToFileURL(root).href)
-            return true;
-        if (workspaceId === antigravityIdeWorkspaceId(root) || workspaceId === antigravityIdeWorkspaceSlug(root))
-            return true;
-    }
-    if (String(workspaceId).startsWith('file:')) {
-        try {
-            const asPath = normalizeScopePath(fileURLToPath(workspaceId));
-            return workspaceRoots(projectRoots).some((root) => normalizeScopePath(root) === asPath);
-        }
-        catch {
-            return false;
-        }
-    }
-    return false;
-}
-
-/**
- * ISO timestamp from a summary's `lastModifiedTime`.
- *
- * Boundary: ISO strings pass through. Numeric seconds or milliseconds are converted. Anything else becomes the
- * current time so the row still sorts instead of dropping out.
- *
- * @param {string | number | { seconds?: unknown } | null | undefined} value Summary timestamp. A `{ seconds }` object is
- *        treated as epoch seconds. Anything else becomes the current time.
- * @returns {string} ISO 8601.
- */
-function updatedAtFrom(value: string | number | { seconds?: unknown } | null | undefined) {
-    if (typeof value === 'string' && Number.isFinite(Date.parse(value)))
-        return new Date(value).toISOString();
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        const ms = value > 1_000_000_000_000 ? value : value * 1000;
-        return new Date(ms).toISOString();
-    }
-    if (value && typeof value === 'object' && Number.isFinite(Number(value.seconds)))
-        return new Date(Number(value.seconds) * 1000).toISOString();
-    return new Date().toISOString();
-}
-
-/**
- * Body of `SendUserCascadeMessage`.
- *
- * Boundary: a working session queues with `MESSAGE_DELIVERY_STRATEGY_WHEN_IDLE`. An idle or waiting session omits
- * `deliveryStrategy` so the IDE runs it immediately. `metadata` and `api_key` are never added — if the server
- * rejects that, the caller returns `ls-requires-credentials` instead of reading a credential file.
- *
- * @param {{ id: string, status?: string }} session Target session.
- * @param {string} prompt Prompt text. v1 sends text only; screenshot paths may already be inside it.
- * @returns {Record<string, unknown>} JSON body.
- */
-export function buildCascadeSendBody(session: { id: string, status?: string }, prompt: string) {
-    const body: Record<string, unknown> = {
-        cascadeId: session.id,
-        items: [{ text: String(prompt ?? '') }],
-    };
-    if (session.status === 'working')
-        body.deliveryStrategy = 'MESSAGE_DELIVERY_STRATEGY_WHEN_IDLE';
-    return body;
-}
-
-/**
  * Default cert loader. Reads the IDE bundled CA and nothing else.
  *
- * @param {{ exe: string }} ls Language server descriptor.
+ * @param {{ exe?: string }} ls Language server descriptor. `exe` is always present on discovered servers.
  * @param {string} [platform] Path platform.
  * @returns {Promise<Buffer>} PEM contents.
  */
-function readBundledCert(ls: { exe: string }, platform: string = process.platform) {
-    return fs.promises.readFile(certPathForLanguageServer(ls.exe, platform));
+function readBundledCert(ls: { exe?: string }, platform: string = process.platform) {
+    // `exe` is a required field of every discovered server; the optional key only keeps the shared `ls` shape assignable.
+    return fs.promises.readFile(certPathForLanguageServer(ls.exe!, platform));
 }
 
 /**
@@ -219,26 +68,26 @@ function readBundledCert(ls: { exe: string }, platform: string = process.platfor
  * that returned it. CSRF tokens stay on `servers` and are not copied onto session rows. `io.exchange` replaces the
  * network in tests.
  *
- * @param {{ projectRoot: string, config?: { experimentalSessions?: boolean, sessions?: unknown }, io?: AntigravitySessionIo }} input
+ * @param {{ projectRoot: string, config?: { experimentalSessions?: unknown, sessions?: unknown }, io?: AntigravitySessionIo }} input
  *        `config` is only read by the picker (`sessions`). `experimentalSessions` is accepted so the adapter can pass
  *        its whole config object. `io` is the language-server transport, not a filesystem.
- * @returns {Promise<{ sessions: Array<Record<string, unknown>>, servers: Array<Record<string, unknown>>, delivery: 'submit', notice?: string }>}
+ * @returns {Promise<{ sessions: Array<Record<string, unknown>>, servers: LanguageServerProcess[], delivery: 'submit', notice?: string }>}
  */
 export async function listAntigravitySessions(input: {
     projectRoot: string;
-    config?: { experimentalSessions?: boolean; sessions?: unknown };
+    config?: { experimentalSessions?: unknown; sessions?: unknown };
     io?: AntigravitySessionIo;
 }) {
     const io = input.io ?? {};
     const delivery = 'submit';
     const picker = readSessionPicker(input.config ?? {});
-    const servers = await discoverLanguageServers(io) as any[];
+    const servers = await discoverLanguageServers(io);
     if (!servers.length)
         return { sessions: [], servers: [], delivery, notice: 'ide-not-running' };
     // `io` is the language-server transport, not a filesystem. Scope checks use the real disk.
     const scope = buildProjectScope(input.projectRoot);
-    const byId = new Map();
-    const readCert = io.readCert ?? ((ls: { exe: string }) => readBundledCert(ls, io.platform));
+    const byId = new Map<string, { id: string; summary: TrajectorySummary; ls: LanguageServerProcess }>();
+    const readCert = io.readCert ?? ((ls: { port: number; csrfToken: string; exe?: string }) => readBundledCert(ls, io.platform));
     for (const ls of servers) {
         let response;
         try {
@@ -250,7 +99,7 @@ export async function listAntigravitySessions(input: {
         catch {
             continue;
         }
-        const summaries = ((response as any)?.trajectorySummaries ?? {}) as Record<string, any>;
+        const summaries = ((response as Record<string, unknown> | undefined)?.trajectorySummaries ?? {}) as Record<string, TrajectorySummary>;
         for (const [id, summary] of Object.entries(summaries)) {
             if (!summary || summary.killed === true)
                 continue;
@@ -311,7 +160,7 @@ export async function sendToAntigravityConversation(input: {
     if (!ls)
         return { ok: false, code: 'ls-unreachable', error: sessionErrorText('ls-unreachable') };
     const io = input.io ?? {};
-    const readCert = io.readCert ?? ((server: { exe: string }) => readBundledCert(server, io.platform));
+    const readCert = io.readCert ?? ((server: { port: number; csrfToken: string; exe?: string }) => readBundledCert(server, io.platform));
     const transport = { readCert, exchange: io.exchange };
     try {
         await callLanguageServer(ls, 'SendUserCascadeMessage', buildCascadeSendBody(session, input.prompt), transport);
@@ -344,8 +193,8 @@ export async function sendToAntigravityConversation(input: {
  * @returns {{ enabled: boolean, list: (projectRoot: string) => Promise<{ sessions: unknown[], delivery: string, notice?: string }>, send: (request: { id: string }, context: { projectRoot: string, targetSession: AntigravityTargetSession }) => Promise<Record<string, unknown>> }}
  *          `list` refreshes the cached servers. `send` delivers into `context.targetSession`.
  */
-export function createAntigravitySessionBridge(config: any = {}) {
-    let servers: any[] = [];
+export function createAntigravitySessionBridge(config: { experimentalSessions?: unknown; sessionIo?: AntigravitySessionIo; [key: string]: unknown } = {}) {
+    let servers: AntigravityServerRef[] = [];
     const enabled = config.experimentalSessions === true;
     return {
         enabled,

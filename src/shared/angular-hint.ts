@@ -52,36 +52,54 @@ function boundedString(value: unknown) {
     return text || undefined;
 }
 
+/** Untrusted step fields {@link normalizeStep} reads; every value is validated before it is kept. */
+interface RawAngularHintStep {
+    tag?: unknown;
+    id?: unknown;
+    classes?: unknown;
+    attrs?: unknown;
+    index?: unknown;
+}
+
+/** Untrusted hint fields {@link normalizeAngularHint} reads; every value is validated before it is kept. */
+interface RawAngularHint {
+    path?: unknown;
+    className?: unknown;
+    text?: unknown;
+}
+
 /**
  * Normalize one path step.
  *
- * @param {unknown} raw Raw step.
+ * @param {unknown} input Raw step from the page payload.
  * @returns {AngularHintStep | null} Clean step, or `null` without a usable tag.
  */
-function normalizeStep(raw: any): AngularHintStep | null {
+function normalizeStep(input: unknown): AngularHintStep | null {
+    const raw = input as RawAngularHintStep | null | undefined;
     const tag = boundedString(raw?.tag)?.toLowerCase();
-    if (!tag || !/^[a-z][\w.-]*$/.test(tag))
+    if (!raw || !tag || !/^[a-z][\w.-]*$/.test(tag))
         return null;
     const step: AngularHintStep = { tag };
     const id = boundedString(raw.id);
     if (id)
         step.id = id;
     if (Array.isArray(raw.classes)) {
-        const classes = raw.classes.map(boundedString).filter(Boolean).slice(0, ANGULAR_HINT_LIMITS.classes);
+        const classes = raw.classes.map(boundedString).filter((name): name is string => Boolean(name)).slice(0, ANGULAR_HINT_LIMITS.classes);
         if (classes.length)
             step.classes = classes;
     }
     if (raw.attrs && typeof raw.attrs === 'object') {
+        const rawAttrs = raw.attrs as Record<string, unknown>;
         const attrs: Record<string, string> = {};
         for (const name of ANGULAR_HINT_ATTRS) {
-            const value = boundedString(raw.attrs[name]);
+            const value = boundedString(rawAttrs[name]);
             if (value)
                 attrs[name] = value;
         }
         if (Object.keys(attrs).length)
             step.attrs = attrs;
     }
-    if (Number.isInteger(raw.index) && raw.index >= 0 && raw.index < 10_000)
+    if (typeof raw.index === 'number' && Number.isInteger(raw.index) && raw.index >= 0 && raw.index < 10_000)
         step.index = raw.index;
     return step;
 }
@@ -89,13 +107,14 @@ function normalizeStep(raw: any): AngularHintStep | null {
 /**
  * Validate and bound an Angular hint from an untrusted payload.
  *
- * @param {unknown} raw `selection.angular` as received.
+ * @param {unknown} input `selection.angular` as received.
  * @returns {AngularHint | null} Normalized hint, or `null` when it has no usable path.
  */
-export function normalizeAngularHint(raw: any): AngularHint | null {
+export function normalizeAngularHint(input: unknown): AngularHint | null {
+    const raw = input as RawAngularHint | null | undefined;
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.path))
         return null;
-    const path = raw.path.slice(-ANGULAR_HINT_LIMITS.pathSteps).map(normalizeStep).filter(Boolean);
+    const path = raw.path.slice(-ANGULAR_HINT_LIMITS.pathSteps).map(normalizeStep).filter((step): step is AngularHintStep => Boolean(step));
     if (path.length === 0)
         return null;
     const hint: AngularHint = { path };

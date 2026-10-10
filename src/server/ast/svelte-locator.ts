@@ -66,7 +66,7 @@ interface SvelteAst {
  * @returns {{ parse: Function } | null} Compiler module, or `null` when Svelte is not installed for that file.
  */
 function loadSvelteCompiler(file: string) {
-    const mod = requireFromProject<any>(file, 'svelte/compiler');
+    const mod = requireFromProject<{ parse?: unknown; default?: { parse?: unknown } }>(file, 'svelte/compiler');
     const parse = mod?.parse ?? mod?.default?.parse;
     return typeof parse === 'function' ? { parse } : null;
 }

@@ -108,6 +108,7 @@ function protectCssStrings(css: string) {
  * @returns {string} CSS text with quoted strings restored.
  */
 function restoreCssStrings(text: string, strings: string[]) {
+    // eslint-disable-next-line no-control-regex -- the \u0000 sentinel is intentional; real text cannot contain NUL.
     return text.replace(/\u0000CSS_STRING_(\d+)\u0000/g, (_: string, index: string) => strings[Number(index)] ?? '');
 }
 

@@ -1,211 +1,18 @@
 import fs from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { ENDPOINTS, ROUTE_PREFIX, TOKEN_HEADER } from '../shared/constants.js';
+import { ENDPOINTS, ROUTE_PREFIX } from '../shared/constants.js';
 import { isLocalHostHeader, isLocalRequest, isSameOriginPageRequest, readToken, tokenMatches } from './security.js';
 import { buildIntentRequest, resolveSelection } from './pipeline.js';
+import type { IntentPayload } from './pipeline.js';
 import { buildPrompt, buildPromptReferenceLines } from './prompt.js';
 import { saveScreenshotPayloads, saveRecordingPayloads } from './screenshot.js';
 import { cleanupInspectorArtifacts } from './output-cleanup.js';
 import { resolveVendorEsmPath } from './vendor.js';
 import { gateSendTarget, handleSessionsGet } from './routes-sessions.js';
+import { pathname, readJsonBody, readOrigin, sendJson, setTokenCorsHeaders } from './routes-http.js';
+import type { InspectorRouteDeps } from './routes-types.js';
 
-/**
- * Options the router reads. Several fields stay `unknown` because `resolveOptions` produces them with `??`.
- * `pathStyle` / `artifactPathStyle` are the resolved prompt unions.
- */
-type InspectorRouteOptions = {
-    defaultAgent?: unknown;
-    applyMode?: unknown;
-    maxSourceContextLines?: unknown;
-    pathStyle?: 'relative' | 'absolute';
-    artifactPathStyle?: 'relative' | 'absolute';
-};
-
-/** One row shape `listSessions` must return so the session routes can map it. */
-type SessionListShape = {
-    sessions?: readonly (Parameters<typeof import('./sessions/types.js').toPublicSession>[0])[] | null;
-    delivery?: unknown;
-    notice?: unknown;
-} | null | undefined;
-
-/**
- * Adapter methods the agents and send routes call.
- * Boundary: `listSessions` is optional because test doubles and non-session agents omit it.
- */
-type InspectorRouteAdapter = {
-    isAvailable(): Promise<{ available?: boolean; reason?: string }>;
-    send(request: unknown, context: unknown): Promise<{
-        events?: unknown[];
-        agent?: unknown;
-        ok?: boolean;
-        error?: unknown;
-    }>;
-    listSessions?(query: { projectRoot: string; fresh?: boolean }): Promise<SessionListShape>;
-};
-
-/**
- * Registry methods the router calls.
- * Boundary: names are `unknown` because `options.defaultAgent` and the page payload are not narrowed to `string`.
- * `sessionCapable` is optional so a route double that only lists agents still assigns; the session routes assert it.
- */
-type InspectorRouteRegistry = {
-    has(name: unknown): boolean;
-    names(): string[];
-    listAvailable(): Promise<unknown[]>;
-    get(name: unknown): InspectorRouteAdapter;
-    sessionCapable?(name: unknown): boolean;
-};
-
-/**
- * Logger calls on the send path.
- * Boundary: `info` and `warn` are not called here. They are part of the type so the shared logger object assigns.
- */
-type InspectorRouteLogger = {
-    info?(...args: unknown[]): void;
-    warn?(...args: unknown[]): void;
-    error(...args: unknown[]): void;
-    audit(...args: unknown[]): void;
-};
-
-/**
- * Dependencies for every inspector route.
- * Boundary: `session` exists only for the Angular bootstrap handoff. `sessionStore` is forwarded, not read here.
- */
-type InspectorRouteDeps = {
-    options: InspectorRouteOptions;
-    token: string;
-    registry: InspectorRouteRegistry;
-    sessionStore: unknown;
-    logger: InspectorRouteLogger;
-    clientCode: string;
-    projectRoot: string;
-    outputDirAbs: string;
-    session?: () => Record<string, unknown>;
-};
-
-/** JSON response. `body` is `unknown` so route object literals stay assignable. */
-function sendJson(res: ServerResponse, status: number, body: unknown) {
-    const text = JSON.stringify(body);
-    res.statusCode = status;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.end(text);
-}
-
-/**
- * Read a JSON body. Node emits `Buffer` chunks when no encoding is set.
- *
- * @param {IncomingMessage} req Request stream. `destroy` aborts an oversized body.
- * @param {number} [limitBytes=15000000] Max accepted bytes.
- * @returns {object} Parsed JSON, or `{}` when the body is empty.
- */
-function readJsonBody(req: IncomingMessage, limitBytes = 15_000_000) {
-    return new Promise<any>((resolve, reject) => {
-        let size = 0;
-        const chunks: Buffer[] = [];
-        req.on('data', (chunk) => {
-            size += chunk.length;
-            if (size > limitBytes) {
-                reject(new Error('Request body too large'));
-                req.destroy();
-                return;
-            }
-            chunks.push(chunk);
-        });
-        req.on('end', () => {
-            try {
-                const text = Buffer.concat(chunks).toString('utf8');
-                resolve(text ? JSON.parse(text) : {});
-            }
-            catch (err) {
-                reject(err);
-            }
-        });
-        req.on('error', reject);
-    });
-}
-/** Pathname of `req.url`, or the raw url when it is not a URL. */
-function pathname(req: { url?: string }) {
-    try {
-        return new URL(req.url ?? '', 'http://localhost').pathname;
-    }
-    catch {
-        return req.url ?? '';
-    }
-}
-/** One query parameter, or null when the url cannot be parsed. `name` is the parameter key. */
-function searchParam(req: { url?: string }, name: string) {
-    try {
-        return new URL(req.url ?? '', 'http://localhost').searchParams.get(name);
-    }
-    catch {
-        return null;
-    }
-}
-
-/**
- * Reads the request Origin header.
- *
- * Boundary: only a single string origin is accepted. Missing or malformed origin values return null and therefore do
- * not receive inspector CORS headers; callers must still perform token validation before trusting cross-origin access.
- *
- * @param {import('node:http').IncomingMessage} req Incoming dev-server request.
- * @returns {string | null} Request origin suitable for echoing into CORS headers, or null.
- */
-function readOrigin(req: import('node:http').IncomingMessage) {
-    const origin = req.headers.origin;
-    return typeof origin === 'string' && origin ? origin : null;
-}
-
-/**
- * Appends `Origin` to the Vary response header without dropping existing values.
- *
- * Boundary: callers should use this only on inspector responses where CORS can vary by request origin. Passing a
- * response with a non-string Vary header leaves array handling to Node's normal header serialization.
- *
- * @param {import('node:http').ServerResponse} res Dev-server response.
- * @returns {void}
- */
-function appendOriginVary(res: import('node:http').ServerResponse) {
-    const current = res.getHeader('Vary');
-    if (!current) {
-        res.setHeader('Vary', 'Origin');
-        return;
-    }
-
-    const text = Array.isArray(current) ? current.join(', ') : String(current);
-    if (!text.toLowerCase().split(',').map((value) => value.trim()).includes('origin')) {
-        res.setHeader('Vary', `${text}, Origin`);
-    }
-}
-
-/**
- * Adds CORS headers for token-authenticated inspector requests.
- *
- * Boundary: cross-origin inspector access is allowed only when the per-process token is present in the query or header.
- * Without this, pages opened through a custom business dev domain cannot call the local `ip:port/__intent-inspector`
- * server; with a wrong token, no CORS headers are emitted and the request is rejected by the route guard.
- *
- * @param {import('node:http').IncomingMessage} req Incoming dev-server request.
- * @param {import('node:http').ServerResponse} res Dev-server response.
- * @param {string} token Per-process dev token.
- * @returns {boolean} True when CORS headers were emitted for a valid token-bearing origin request.
- */
-function setTokenCorsHeaders(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, token: string) {
-    const origin = readOrigin(req);
-    if (!origin || !tokenMatches(token, readToken(req))) {
-        return false;
-    }
-
-    appendOriginVary(res);
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', `${TOKEN_HEADER}, Content-Type`);
-    res.setHeader('Access-Control-Max-Age', '600');
-
-    return true;
-}
+export type { InspectorRouteDeps } from './routes-types.js';
 
 /**
  * Builds the bundler-agnostic connect-style request handler that serves every inspector route.
@@ -338,7 +145,7 @@ export function createInspectorRequestHandler(deps: InspectorRouteDeps) {
         if (url === ENDPOINTS.resolve && req.method === 'POST') {
             if (!guard(req, res))
                 return;
-            readJsonBody(req)
+            readJsonBody<IntentPayload>(req)
                 .then((payload) => {
                 try {
                     const resolved = resolveSelection(payload, deps.projectRoot, options);
@@ -370,7 +177,7 @@ export function createInspectorRequestHandler(deps: InspectorRouteDeps) {
         if (url === ENDPOINTS.send && req.method === 'POST') {
             if (!guard(req, res))
                 return;
-            readJsonBody(req)
+            readJsonBody<IntentPayload>(req)
                 .then(async (payload) => {
                 try {
                     // A target is revalidated before screenshots, launchers, or app opens. No target keeps today's path.

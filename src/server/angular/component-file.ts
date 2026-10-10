@@ -10,10 +10,10 @@ import { assertPathInsideRoot, isInsideRoot } from '../security.js';
  */
 function angularProjectRoots(workspaceRoot: string) {
     try {
-        const json = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'angular.json'), 'utf8'));
+        const json = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'angular.json'), 'utf8')) as { projects?: Record<string, { root?: unknown } | null> | null } | null;
         return Object.values(json?.projects ?? {})
-            .map((project: any) => project?.root)
-            .filter((root) => typeof root === 'string' && root.length > 0);
+            .map((project) => project?.root)
+            .filter((root): root is string => typeof root === 'string' && root.length > 0);
     }
     catch {
         return [];

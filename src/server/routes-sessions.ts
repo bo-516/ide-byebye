@@ -1,4 +1,5 @@
 import { sessionErrorText, SESSION_ID_PATTERNS, toPublicSession } from './sessions/types.js';
+import { sendJson } from './routes-http.js';
 
 /** One row from an agent's session list. Fields match {@link toPublicSession}. */
 type SessionRow = Parameters<typeof toPublicSession>[0];
@@ -32,24 +33,6 @@ type SessionRouteLogger = {
 
 /** Agents whose unrecognized-format warning has already been logged in this process. */
 const warnedFormats = new Set<string>();
-
-/**
- * Write a JSON inspector response.
- *
- * Boundary: duplicates the helper in `routes.ts` so this module does not import the router (that import would cycle).
- * Bodies are catalog or error objects; callers must already have stripped absolute paths.
- *
- * @param {import('node:http').ServerResponse} res Response.
- * @param {number} status HTTP status.
- * @param {object} body JSON body. Callers must already have stripped absolute paths.
- * @returns {void}
- */
-function sendJson(res: import('node:http').ServerResponse, status: number, body: object) {
-    res.statusCode = status;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.end(JSON.stringify(body));
-}
 
 /**
  * Read the `agent` query parameter.

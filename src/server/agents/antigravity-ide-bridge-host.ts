@@ -13,11 +13,12 @@ interface ProcessRow {
     command: string;
 }
 
-/**
- * Hooks for process lookup. Tests pass fakes; production uses `ps` and `lsof`.
- *
- * @typedef {{ listProcesses?: () => ProcessRow[], listenerPids?: (port: number) => number[], restart?: (pid: number) => boolean }} BridgeHostHooks
- */
+/** Hooks for process lookup. Tests pass fakes; production uses `ps` and `lsof`. */
+interface BridgeHostHooks {
+    listProcesses?: () => ProcessRow[];
+    listenerPids?: (port: number) => number[];
+    restart?: (pid: number) => boolean;
+}
 
 /**
  * Workspace id Antigravity IDE puts in `--workspace_id` for a folder.
@@ -203,7 +204,7 @@ function listenerPids(port: number) {
  * @param {BridgeHostHooks} [hooks] Process lookup overrides.
  * @returns {number | null} Host pid.
  */
-export function findAntigravityIdeExtensionHostPid(workspacePath: string, hooks: any = {}) {
+export function findAntigravityIdeExtensionHostPid(workspacePath: string, hooks: BridgeHostHooks = {}) {
     const processes = (hooks.listProcesses ?? listProcesses)();
     const lookup = hooks.listenerPids ?? listenerPids;
     const ports = new Map();
@@ -231,7 +232,7 @@ export function findAntigravityIdeExtensionHostPid(workspacePath: string, hooks:
  * @param {BridgeHostHooks} [hooks] Process lookup overrides.
  * @returns {boolean} True when the signal was sent.
  */
-export function restartAntigravityIdeExtensionHost(pid: number, hooks: any = {}) {
+export function restartAntigravityIdeExtensionHost(pid: number, hooks: BridgeHostHooks = {}) {
     if (hooks.restart)
         return hooks.restart(pid) === true;
     const row = listProcesses().find((item) => item.pid === pid);

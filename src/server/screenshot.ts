@@ -140,7 +140,7 @@ export function cleanupExpiredScreenshots(outputDir: string, projectRoot: string
  * @returns {{ scope: string, filePath: string, mimeType: string, width?: number, height?: number, capturedAt?: string }} Persisted screenshot metadata.
  */
 /** Browser screenshot payload `writeScreenshotPayload` reads. A missing `dataUrl` throws in `parseDataUrl`. */
-type ScreenshotWritePayload = { dataUrl: string, scope: string, width?: number, height?: number, capturedAt?: string };
+export type ScreenshotWritePayload = { dataUrl: string, scope: string, width?: number, height?: number, capturedAt?: string };
 
 function writeScreenshotPayload(payload: ScreenshotWritePayload, request: { projectRoot: string }, outputDir: string) {
     const { mimeType, ext, bytes } = parseDataUrl(payload.dataUrl);
@@ -248,7 +248,7 @@ export function cleanupExpiredRecordings(outputDir: string, projectRoot: string,
  * Browser recording payload. `stillFrame.dataUrl` is optional so a stream can be stored before a still exists;
  * a present but malformed data URL still throws in `parseDataUrl`.
  */
-type RecordingWritePayload = {
+export type RecordingWritePayload = {
     scope?: string;
     events?: unknown;
     clip?: unknown;

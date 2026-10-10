@@ -51,3 +51,4 @@
 ## Before committing
 
 - `pnpm typecheck` is clean.
+- `pnpm lint` is clean (ESLint enforces the `any` / `@ts-*` / named-export / 400-line rules above).

@@ -101,10 +101,11 @@ function bodyClosingOffsets(source: string, lang: 'tsx' | 'jsx') {
     if (Array.isArray(result.errors) && result.errors.length > 0)
         return null;
     const offsets: number[] = [];
-    walkAst(result.program, (node: any) => {
-        const name = node.type === 'JSXElement' ? node.openingElement?.name : null;
-        if (name?.type === 'JSXIdentifier' && name.name === 'body' && node.closingElement)
-            offsets.push(node.closingElement.start);
+    walkAst(result.program, (node) => {
+        const el = node as typeof node & { openingElement?: { name?: { type?: string, name?: unknown } }, closingElement?: { start?: number } | null };
+        const name = el.type === 'JSXElement' ? el.openingElement?.name : null;
+        if (name?.type === 'JSXIdentifier' && name.name === 'body' && typeof el.closingElement?.start === 'number')
+            offsets.push(el.closingElement.start);
     });
     return offsets.sort((a, b) => a - b);
 }
@@ -116,7 +117,8 @@ function bodyClosingOffsets(source: string, lang: 'tsx' | 'jsx') {
  * @param {string} input.source Module source as seen by the loader.
  * @param {string} input.resourcePath Absolute module path.
  * @param {string} input.projectDir Absolute Next project directory.
- * @param {string} input.bootstrapFile Absolute path of the generated `'use client'` bootstrap module.
+ * @param {string | undefined} input.bootstrapFile Absolute path of the generated `'use client'` bootstrap module. Missing or
+ *   empty leaves the module unchanged.
  * @param {(pagesDir: string) => boolean} input.hasCustomApp Whether that pages directory has an `_app` module; only
  *   called for Pages Router modules. Answering wrongly either skips injection (no custom `_app` → nothing mounts) or
  *   injects into every page (harmless: the bootstrap is a shared, idempotent module). A zero-arg function is accepted.
@@ -126,7 +128,7 @@ export function injectNextBootstrap({ source, resourcePath, projectDir, bootstra
     source: string;
     resourcePath: string;
     projectDir: string;
-    bootstrapFile: string;
+    bootstrapFile?: string;
     hasCustomApp: (pagesDir: string) => boolean;
 }) {
     if (!bootstrapFile || typeof source !== 'string' || source.includes(BOOTSTRAP_IDENTIFIER))

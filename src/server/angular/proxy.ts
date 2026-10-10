@@ -26,7 +26,7 @@ const REGISTRY_KEY = Symbol.for('ide-byebye.angular.runtimes');
  * @returns {ReturnType<typeof createInspectorRuntime>} Shared runtime.
  */
 function angularRuntime(root: string, options: AngularIdeByebyeOptions): ReturnType<typeof createInspectorRuntime> {
-    const registry: Map<string, ReturnType<typeof createInspectorRuntime>> = (globalThis as any)[REGISTRY_KEY] ??= new Map();
+    const registry = ((globalThis as Record<PropertyKey, unknown>)[REGISTRY_KEY] ??= new Map()) as Map<string, ReturnType<typeof createInspectorRuntime>>;
     if (!registry.has(root)) {
         const runtime = createInspectorRuntime(options, { exposeSession: true });
         runtime.initPaths(root);

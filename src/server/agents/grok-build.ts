@@ -52,7 +52,7 @@ export async function resolveGrokBuildCommand(config: { command?: unknown }) {
  * @param {Record<string, unknown>} config Grok Build adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter registered by the agent registry.
  */
-export function createGrokBuildAdapter(config: any = {}) {
+export function createGrokBuildAdapter(config: Record<string, unknown> = {}) {
     const sessionsEnabled = readSessionPicker(config).enabled;
     return {
         name: 'grok-build',

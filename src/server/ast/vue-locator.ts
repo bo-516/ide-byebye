@@ -32,7 +32,7 @@ import { importFields, pickTemplateHit, templateHitFields, templateOffset, type 
  */
 function loadVueCompiler(file?: string) {
     const from = file || fileURLToPath(import.meta.url);
-    const mod = requireFromProject<any>(from, '@vue/compiler-dom', file ? 'vue' : undefined);
+    const mod = requireFromProject<{ parse?: unknown; default?: { parse?: unknown } }>(from, '@vue/compiler-dom', file ? 'vue' : undefined);
     const parse = mod?.parse ?? mod?.default?.parse;
     return typeof parse === 'function' ? { parse } : null;
 }
@@ -96,7 +96,7 @@ function extractScriptJsx(code: string, script: VueCompilerNode, line: number, c
     for (const key of ['selectedNode', 'containingComponent', 'imports']) {
         if (inner[`${key}Code`]) {
             out[`${key}Code`] = inner[`${key}Code`];
-            out[`${key}Range`] = shift(inner[`${key}Range`]);
+            out[`${key}Range`] = shift(inner[`${key}Range`] as { startLine: number, endLine: number } | null | undefined);
         }
     }
     if (!out.selectedNodeCode)

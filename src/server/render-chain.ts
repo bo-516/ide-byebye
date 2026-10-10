@@ -28,6 +28,7 @@ const MAX_RENDER_CHAIN_SCAN = 32;
 /** Tags kept for the prompt line: identifiers and member names such as `DialogPrimitive.Content`. */
 const CHAIN_TAG = /^[A-Za-z_$][\w$.-]{0,63}$/;
 /** Control characters (a decoded `%0A`, say) a file path must not carry into the single prompt line. */
+// eslint-disable-next-line no-control-regex -- deliberate: rejects control characters in page-supplied paths.
 const CONTROL_CHAR = /[\u0000-\u001f\u007f]/;
 /** Separator between chain entries in the prompt line, innermost first. */
 const CHAIN_SEPARATOR = ' ← ';
