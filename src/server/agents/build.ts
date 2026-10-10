@@ -10,14 +10,19 @@ import { createClaudeCliAdapter } from './claude-cli.js';
 import { createOpenCodeAdapter } from './opencode.js';
 import { createAntigravityIdeAdapter } from './antigravity-ide.js';
 import { createAntigravityAdapter } from './antigravity.js';
+import { createDevinCliAdapter } from './devin-cli.js';
+import { createDevinIdeAdapter } from './devin-ide.js';
+import { createWindsurfIdeAdapter } from './windsurf-ide.js';
 import { createCustomAgentAdapters } from './custom-client.js';
 
 /**
  * Construct the agent registry from the (already-resolved) agent config map.
  *
- * Boundary: clipboard, file, Codex, Claude, Cursor, Grok Build, Claude Code CLI (`claudeCli`), and OpenCode
- * (`opencode`) are enabled by default; pass `agents.<name>: false` (or `{ enabled: false }`) to opt out. A missing
- * CLI or app only greys the row out (`isAvailable`). Antigravity IDE (`antigravityIde`) and Antigravity CLI (`antigravity`) stay
+ * Boundary: clipboard, file, Codex, Claude, Cursor, Grok Build, Claude Code CLI (`claudeCli`), OpenCode
+ * (`opencode`), and Devin CLI (`devinCli`) are enabled by default; pass `agents.<name>: false` (or
+ * `{ enabled: false }`) to opt out. A missing CLI or app only greys the row out (`isAvailable`).
+ * Antigravity IDE (`antigravityIde`), Antigravity CLI (`antigravity`), Devin Desktop (`devinIde`), and
+ * Windsurf (`windsurfIde`) stay
  * unregistered until the host sets `true` or an options object — omitting them leaves the footer unchanged. App agents
  * also accept an object config (e.g. `cursorApp.workspace` / `grokBuild.command`). `agents.custom` adds config-defined
  * clients that receive the prompt in their own input box; it is empty unless the host project declares it. Custom
@@ -51,6 +56,9 @@ export function buildRegistry(agents: Record<string, unknown>) {
     const opencode = coerceAgentConfig(agents.opencode ?? true);
     if (opencode)
         registry.register(createOpenCodeAdapter(opencode));
+    const devinCli = coerceAgentConfig(agents.devinCli ?? true);
+    if (devinCli)
+        registry.register(createDevinCliAdapter(devinCli));
     // Opt-in: no `?? true`, so a project that never mentions these keys does not grow the footer.
     const antigravityIde = coerceAgentConfig(agents.antigravityIde);
     if (antigravityIde)
@@ -58,6 +66,12 @@ export function buildRegistry(agents: Record<string, unknown>) {
     const antigravity = coerceAgentConfig(agents.antigravity);
     if (antigravity)
         registry.register(createAntigravityAdapter(antigravity));
+    const devinIde = coerceAgentConfig(agents.devinIde);
+    if (devinIde)
+        registry.register(createDevinIdeAdapter(devinIde));
+    const windsurfIde = coerceAgentConfig(agents.windsurfIde);
+    if (windsurfIde)
+        registry.register(createWindsurfIdeAdapter(windsurfIde));
     for (const adapter of createCustomAgentAdapters(agents.custom))
         registry.register(adapter);
     return registry;

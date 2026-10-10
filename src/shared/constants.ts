@@ -117,6 +117,9 @@ export const ALL_AGENT_NAMES = [
     'grok-build',
     'claude-cli',
     'opencode',
+    'devin-cli',
     'antigravity-ide',
     'antigravity',
+    'devin-ide',
+    'windsurf-ide',
 ];

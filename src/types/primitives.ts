@@ -24,8 +24,11 @@ export type AgentId =
   | 'grok-build'
   | 'claude-cli'
   | 'opencode'
+  | 'devin-cli'
   | 'antigravity-ide'
   | 'antigravity'
+  | 'devin-ide'
+  | 'windsurf-ide'
   | (string & {});
 
 /** Hint embedded in the handoff: plan only vs allow the agent to edit. */

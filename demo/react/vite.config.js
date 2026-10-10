@@ -14,6 +14,8 @@ export default defineConfig({
       agents: {
         antigravityIde: { experimentalSessions: true },
         antigravity: true,
+        devinIde: true,
+        windsurfIde: true,
       },
     }),
     react(),

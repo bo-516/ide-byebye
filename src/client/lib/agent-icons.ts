@@ -19,6 +19,9 @@ export const AGENT_MARK_BRANDS: Record<string, string> = {
     opencode: 'opencode',
     'antigravity-ide': 'antigravity-ide',
     antigravity: 'antigravity',
+    'devin-cli': 'devin',
+    'devin-ide': 'devin-ide',
+    'windsurf-ide': 'windsurf',
 };
 
 /**

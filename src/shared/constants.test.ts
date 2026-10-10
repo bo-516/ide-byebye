@@ -40,7 +40,10 @@ test('ALL_AGENT_NAMES lists the shipped agent identifiers in stable order', () =
         'grok-build',
         'claude-cli',
         'opencode',
+        'devin-cli',
         'antigravity-ide',
         'antigravity',
+        'devin-ide',
+        'windsurf-ide',
     ]);
 });

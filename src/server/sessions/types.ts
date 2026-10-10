@@ -11,6 +11,16 @@ import { SESSION_TITLE_MAX } from '../../shared/constants.js';
 export const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Devin CLI session id shape: the slug `devin list` returns (e.g. `alluring-calendula`).
+ *
+ * Boundary: only letters, digits, and hyphens are accepted — a page-supplied id cannot become a flag, a path, or a
+ * shell token before it is embedded as a single-quoted `-r` argument.
+ *
+ * @type {RegExp}
+ */
+export const DEVIN_SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{1,79}$/;
+
+/**
  * Per-agent id patterns. All three shipped session agents use {@link SESSION_ID_PATTERN}.
  *
  * Boundary: an agent missing from this map cannot accept `targetSessionId` (`target-invalid`).
@@ -21,6 +31,7 @@ export const SESSION_ID_PATTERNS = {
     'codex-app': SESSION_ID_PATTERN,
     'grok-build': SESSION_ID_PATTERN,
     'antigravity-ide': SESSION_ID_PATTERN,
+    'devin-cli': DEVIN_SESSION_ID_PATTERN,
 };
 
 /**

@@ -36,9 +36,9 @@ async function listedAgents(agents: Record<string, unknown>) {
     }
 }
 
-test('GET /agents lists Claude Code CLI and OpenCode by default, right after Grok Build', async () => {
+test('GET /agents lists Claude Code CLI, OpenCode, and Devin CLI by default, right after Grok Build', async () => {
     assert.deepEqual((await listedAgents({})).map((row) => row.name), [
-        'clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode',
+        'clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode', 'devin-cli',
     ]);
 });
 
