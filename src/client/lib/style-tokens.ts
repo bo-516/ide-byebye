@@ -70,6 +70,20 @@ export const DARK_TOKENS = `
     0 6px 16px -6px rgba(0, 0, 0, 0.6);
   --cii-tip-bg: #f0f0f4;
   --cii-tip-text: #18181d;
+
+  --cii-pick-line: #8d80ff;
+  --cii-pick-fill: rgba(141, 128, 255, 0.08);
+  --cii-pick-glow: 0 0 18px rgba(141, 128, 255, 0.30);
+  --cii-pick-tag: #6b5cff;
+  --cii-pick-tag-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10), 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 6px 16px -6px rgba(0, 0, 0, 0.6);
+  --cii-on-pick-tag: #ffffff;
+  --cii-on-pick-tag-muted: rgba(255, 255, 255, 0.76);
+  --cii-on-pick-tag-chip: rgba(255, 255, 255, 0.20);
+  --cii-on-pick-tag-rule: rgba(255, 255, 255, 0.30);
+  --cii-nomap-line: #f5a524;
+  --cii-nomap-fill: rgba(245, 165, 36, 0.08);
+  --cii-nomap-tag: #b25b00;
 `;
 
 /**
@@ -81,6 +95,10 @@ export const DARK_TOKENS = `
  * shadow). It is white and outlined in the light theme but sunken below the panel in the dark one, so it cannot reuse
  * a surface token. Focus stays neutral, like the ink Send button and gray chips around it: a firmer edge plus a soft
  * lift in the light theme, a deeper inset in the dark one. An accent ring would be the loudest thing in the panel.
+ *
+ * The `--cii-pick*` / `--cii-on-pick-tag*` / `--cii-nomap*` groups paint the hover highlight on the page (box line,
+ * tint, soft outer glow; the floating tag and the text on it). They are drawn over the host page rather than the panel, so
+ * both themes keep a saturated tag that reads on light and dark pages alike, and white tag text keeps ≥ 4.5:1 contrast.
  *
  * Boundary: tokens live on `:host` because custom properties survive the host's inline `all: initial` reset, whereas
  * inherited real properties (`font-family`, `color-scheme`) do not — those are re-applied on every top-level shadow
@@ -146,6 +164,19 @@ export const TOKENS_STYLE = `
     0 6px 14px -6px rgba(22, 22, 30, 0.5);
   --cii-tip-bg: #18181d;
   --cii-tip-text: #f5f5f7;
+
+  --cii-pick-line: #6655ff;
+  --cii-pick-fill: rgba(102, 85, 255, 0.04);
+  --cii-pick-glow: 0 0 18px rgba(102, 85, 255, 0.22);
+  --cii-pick-tag: #5b4bf5;
+  --cii-pick-tag-shadow: 0 1px 2px rgba(22, 22, 30, 0.18), 0 6px 16px -6px rgba(22, 22, 30, 0.42);
+  --cii-on-pick-tag: #ffffff;
+  --cii-on-pick-tag-muted: rgba(255, 255, 255, 0.76);
+  --cii-on-pick-tag-chip: rgba(255, 255, 255, 0.20);
+  --cii-on-pick-tag-rule: rgba(255, 255, 255, 0.30);
+  --cii-nomap-line: #c26d00;
+  --cii-nomap-fill: rgba(194, 109, 0, 0.06);
+  --cii-nomap-tag: #b25b00;
 }
 :host > * {
   color-scheme: light;

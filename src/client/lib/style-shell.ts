@@ -1,7 +1,8 @@
-import { OVERLAY_Z_INDEX, DIALOG_Z_INDEX } from '../../shared/constants.js';
+import { DIALOG_Z_INDEX } from '../../shared/constants.js';
 
 /**
- * Shadow-root defaults, the page-picking highlight, and the dialog shell (scrim, panel, header controls, body).
+ * Shadow-root defaults and the dialog shell (scrim, panel, header controls, body). The page-picking highlight lives in
+ * `style-overlay.ts`.
  *
  * Boundary: composed right after the tokens so every component rule inherits its reset, control font inheritance, and
  * focus ring. The panel is `overflow: visible` so tooltips and dropdowns can escape it; its entrance animation touches
@@ -17,40 +18,6 @@ button:focus-visible, [role="button"]:focus-visible {
   outline: 2px solid var(--cii-accent);
   outline-offset: 2px;
 }
-
-.cii-overlay {
-  position: fixed;
-  pointer-events: none;
-  z-index: ${OVERLAY_Z_INDEX};
-  border: 1.5px solid var(--cii-accent);
-  background: var(--cii-accent-softer);
-  border-radius: 4px;
-  box-shadow: 0 0 0 3px var(--cii-accent-softer);
-  transition: all 70ms ease-out;
-}
-.cii-overlay.cii-nomap {
-  border: 1.5px dashed var(--cii-warning);
-  background: rgba(229, 137, 10, 0.08);
-  box-shadow: none;
-}
-.cii-label {
-  position: fixed;
-  pointer-events: none;
-  z-index: ${OVERLAY_Z_INDEX};
-  font: 500 11px/15px var(--cii-mono);
-  background: #18181d;
-  color: #f5f5f7;
-  padding: 3px 7px;
-  border-radius: 6px;
-  white-space: nowrap;
-  max-width: 80vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 6px 16px -4px rgba(0, 0, 0, 0.4);
-}
-.cii-label .cii-tag { color: #b3aaff; }
-.cii-label .cii-loc { color: #f5f5f7; }
-.cii-label.cii-nomap { background: #8a4b00; }
 
 .cii-backdrop {
   position: fixed;
