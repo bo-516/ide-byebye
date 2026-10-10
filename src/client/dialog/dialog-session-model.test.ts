@@ -7,7 +7,6 @@ import {
     applySessionMenuKey,
     applySessionSendResult,
     formatSessionAge,
-    isRepoRootLocation,
     payloadTargetId,
     readSessionTargets,
     sessionLoadingView,
@@ -77,21 +76,18 @@ test('payload carries targetSessionId only for the agent that has a target', () 
     assert.equal(payloadTargetId({}, 'codex-app'), undefined);
 });
 
-test('ancestor locations are the repo root and relative time is stable', () => {
-    assert.equal(isRepoRootLocation('..'), true);
-    assert.equal(isRepoRootLocation('../..'), true);
-    assert.equal(isRepoRootLocation('.'), false);
+test('ancestor locations show the directory name and relative time is stable', () => {
     const row = sessionMenuRow({
         id: '1',
         title: '',
-        projectName: 'ai-inspector',
+        projectName: 'project',
         location: '..',
         status: 'idle',
         live: false,
         targetable: true,
         updatedAt: '2026-09-27T00:00:00.000Z',
     }, Date.parse('2026-09-27T00:03:00.000Z'), 'zh');
-    assert.equal(row.locationKey, 'session.location.repoRoot');
+    assert.equal(row.locationText, 'project');
     assert.equal(row.statusKey, 'session.status.closed');
     assert.equal(row.marker, '○');
     const child = sessionMenuRow({

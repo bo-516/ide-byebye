@@ -894,7 +894,7 @@ Codex App、Grok Build，以及（需开关）Antigravity IDE，可以把下一�
 | Grok Build | 恢复并直接发送 | 新终端执行 `grok --resume <id>` 并提交 prompt。已经开在终端里的会话不能注入。 |
 | Antigravity IDE | 直接提交 | prompt 直接进入 IDE 会话（不是预填）。仅当 `agents.antigravityIde.experimentalSessions` 为 `true`。 |
 
-菜单只显示当前项目的会话：同一目录、子目录，或不高于 git 根的祖先目录。标题只取第一行，最多 120 字。页面拿不到绝对路径、进程号、会话正文或 token。
+菜单只显示当前项目的会话：同一目录、子目录，或祖先目录——在 git 根以内不限深度（开在仓库根的会话）；超出 git 根时，只算距项目根不超过两层的祖先（存放多个仓库的上级目录）。位于 home 目录或更高层的祖先不算。标题只取第一行，最多 120 字。页面拿不到绝对路径、进程号、会话正文或 token。
 
 Antigravity 默认关闭。服务端用 IDE 自带 CA，经回环访问 language server，CSRF token 来自该进程的命令行。不读取任何凭证文件。
 

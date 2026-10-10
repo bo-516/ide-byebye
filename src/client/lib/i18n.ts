@@ -289,7 +289,6 @@ const STRINGS: Record<string, { zh: string; en: string }> = {
     'session.reason.openInTerminal': { zh: '已在终端中打开，请直接在该终端输入', en: 'Already open in a terminal; type there' },
     'session.reason.liveUnknown': { zh: '无法确认是否已在其他终端打开', en: 'Cannot tell whether it is open in another terminal' },
     'session.reason.cwdMissing': { zh: '会话目录已不存在', en: 'The session directory no longer exists' },
-    'session.location.repoRoot': { zh: '仓库根', en: 'Repo root' },
     'session.untitled': { zh: '未命名会话', en: 'Untitled session' },
     'session.target.label': { zh: '发送到 {label} · {title}', en: 'Send to {label} · {title}' },
     'session.error.targetMissing': { zh: '目标会话已不存在或已归档，已切回新会话', en: 'That session is gone or archived. Switched back to a new session.' },

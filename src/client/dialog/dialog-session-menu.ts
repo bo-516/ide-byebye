@@ -95,7 +95,7 @@ export function fillSessionMenu(menuEl: HTMLElement, action: { name: string; lab
         const titleTextRow = row.untitled ? t('session.untitled') : row.title;
         const top = el('div', 'cii-session-row-title', `${mark}${row.marker} ${titleTextRow}`);
         top.classList.add(markerClass);
-        const place = row.locationKey ? t(row.locationKey) : row.locationText;
+        const place = row.locationText;
         button.append(top, el('div', 'cii-session-row-meta', `${t(row.statusKey)} · ${place} · ${row.relativeTime}`));
         button.addEventListener('click', () => hooks.onChoose(sessions[index], row));
         list.append(button);
