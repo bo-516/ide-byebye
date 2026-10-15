@@ -2,6 +2,7 @@ import { resolvePromptPathStyleOptions } from './config.js';
 import { formatRefPath } from './prompt-paths.js';
 import { buildRenderChainLines } from './render-chain.js';
 import { buildStyleContextLines } from './styles.js';
+import { buildComponentStateLines, type ResolvedComponentState } from './component-state.js';
 
 /** Inclusive line span. Missing ends mean a single line; a missing start still renders. */
 type PromptLineRange = {
@@ -65,6 +66,7 @@ type PromptRequest = {
         }>;
         properties?: string[];
     } | null;
+    componentState?: ResolvedComponentState | null;
 };
 
 /**
@@ -214,7 +216,9 @@ export function filterInlineReferenceLines(refs: string[], intent: string) {
  * references should have been rejected before this renderer is called. Source path
  * style defaults to relative against `request.projectRoot` (Grok Build rewrites that
  * root to its `--cwd` before calling this); screenshot / still paths default to absolute. A portal pick adds one
- * `Rendered via portal:` line after the references (see `render-chain.ts`); other prompts are unchanged.
+ * `Rendered via portal:` line after the references (see `render-chain.ts`); other prompts are unchanged. Rendered
+ * styles and, when attached, the component-state block (`component-state.ts`) follow as separate blank-line-separated
+ * blocks before the intent.
  *
  * @param {PromptRequest} request Intent request with source references, screenshots, and user intent.
  * @param {{ pathStyle?: 'relative' | 'absolute', artifactPathStyle?: 'relative' | 'absolute' }} [options] Path formatting for `@` refs.
@@ -222,9 +226,11 @@ export function filterInlineReferenceLines(refs: string[], intent: string) {
  */
 export function buildPrompt(request: PromptRequest, options: { pathStyle?: 'relative' | 'absolute', artifactPathStyle?: 'relative' | 'absolute' } = {}) {
     const intent = String(request.intent ?? '').trim();
-    const chainLines = buildRenderChainLines(request, resolvePromptPathStyleOptions(options).pathStyle);
+    const { pathStyle } = resolvePromptPathStyleOptions(options);
+    const chainLines = buildRenderChainLines(request, pathStyle);
     const refs = [...filterInlineReferenceLines(buildPromptReferenceLines(request, options), intent), ...chainLines];
-    const styleLines = buildStyleContextLines(request);
-    const top = refs.length && styleLines.length ? [...refs, '', ...styleLines] : [...refs, ...styleLines];
+    // Context blocks, each separated by one blank line: references, rendered styles, component state.
+    const blocks = [refs, buildStyleContextLines(request), buildComponentStateLines(request, pathStyle)].filter((block) => block.length);
+    const top = blocks.flatMap((block, index) => (index ? ['', ...block] : block));
     return [...top, ...(top.length ? [''] : []), intent].join('\n').trim() + '\n';
 }

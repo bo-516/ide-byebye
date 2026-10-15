@@ -8,6 +8,7 @@ import { extractSourceContext } from './source-context.js';
 import type { SourceContext } from './source-context.js';
 import type { RecordingWritePayload, ScreenshotWritePayload } from './screenshot.js';
 import { normalizeStyles } from './styles.js';
+import type { ResolvedComponentState } from './component-state.js';
 
 /**
  * Browser selection before path checks. `inspPath` is the stamper value or the synthetic Angular path;
@@ -34,6 +35,8 @@ export type IntentPayload = {
     screenshot?: ScreenshotWritePayload | null;
     screenshots?: readonly ScreenshotWritePayload[] | null;
     recordings?: readonly RecordingWritePayload[] | null;
+    /** Untrusted component-state attachment; resolved by `resolveComponentState` on the send route. */
+    componentState?: unknown;
 };
 
 /**
@@ -80,6 +83,7 @@ export type IntentRequest = {
     screenshots?: readonly { filePath?: string }[];
     screenshot?: { filePath?: string };
     recordings?: readonly { stillFramePath?: string }[];
+    componentState?: ResolvedComponentState | null;
 };
 
 /**

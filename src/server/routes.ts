@@ -6,6 +6,7 @@ import { buildIntentRequest, resolveSelection } from './pipeline.js';
 import type { IntentPayload } from './pipeline.js';
 import { buildPrompt, buildPromptReferenceLines } from './prompt.js';
 import { saveScreenshotPayloads, saveRecordingPayloads } from './screenshot.js';
+import { resolveComponentState } from './component-state.js';
 import { cleanupInspectorArtifacts } from './output-cleanup.js';
 import { resolveVendorEsmPath } from './vendor.js';
 import { gateSendTarget, handleSessionsGet } from './routes-sessions.js';
@@ -196,6 +197,7 @@ export function createInspectorRequestHandler(deps: InspectorRouteDeps) {
                     request.screenshots = saveScreenshotPayloads(payload.screenshots ?? (payload.screenshot ? [payload.screenshot] : undefined), request, deps.outputDirAbs);
                     request.screenshot = request.screenshots?.[0];
                     request.recordings = saveRecordingPayloads(payload.recordings, request, deps.outputDirAbs);
+                    request.componentState = resolveComponentState(payload.componentState, deps.projectRoot);
                     const prompt = buildPrompt(request, {
                         pathStyle: options.pathStyle,
                         artifactPathStyle: options.artifactPathStyle,
