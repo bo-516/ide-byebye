@@ -378,8 +378,8 @@ text. Keep it out of git:
 | `recordings/` | rrweb event streams and still frames. |
 | `next/bootstrap.js` | Generated client bootstrap for `next dev`. |
 
-Prompt order: `@code` references, then rendered styles (if attached), then your
-intent.
+Prompt order: `@code` references, then rendered styles (if attached), then
+component state (if attached), then your intent.
 
 ## Framework notes
 
@@ -398,6 +398,12 @@ intent.
 - **Vue**: Pug templates are stamped with your project's `pug`; the prompt then
   uses a line window instead of an exact range.
 - **Not stamped**: `.astro` and `.mdx` files.
+- **Component state**: React (dev builds) and Vue 3 only; the tool is hidden for
+  other frameworks. It reads the component that rendered the picked element.
+  Vue state keeps its names; React hook state is named from the component's
+  source when that is unambiguous (only `useState` / `useReducer` among state
+  hooks, no custom hooks), otherwise it shows as `state.#n` in call order.
+  Watching polls once per frame while it runs and costs nothing otherwise.
 - **Turbopack rules only**: `ide-byebye/turbopack` in `turbopack.rules` still
   works; switch to `ide-byebye/next` to also cover `--webpack`.
 - **Without npm**: `npm run build` writes `dist/ide-byebye.js`, a
