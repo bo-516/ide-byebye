@@ -42,6 +42,8 @@ export const DARK_TOKENS = `
   --cii-accent-text: #aaa1ff;
   --cii-accent-soft: rgba(141, 128, 255, 0.17);
   --cii-accent-softer: rgba(141, 128, 255, 0.09);
+  --cii-on-accent: #ffffff;
+  --cii-pill-accent: #a99fff;
 
   --cii-ink: #e7e7ed;
   --cii-ink-top: #ffffff;
@@ -138,6 +140,8 @@ export const TOKENS_STYLE = `
   --cii-accent-text: #4f3ff0;
   --cii-accent-soft: rgba(102, 85, 255, 0.11);
   --cii-accent-softer: rgba(102, 85, 255, 0.06);
+  --cii-on-accent: #ffffff;
+  --cii-pill-accent: #a99fff;
 
   --cii-ink: #18181d;
   --cii-ink-top: #35353e;

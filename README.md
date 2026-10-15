@@ -140,7 +140,8 @@ Then:
 
 1. **Pick.** Hold ⌘ (Ctrl on Windows and Linux) and click an element, or press `Alt+Shift+I`.
 2. **Describe.** Type what to change. You can also pick more elements as `@code`
-   references, or attach screenshots, computed styles or a recording.
+   references, or attach screenshots, computed styles, a recording, or the
+   component's live state — and watch how that state changes while you use the page.
 3. **Send.** Enter sends to the agent shown next to the Send button (Claude App
    by default). Switch agents, or pick a session that's already open, from that
    picker. ⧉ copies the prompt instead.

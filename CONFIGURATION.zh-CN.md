@@ -354,7 +354,7 @@ ideByebye({
 | `recordings/` | rrweb 事件流和静帧。 |
 | `next/bootstrap.js` | 为 `next dev` 生成的客户端 bootstrap。 |
 
-prompt 顺序：`@code` 引用 → 渲染样式（如有）→ 你的意图。
+prompt 顺序：`@code` 引用 → 渲染样式（如有）→ 组件 state（如有）→ 你的意图。
 
 ## 框架说明
 
@@ -368,6 +368,10 @@ prompt 顺序：`@code` 引用 → 渲染样式（如有）→ 你的意图。
 - **Nuxt 4**：路径相对 Vite 的 root（`app/`），形如 `app/app.vue #9-13`。
 - **Vue**：pug 模板用你项目里的 `pug` 打点；prompt 里用行窗口，而不是精确范围。
 - **不打点**：`.astro` 和 `.mdx` 文件。
+- **组件 state**：只支持 React（开发构建）和 Vue 3，其他框架不显示这个工具。读的是渲染出
+  所选元素的那个组件。Vue 的 state 自带名字；React 的 hook state 在能确定时按源码命名（state
+  类 hook 只有 `useState` / `useReducer`、没有自定义 hook），否则按调用顺序显示为 `state.#n`。
+  监听期间每帧检查一次，停止后没有任何开销。
 - **只用 Turbopack rules**：`turbopack.rules` 里的 `ide-byebye/turbopack` 仍可用；换成
   `ide-byebye/next` 可以同时覆盖 `--webpack`。
 - **不经 npm**：`npm run build` 会生成 `dist/ide-byebye.js`，一个内嵌浏览器运行时的
