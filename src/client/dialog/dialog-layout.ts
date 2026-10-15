@@ -2,6 +2,7 @@ import { DialogReferenceController } from './dialog-references.js';
 import { DialogScreenshotController } from '../screenshot/dialog-screenshots.js';
 import { DialogRecordingController } from '../recording/dialog-recordings.js';
 import { DialogStyleController } from '../style/dialog-style.js';
+import { DialogStateController } from '../state/dialog-state.js';
 import { DialogPin } from './dialog-pin.js';
 import { createDialogEditor } from './dialog-editor.js';
 import { agentLabel, loadLastAgent, saveLastAgent } from './dialog-utils.js';
@@ -40,6 +41,7 @@ export abstract class DialogLayout {
     screenshots: DialogScreenshotController;
     recordings: DialogRecordingController;
     styles: DialogStyleController;
+    componentState: DialogStateController;
     pin: DialogPin;
     backdrop: HTMLElement | null = null;
     dialogEl: HTMLElement | null = null;
@@ -133,16 +135,18 @@ export abstract class DialogLayout {
             reposition: () => this.repositionForContent(),
             showError: (text: string) => this.showError(text),
         });
+        // Recording and state watching both hide the dialog and make the host click-through so the page can be used.
+        const setDialogHidden = (hidden: boolean) => {
+            if (this.backdrop)
+                this.backdrop.hidden = hidden;
+            this.setHostInteractive(!hidden);
+        };
         this.recordings = new DialogRecordingController({
             config: () => this.config,
             backdrop: () => this.backdrop,
             parent: () => this.parent,
             selectedElement: () => this.screenshotElement ?? this.selectedElement,
-            setDialogHidden: (hidden: boolean) => {
-                if (this.backdrop)
-                    this.backdrop.hidden = hidden;
-                this.setHostInteractive(!hidden);
-            },
+            setDialogHidden,
             reposition: () => this.repositionForContent(),
             showError: (text: string) => this.showError(text),
             onChange: () => this.repositionForContent(),
@@ -150,6 +154,13 @@ export abstract class DialogLayout {
         this.styles = new DialogStyleController({
             selectedElement: () => this.selectedElement,
             onChange: () => this.repositionForContent(),
+        });
+        this.componentState = new DialogStateController({
+            parent: () => this.parent,
+            selectedElement: () => this.selectedElement,
+            setDialogHidden,
+            reposition: () => this.repositionForContent(),
+            showError: (text: string) => this.showError(text),
         });
         this.pin = new DialogPin(parent, { onRestore: () => this.handleOrbRestore() });
     }
@@ -321,6 +332,7 @@ export abstract class DialogLayout {
         this.screenshots.setDisabled(busy);
         this.recordings.setDisabled(busy);
         this.styles.setDisabled(busy);
+        this.componentState.setDisabled(busy);
         this.sessions?.setDisabled(busy);
         this.picker?.setDisabled(busy);
         // Only lock the editor while actually sending so the user can keep typing during the initial resolve.

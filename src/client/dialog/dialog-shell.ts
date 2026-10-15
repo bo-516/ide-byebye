@@ -72,6 +72,9 @@ export abstract class DialogShell extends DialogPins {
         const stylePreviewEl = el('div', 'cii-screenshot-preview cii-style-preview');
         this.styles.attachPreview(stylePreviewEl);
         body.append(stylePreviewEl);
+        const statePreviewEl = el('div', 'cii-screenshot-preview cii-style-preview');
+        this.componentState.attachPreview(statePreviewEl);
+        body.append(statePreviewEl);
         dialog.append(body);
         // --- action bar: capture tools on the left; Copy, the destination picker, and Send on the right ---
         const footer = el('div', 'cii-footer');
@@ -79,6 +82,9 @@ export abstract class DialogShell extends DialogPins {
         tools.append(this.references.renderButton());
         tools.append(this.screenshots.renderPicker());
         tools.append(this.styles.renderButton());
+        const stateButton = this.componentState.renderButton();
+        if (stateButton)
+            tools.append(stateButton);
         const recordButton = this.recordings.renderButton();
         if (recordButton)
             tools.append(recordButton);
@@ -114,6 +120,7 @@ export abstract class DialogShell extends DialogPins {
             this.screenshots.closeMenuFromOutside(target);
             this.recordings.closeMenuFromOutside(target);
             this.styles.closeMenuFromOutside(target);
+            this.componentState.closeMenuFromOutside(target);
             this.sessions.closeMenuFromOutside(target);
             this.picker.closeMenuFromOutside(target);
         }, true);

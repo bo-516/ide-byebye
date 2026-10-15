@@ -26,6 +26,7 @@ const ICON_PATHS: Record<string, string> = {
     'arrow-up': "<path d='M12 19V5.5M6 11.5l6-6 6 6'/>",
     'chevron-right': "<path d='m10 7 5 5-5 5'/>",
     'chevron-left': "<path d='m14 7-5 5 5 5'/>",
+    activity: "<path d='M3.5 12h3.5l2.5-6.5 5 13 2.5-6.5h3.5'/>",
     record: "<circle cx='12' cy='12' r='8'/><circle cx='12' cy='12' r='3.6' fill='black' stroke='none'/>",
     app: "<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='M3.5 9h17'/>",
     ide: "<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='m10 10-2.5 2.5L10 15M14 10l2.5 2.5L14 15'/>",

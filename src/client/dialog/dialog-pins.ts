@@ -117,6 +117,7 @@ export abstract class DialogPins extends DialogSend {
         this.recordings.reset();
         this.references.reset();
         this.styles.reset();
+        this.componentState.reset();
         this.editor.reset();
         this.lastAgent = draft.lastAgent || loadLastAgent(this.config);
         this.enableFocusGuard();

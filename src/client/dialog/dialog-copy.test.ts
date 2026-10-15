@@ -65,6 +65,7 @@ function makeSendingDialog() {
         screenshots: control(),
         recordings: control(),
         styles: control(),
+        componentState: control(),
         editor: control(),
         api: { send: (payload: { agent?: string }) => new Promise((resolve) => { sends.push(payload); respond = resolve; }) },
         buildPayload: async (agent: string) => ({ agent }),
@@ -73,7 +74,7 @@ function makeSendingDialog() {
         renderResult() { },
     });
     const controls = [...dialog.actionButtons.values(), dialog.references, dialog.screenshots, dialog.recordings,
-        dialog.styles, dialog.editor];
+        dialog.styles, dialog.componentState, dialog.editor];
     const flush = () => new Promise((resolve) => setImmediate(resolve));
     return {
         dialog,

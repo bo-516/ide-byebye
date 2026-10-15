@@ -11,6 +11,7 @@ import { RECORDING_STYLE } from './style-recording.js';
 import { RECORDING_EDITOR_STYLE } from './style-recording-editor.js';
 import { SESSION_PICKER_STYLE } from './style-session-picker.js';
 import { SHELL_STYLE } from './style-shell.js';
+import { STATE_STYLE } from './style-state.js';
 import { THEME_ATTR, TOKENS_STYLE } from './style-tokens.js';
 import { TOOLS_STYLE } from './style-tools.js';
 
@@ -19,13 +20,15 @@ import { TOOLS_STYLE } from './style-tools.js';
  *
  * Boundary: icon masks and design tokens come first because every later fragment reads them (light and dark themes
  * both live in the tokens), then shell defaults precede the page highlight and dependent controls, and the destination
- * brand marks follow the destination picker whose kind glyphs they override; omitting or reordering fragments can
+ * brand marks follow the destination picker whose kind glyphs they override, and the component-state tool comes last
+ * because it restyles capture-tool and recording-pill rules; omitting or reordering fragments can
  * alter button, picker, or editor presentation. Session-menu overrides remain appended by `createUi`, and the editor
  * styles by `installDialogReferenceStyle`.
  * @type {string} Complete base CSS text for consumers that render or inject the plugin UI.
  */
 export const STYLE_TEXT = ICONS_STYLE + TOKENS_STYLE + SHELL_STYLE + OVERLAY_STYLE + PREVIEWS_STYLE + FOOTER_STYLE
-    + TOOLS_STYLE + DESTINATION_STYLE + AGENT_ICONS_STYLE + RECORDING_STYLE + RECORDING_EDITOR_STYLE + CAPTURE_STYLE;
+    + TOOLS_STYLE + DESTINATION_STYLE + AGENT_ICONS_STYLE + RECORDING_STYLE + RECORDING_EDITOR_STYLE + CAPTURE_STYLE
+    + STATE_STYLE;
 
 /**
  * Create an isolated shadow-DOM host for all plugin UI so page CSS cannot leak

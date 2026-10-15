@@ -27,6 +27,7 @@ export abstract class DialogSend extends DialogClipboard {
             return;
         this.references.clear();
         this.styles.clear();
+        this.componentState.clear();
         this.sessions?.dispose();
         this.picker?.close();
         this.disableFocusGuard();
@@ -74,6 +75,9 @@ export abstract class DialogSend extends DialogClipboard {
         const styles = this.styles.buildPayloadStyles({ strict: true });
         if (styles)
             payload.styles = styles;
+        const componentState = this.componentState.buildPayload({ strict: true });
+        if (componentState)
+            payload.componentState = componentState;
         const targetSessionId = this.sessions?.targetIdFor(agent);
         if (targetSessionId)
             payload.targetSessionId = targetSessionId;
