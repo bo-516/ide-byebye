@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Publish `ide-byebye` to npm with version bump, preflight checks, and optional git tagging.
+ * Publish `ide-byebye` to npm with version bump, preflight checks, optional git tagging, and a GitHub Release.
  *
  * Boundary: this script owns release orchestration only (git / npm / version). It does not change
  * package contents beyond what `npm version` writes to `package.json`. Build + test stay on
@@ -11,7 +11,7 @@
  *
  * Options:
  *   --dry-run       Build, test, pack, and print the plan; do not bump / publish / push
- *   --no-git        Skip git commit / tag / push (still bumps package.json for real publish)
+ *   --no-git        Skip git commit / tag / push / GitHub Release (still bumps package.json for real publish)
  *   --tag <dist>    npm dist-tag (default: latest)
  *   --otp <code>    npm one-time password for 2FA
  *   --allow-dirty   Allow a dirty working tree
@@ -202,6 +202,31 @@ function pushGitRelease(version: string, bumped: boolean) {
 }
 
 /**
+ * Create the GitHub Release for a pushed version tag.
+ *
+ * Purpose: the Releases page is where people check whether the project is maintained, and tags alone leave it empty.
+ *
+ * Boundary: call only after the npm publish and the tag push succeeded. A missing or signed-out `gh` CLI just prints
+ * the command to run by hand: the npm release is already out, so failing the script here would mislead.
+ *
+ * @param {string} version Published version (without leading `v`).
+ */
+function createGitHubRelease(version: string) {
+    const tag = `v${version}`;
+    const args = ['release', 'create', tag, '--verify-tag', '--generate-notes', '--title', tag];
+    try {
+        if (run(ROOT_DIR, 'gh', args, { allowFail: true }).status === 0) {
+            console.log(`Created GitHub Release ${tag}.`);
+            return;
+        }
+    }
+    catch {
+        // `gh` is not installed; fall through to the manual hint.
+    }
+    console.warn(`\nCould not create the GitHub Release. Run: gh ${args.join(' ')}`);
+}
+
+/**
  * Orchestrate one publish run.
  *
  * @param {import('./publish-lib.js').PublishOptions} options Parsed CLI options.
@@ -256,6 +281,7 @@ function main(options: PublishOptions) {
             ensureVersionTag(publishedVersion);
         }
         pushGitRelease(publishedVersion, willBump);
+        createGitHubRelease(publishedVersion);
     }
 
     cleanupPackArtifacts(pkg.name);

@@ -1,0 +1,24 @@
+name: Feature request
+description: Ideas, or support for another framework, build tool or agent.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The workflow or project setup this is for, and where ide-byebye gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help
+      description: How you'd like it to work. For a new agent or build tool, link its docs on deeplinks, CLI flags or plugin APIs if you know them.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you open a PR for it?
+      options:
+        - Yes
+        - Maybe, with some guidance
+        - No

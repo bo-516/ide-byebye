@@ -1,0 +1,56 @@
+name: Bug report
+description: Something doesn't work, or the prompt points at the wrong place.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you clicked, what you expected, and what you got instead. For a wrong location, paste the prompt (the ⧉ button copies it) and the place it should point to.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Steps, or a link to a small repo. A copy of one of the demo apps with your change is ideal.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ide-byebye version
+      placeholder: 0.6.3
+    validations:
+      required: true
+  - type: input
+    id: build-tool
+    attributes:
+      label: Build tool and version
+      placeholder: Vite 8.0.3 / rspack 2.1 / Next.js 16 (Turbopack) …
+    validations:
+      required: true
+  - type: input
+    id: framework
+    attributes:
+      label: Framework and version
+      placeholder: React 19 / Vue 3.5 / Svelte 5 …
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent
+      description: The agent you sent the prompt to, if it matters.
+      placeholder: Claude App / Codex App / Cursor / Claude Code CLI …
+  - type: input
+    id: environment
+    attributes:
+      label: OS, browser and Node.js
+      placeholder: macOS 26, Chrome 141, Node 22.13
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Anything from the dev server terminal or the browser console that starts with `[ide-byebye]`.
+      render: text

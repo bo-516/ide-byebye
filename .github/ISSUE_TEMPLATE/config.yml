@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Configuration reference
+    url: https://github.com/bo-516/ide-byebye/blob/main/CONFIGURATION.md
+    about: Every option, per-agent settings, custom clients and output files.
