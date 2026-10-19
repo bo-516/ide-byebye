@@ -30,9 +30,12 @@ export interface ClaudeAppAgentOptions extends AgentOpenOptions {
   route?: string;
   /** Extra folders opened with the project root. */
   folders?: string[];
-  /** Attach referenced source files (and screenshots) as deeplink `file` params. */
+  /**
+   * Add referenced source files (and screenshots) as deeplink `file` params. Claude Desktop currently ignores them;
+   * the prompt's `@` refs carry the paths either way.
+   */
   attachFiles?: boolean;
-  /** Include screenshot artifacts when `attachFiles` is true. */
+  /** Include screenshot artifacts in the `file` params when `attachFiles` is true. */
   attachScreenshots?: boolean;
 }
 

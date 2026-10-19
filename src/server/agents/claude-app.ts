@@ -40,18 +40,21 @@ export function buildClaudeAppDeepLink(input: {
     return url.toString();
 }
 /**
- * Collect the absolute paths referenced by an intent request so they can be
- * opened directly in Claude App via repeatable `file` deeplink params.
+ * Collect the absolute paths referenced by an intent request, for repeatable
+ * `file` deeplink params and the custom-client payload's `files`.
  *
- * Boundary: `source.filePath` values are already validated inside the project
- * root by source resolution. Code references come first (primary selection, then
+ * Boundary: Claude Desktop 2.42304 reads `file` only for telemetry and never
+ * opens these paths, so the prompt's `@` refs are what actually deliver them; a
+ * custom `scheme` / `route` handler may still honor the params.
+ * `source.filePath` values are already validated inside the project root by
+ * source resolution. Code references come first (primary selection, then
  * extra `@code` chips) and screenshot artifacts are appended last so editable
  * code leads. Order is preserved and duplicates are dropped. Passing
  * `includeScreenshots: false` keeps only code files.
  *
  * @param {Record<string, unknown>} request Normalized intent request.
  * @param {{ includeScreenshots?: boolean }} [options] Whether to append screenshot paths.
- * @returns {string[]} Unique absolute file paths to attach to the deeplink.
+ * @returns {string[]} Unique absolute file paths.
  */
 export function collectClaudeAppFiles(request: Parameters<typeof buildPromptReferenceLines>[0], options: { includeScreenshots?: boolean } = {}) {
     const { includeScreenshots = true } = options;
@@ -168,8 +171,9 @@ export function createClaudeAppAdapter(config: Record<string, unknown> = {}) {
                 const files = config.attachFiles === false
                     ? []
                     : collectClaudeAppFiles(request, { includeScreenshots: config.attachScreenshots !== false });
+                // Claude Desktop 2.42304 drops `file` params; the prompt's `@` refs already name these paths.
                 if (files.length) {
-                    const event = { type: 'file-change', text: `Attaching ${files.length} file(s) to Claude App` };
+                    const event = { type: 'notice', text: `Added ${files.length} \`file\` param(s) to the deeplink; Claude Desktop ignores them, the prompt's @ refs carry the paths` };
                     events.push(event);
                     context.emit(event);
                 }

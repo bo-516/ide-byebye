@@ -54,7 +54,7 @@ options. The four opt-in agents stay hidden until you set their key.
 
 | Key | Id | Default | What it does |
 | --- | --- | --- | --- |
-| `claudeApp` | `claude-app` | on | Opens **Claude App** prefilled; can attach files and folders. |
+| `claudeApp` | `claude-app` | on | Opens **Claude App** prefilled; can open extra folders. |
 | `codexApp` | `codex-app` | on | Opens **Codex App** prefilled. |
 | `cursorApp` | `cursor-app` | on | Opens **Cursor** prefilled, routed by workspace name. |
 | `grokBuild` | `grok-build` | on | Runs **Grok Build** in Terminal with the prompt. |
@@ -110,8 +110,8 @@ is the prompt length above which a Terminal agent switches to a file pointer.
 | Option | Default | What it does |
 | --- | --- | --- |
 | `folders` | `[]` | Extra folders opened with the project root (relative to the process cwd). |
-| `attachFiles` | `true` | Attach referenced source files and screenshots. |
-| `attachScreenshots` | `true` | Include screenshots. Ignored when `attachFiles` is `false`. |
+| `attachFiles` | `true` | Add referenced source files and screenshots as deeplink `file` params. Claude Desktop currently ignores them; the prompt's `@` refs carry the paths either way. |
+| `attachScreenshots` | `true` | Include screenshots in those params. Ignored when `attachFiles` is `false`. |
 | `scheme` / `route` | `'claude'` / `'code'` | Deeplink `claude://<route>/new`. |
 
 When the project root is inside `.claude/worktrees/<name>`, Claude Desktop (2.42304+) opens the main checkout instead.
