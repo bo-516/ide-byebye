@@ -109,6 +109,9 @@ Cursor）始终可点，没装 App 时由系统报错。
 | `attachScreenshots` | `true` | 附带截图。`attachFiles` 为 `false` 时忽略。 |
 | `scheme` / `route` | `'claude'` / `'code'` | Deeplink `claude://<route>/new`。 |
 
+项目根在 `.claude/worktrees/<name>` 里时，Claude Desktop（2.42304 起）会改为打开主仓库。
+这时 prompt 第一行写明 worktree 路径，`@` 引用改用绝对路径，改动仍落在 worktree 里。
+
 #### `agents.codexApp`
 
 | 选项 | 默认 | 作用 |

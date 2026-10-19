@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
+import { buildClaudeAppFilePrompt, buildClaudeAppWorktreePrompt, findClaudeAppWorktreeRedirect } from './claude-app-worktree.js';
 import { openTarget } from './opener.js';
-import { buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
+import type { buildPromptReferenceLines } from '../prompt.js';
 const DEFAULT_SCHEME = 'claude';
 const DEFAULT_ROUTE = 'code';
 function fileStamp(date: Date) {
@@ -102,11 +103,6 @@ export function resolveClaudeAppFolders(config: { folders?: unknown }, context: 
     }
     return folders;
 }
-export function buildClaudeAppFilePrompt(request: Parameters<typeof buildPromptReferenceLines>[0] & { intent: string }, promptPath: string) {
-    const intent = request.intent.trim();
-    const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
-    return [...refs, promptPath, '', intent].join('\n').trim() + '\n';
-}
 function writePromptFile(request: {
     id: string,
     createdAt: string,
@@ -152,11 +148,19 @@ export function createClaudeAppAdapter(config: Record<string, unknown> = {}) {
             const events = [{ type: 'started', text: 'Opening Claude App' }];
             context.emit(events[0]);
             try {
-                let prompt = context.prompt;
+                const folders = resolveClaudeAppFolders(config, context);
+                // Desktop opens the main checkout for a folder inside `.claude/worktrees`, so the prompt names the worktree.
+                const redirect = findClaudeAppWorktreeRedirect(folders[0]);
+                let prompt = redirect ? buildClaudeAppWorktreePrompt(request, redirect) : context.prompt;
                 let writtenPromptPath;
+                if (redirect) {
+                    const event = { type: 'notice', text: `Claude App opens ${redirect.opened}; the prompt points at the worktree ${redirect.worktree}` };
+                    events.push(event);
+                    context.emit(event);
+                }
                 if (shouldWritePromptFile(config, prompt)) {
-                    writtenPromptPath = writePromptFile(request, context);
-                    prompt = buildClaudeAppFilePrompt(request, writtenPromptPath);
+                    writtenPromptPath = writePromptFile(request, { ...context, prompt });
+                    prompt = buildClaudeAppFilePrompt(request, writtenPromptPath, redirect);
                     const event = { type: 'file-change', text: `Wrote ${writtenPromptPath}` };
                     events.push(event);
                     context.emit(event);
@@ -169,7 +173,6 @@ export function createClaudeAppAdapter(config: Record<string, unknown> = {}) {
                     events.push(event);
                     context.emit(event);
                 }
-                const folders = resolveClaudeAppFolders(config, context);
                 const url = buildClaudeAppDeepLink({
                     scheme: config.scheme as string | undefined,
                     route: config.route as string | undefined,

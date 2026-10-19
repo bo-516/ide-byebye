@@ -114,6 +114,9 @@ is the prompt length above which a Terminal agent switches to a file pointer.
 | `attachScreenshots` | `true` | Include screenshots. Ignored when `attachFiles` is `false`. |
 | `scheme` / `route` | `'claude'` / `'code'` | Deeplink `claude://<route>/new`. |
 
+When the project root is inside `.claude/worktrees/<name>`, Claude Desktop (2.42304+) opens the main checkout instead.
+The prompt then starts with the worktree path and uses absolute `@` paths, so edits still land in the worktree.
+
 #### `agents.codexApp`
 
 | Option | Default | What it does |
