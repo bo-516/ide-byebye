@@ -51,7 +51,7 @@ monorepo 里，与其设 `pathStyle: 'absolute'`，不如把 Agent 的 `projectR
 
 | Key | Id | 默认 | 作用 |
 | --- | --- | --- | --- |
-| `claudeApp` | `claude-app` | 开启 | 打开并预填 **Claude App**；可附带文件和文件夹。 |
+| `claudeApp` | `claude-app` | 开启 | 打开并预填 **Claude App**；可额外打开文件夹。 |
 | `codexApp` | `codex-app` | 开启 | 打开并预填 **Codex App**。 |
 | `cursorApp` | `cursor-app` | 开启 | 打开并预填 **Cursor**，按 workspace 名路由。 |
 | `grokBuild` | `grok-build` | 开启 | 在 Terminal 运行 **Grok Build** 并带上 prompt。 |
@@ -105,9 +105,12 @@ Cursor）始终可点，没装 App 时由系统报错。
 | 选项 | 默认 | 作用 |
 | --- | --- | --- |
 | `folders` | `[]` | 与项目根一起打开的额外文件夹（相对进程 cwd 解析）。 |
-| `attachFiles` | `true` | 附带引用的源文件和截图。 |
-| `attachScreenshots` | `true` | 附带截图。`attachFiles` 为 `false` 时忽略。 |
+| `attachFiles` | `true` | 把引用的源文件和截图作为 deeplink `file` 参数带上。Claude Desktop 目前会忽略这些参数；路径本来就写在 prompt 的 `@` 引用里。 |
+| `attachScreenshots` | `true` | 这些参数里也带截图。`attachFiles` 为 `false` 时忽略。 |
 | `scheme` / `route` | `'claude'` / `'code'` | Deeplink `claude://<route>/new`。 |
+
+项目根在 `.claude/worktrees/<name>` 里时，Claude Desktop（2.42304 起）会改为打开主仓库。
+这时 prompt 第一行写明 worktree 路径，`@` 引用改用绝对路径，改动仍落在 worktree 里。
 
 #### `agents.codexApp`
 

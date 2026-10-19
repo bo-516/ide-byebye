@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { assertPathInsideRoot } from '../security.js';
 import { renderRequestMarkdown } from './file.js';
+import { buildClaudeAppFilePrompt, buildClaudeAppWorktreePrompt, findClaudeAppWorktreeRedirect } from './claude-app-worktree.js';
 import { openTarget } from './opener.js';
-import { buildPromptReferenceLines, filterInlineReferenceLines } from '../prompt.js';
+import type { buildPromptReferenceLines } from '../prompt.js';
 const DEFAULT_SCHEME = 'claude';
 const DEFAULT_ROUTE = 'code';
 function fileStamp(date: Date) {
@@ -39,18 +40,21 @@ export function buildClaudeAppDeepLink(input: {
     return url.toString();
 }
 /**
- * Collect the absolute paths referenced by an intent request so they can be
- * opened directly in Claude App via repeatable `file` deeplink params.
+ * Collect the absolute paths referenced by an intent request, for repeatable
+ * `file` deeplink params and the custom-client payload's `files`.
  *
- * Boundary: `source.filePath` values are already validated inside the project
- * root by source resolution. Code references come first (primary selection, then
+ * Boundary: Claude Desktop 2.42304 reads `file` only for telemetry and never
+ * opens these paths, so the prompt's `@` refs are what actually deliver them; a
+ * custom `scheme` / `route` handler may still honor the params.
+ * `source.filePath` values are already validated inside the project root by
+ * source resolution. Code references come first (primary selection, then
  * extra `@code` chips) and screenshot artifacts are appended last so editable
  * code leads. Order is preserved and duplicates are dropped. Passing
  * `includeScreenshots: false` keeps only code files.
  *
  * @param {Record<string, unknown>} request Normalized intent request.
  * @param {{ includeScreenshots?: boolean }} [options] Whether to append screenshot paths.
- * @returns {string[]} Unique absolute file paths to attach to the deeplink.
+ * @returns {string[]} Unique absolute file paths.
  */
 export function collectClaudeAppFiles(request: Parameters<typeof buildPromptReferenceLines>[0], options: { includeScreenshots?: boolean } = {}) {
     const { includeScreenshots = true } = options;
@@ -102,11 +106,6 @@ export function resolveClaudeAppFolders(config: { folders?: unknown }, context: 
     }
     return folders;
 }
-export function buildClaudeAppFilePrompt(request: Parameters<typeof buildPromptReferenceLines>[0] & { intent: string }, promptPath: string) {
-    const intent = request.intent.trim();
-    const refs = filterInlineReferenceLines(buildPromptReferenceLines(request), intent);
-    return [...refs, promptPath, '', intent].join('\n').trim() + '\n';
-}
 function writePromptFile(request: {
     id: string,
     createdAt: string,
@@ -152,11 +151,19 @@ export function createClaudeAppAdapter(config: Record<string, unknown> = {}) {
             const events = [{ type: 'started', text: 'Opening Claude App' }];
             context.emit(events[0]);
             try {
-                let prompt = context.prompt;
+                const folders = resolveClaudeAppFolders(config, context);
+                // Desktop opens the main checkout for a folder inside `.claude/worktrees`, so the prompt names the worktree.
+                const redirect = findClaudeAppWorktreeRedirect(folders[0]);
+                let prompt = redirect ? buildClaudeAppWorktreePrompt(request, redirect) : context.prompt;
                 let writtenPromptPath;
+                if (redirect) {
+                    const event = { type: 'notice', text: `Claude App opens ${redirect.opened}; the prompt points at the worktree ${redirect.worktree}` };
+                    events.push(event);
+                    context.emit(event);
+                }
                 if (shouldWritePromptFile(config, prompt)) {
-                    writtenPromptPath = writePromptFile(request, context);
-                    prompt = buildClaudeAppFilePrompt(request, writtenPromptPath);
+                    writtenPromptPath = writePromptFile(request, { ...context, prompt });
+                    prompt = buildClaudeAppFilePrompt(request, writtenPromptPath, redirect);
                     const event = { type: 'file-change', text: `Wrote ${writtenPromptPath}` };
                     events.push(event);
                     context.emit(event);
@@ -164,12 +171,12 @@ export function createClaudeAppAdapter(config: Record<string, unknown> = {}) {
                 const files = config.attachFiles === false
                     ? []
                     : collectClaudeAppFiles(request, { includeScreenshots: config.attachScreenshots !== false });
+                // Claude Desktop 2.42304 drops `file` params; the prompt's `@` refs already name these paths.
                 if (files.length) {
-                    const event = { type: 'file-change', text: `Attaching ${files.length} file(s) to Claude App` };
+                    const event = { type: 'notice', text: `Added ${files.length} \`file\` param(s) to the deeplink; Claude Desktop ignores them, the prompt's @ refs carry the paths` };
                     events.push(event);
                     context.emit(event);
                 }
-                const folders = resolveClaudeAppFolders(config, context);
                 const url = buildClaudeAppDeepLink({
                     scheme: config.scheme as string | undefined,
                     route: config.route as string | undefined,
