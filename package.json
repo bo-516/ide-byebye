@@ -1,6 +1,6 @@
 {
   "name": "ide-byebye",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "Dev plugin for Vite, webpack, rspack, Rsbuild, esbuild, Farm, Next.js and the Angular CLI: ⌘-click an element in your running app, describe the change, and Claude, Codex, Cursor or another AI agent opens with the exact source file and lines already in the prompt.",
   "type": "module",
   "license": "MIT",
