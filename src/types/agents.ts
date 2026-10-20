@@ -87,7 +87,7 @@ export interface CursorAppAgentOptions extends AgentOpenOptions {
 }
 
 /**
- * Antigravity IDE. Off unless `agents.antigravityIde` is set.
+ * Antigravity IDE. On by default.
  * The CLI opens the project folder; the prompt is placed in the agent input and is not submitted.
  * `openCommand` / `openArgs` on this object are ignored.
  */
@@ -122,8 +122,9 @@ export interface AntigravityIdeAgentOptions extends AgentOpenOptions {
 }
 
 /**
- * Antigravity CLI (`agy`). Off unless `agents.antigravity` is set.
- * Opens a Terminal session; `openCommand` / `openArgs` choose how that launcher is started.
+ * Antigravity desktop app / CLI (`agy`). On by default.
+ * Opens the desktop app, or a Terminal session when only `agy` is installed; `openCommand` / `openArgs` choose how
+ * that launcher is started.
  */
 export interface AntigravityAgentOptions extends AgentOpenOptions {
   /** CLI binary (`agy`, then `~/.local/bin/agy`). Absolute path if PATH differs. */
@@ -333,15 +334,9 @@ export interface AgentsOptions {
    * a local bridge extension under `~/.windsurf/extensions`.
    */
   windsurfIde?: AgentEntry<CascadeIdeAgentOptions>;
-  /**
-   * Antigravity IDE chat handoff. Omit it (the default) and the button is not registered.
-   * `true` or an options object turns it on.
-   */
+  /** Antigravity IDE chat handoff (`antigravity-ide`). On by default; `false` removes it. */
   antigravityIde?: AgentEntry<AntigravityIdeAgentOptions>;
-  /**
-   * Antigravity CLI (`agy`) handoff. Omit it (the default) and the button is not registered.
-   * `true` or an options object turns it on.
-   */
+  /** Antigravity handoff (`antigravity`). On by default; `false` removes it. */
   antigravity?: AgentEntry<AntigravityAgentOptions>;
   /**
    * Extra footer agents that deliver the prompt straight into a running

@@ -63,7 +63,7 @@ and the rest receive the same `@file #lines` prompt.
 | --- | --- |
 | **Frameworks** | React, Vue, Svelte, Solid, Preact, Angular, plus Next.js, Nuxt and SvelteKit |
 | **Build tools** | Vite, webpack, rspack, rsbuild, esbuild, Farm, Next.js (Turbopack and webpack), Angular CLI |
-| **Agents** | Codex App, Claude App, Cursor, Grok Build, Claude Code CLI, OpenCode, Devin CLI. Opt-in: Antigravity, Devin Desktop, Windsurf, or [your own client](./CONFIGURATION.md#agentscustom) |
+| **Agents** | Codex App, Claude App, Cursor, Grok Build, Claude Code CLI, OpenCode, Devin CLI, Antigravity IDE, Antigravity. Opt-in: Devin Desktop, Windsurf, or [your own client](./CONFIGURATION.md#agentscustom) |
 
 It runs only in dev, ships no model or AI SDK, and never edits your files. It
 builds the prompt and opens your agent, and the agent makes the change.
@@ -166,8 +166,8 @@ their own source, not to `<body>`.
 | Claude Code CLI | on | Your terminal, prefilled (or Terminal, submitted) | — |
 | OpenCode | on | Desktop 1.x prefilled, or CLI submitted | — |
 | Devin CLI | on | Terminal, submitted | ✓ resumes the session |
-| Antigravity IDE | opt-in | Agent input, prefilled | experimental |
-| Antigravity | opt-in | Desktop composer, prefilled | — |
+| Antigravity IDE | on | Agent input, prefilled | experimental |
+| Antigravity | on | Desktop composer, prefilled | — |
 | Devin Desktop | opt-in | Cascade composer, prefilled | — |
 | Windsurf | opt-in | Cascade composer, prefilled | — |
 | Your own client | opt-in | `postMessage` or HTTP into an app that's already running | — |

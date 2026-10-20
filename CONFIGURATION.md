@@ -48,9 +48,9 @@ still resolves.
 
 ## Agents
 
-Thirteen built-in agents; nine are on by default. `agents.<key>: false` (or
+Thirteen built-in agents; eleven are on by default. `agents.<key>: false` (or
 `{ enabled: false }`) turns one off; an object keeps it on and overrides its
-options. The four opt-in agents stay hidden until you set their key.
+options. The two opt-in agents stay hidden until you set their key.
 
 | Key | Id | Default | What it does |
 | --- | --- | --- | --- |
@@ -61,10 +61,10 @@ options. The four opt-in agents stay hidden until you set their key.
 | `claudeCli` | `claude-cli` | on | Opens **Claude Code CLI**: prefilled via `claude-cli://`, or run in Terminal and submitted. |
 | `opencode` | `opencode` | on | Opens **OpenCode**: prefilled in the 1.x desktop app, or the CLI in Terminal, submitted. |
 | `devinCli` | `devin-cli` | on | Runs **Devin** in Terminal with the prompt as the first message. |
+| `antigravityIde` | `antigravity-ide` | on | Opens **Antigravity IDE** on the project, prompt in the agent input. |
+| `antigravity` | `antigravity` | on | Opens the **Antigravity** desktop app, prompt in its composer. |
 | `clipboard` | `clipboard` | on | The **Copy prompt** button. Never an Enter target. |
 | `file` | `file` | on | Writes the request as Markdown under `outputDir/requests/`. No button; reach it with `promptMode: 'file'`. |
-| `antigravityIde` | `antigravity-ide` | opt-in | Opens **Antigravity IDE** on the project, prompt in the agent input. |
-| `antigravity` | `antigravity` | opt-in | Opens the **Antigravity** desktop app, prompt in its composer. |
 | `devinIde` | `devin-ide` | opt-in | Opens **Devin Desktop**, prompt in the Cascade composer. |
 | `windsurfIde` | `windsurf-ide` | opt-in | Opens **Windsurf**, prompt in the Cascade composer. |
 
@@ -194,8 +194,8 @@ prompts, and prompts that start with `-`, go through `devin --prompt-file`.
 
 #### `agents.antigravityIde`
 
-Opt-in. Opens the project with `antigravity-ide <projectRoot>` and places the
-prompt in the agent input without sending it.
+Opens the project with `antigravity-ide <projectRoot>` and places the prompt in
+the agent input without sending it.
 
 | Option | Default | What it does |
 | --- | --- | --- |
@@ -207,8 +207,8 @@ prompt in the agent input without sending it.
 
 #### `agents.antigravity`
 
-Opt-in. Opens the **Antigravity** desktop app and writes the prompt into its
-composer. Falls back to the `agy` CLI only when the desktop app isn't installed.
+Opens the **Antigravity** desktop app and writes the prompt into its composer.
+Falls back to the `agy` CLI only when the desktop app isn't installed.
 
 | Option | Default | What it does |
 | --- | --- | --- |

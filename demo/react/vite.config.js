@@ -10,10 +10,8 @@ export default defineConfig({
     // Keep recording enabled here so the demo can show rrweb capture.
     codeIntentInspectorPlugin({
       recording: true,
-      // Opt-in agents: off in real projects until configured. On here so the React demo shows them.
+      // Turn on experimental Antigravity IDE sessions and the opt-in Cascade IDE agents for the React demo.
       agents: {
-        antigravityIde: { experimentalSessions: true },
-        antigravity: true,
         devinIde: true,
         windsurfIde: true,
       },

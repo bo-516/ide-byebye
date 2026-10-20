@@ -34,13 +34,8 @@ export default {
   },
   plugins: [
     new HtmlWebpackPlugin({ template: './webpack.html' }),
-    // Stamps data-insp-path + injects bootstrap. Antigravity agents are on so this React demo shows them.
-    inspector({
-      agents: {
-        antigravityIde: true,
-        antigravity: true,
-      },
-    }),
+    // Stamps data-insp-path + injects bootstrap.
+    inspector(),
   ],
   devServer: {
     // webpack-dev-server 5's default host can be [::1] only, which refuses 127.0.0.1.

@@ -123,11 +123,13 @@ test('buildRegistry registers custom clients and refuses built-in names', () => 
         'claude-cli',
         'opencode',
         'devin-cli',
+        'antigravity-ide',
+        'antigravity',
         'grok-desktop',
     ]);
 });
 
-test('buildRegistry without agents.custom keeps the built-in agent set and leaves Antigravity off', () => {
+test('buildRegistry without agents.custom keeps the built-in agent set and leaves opt-in IDE agents off', () => {
     assert.deepEqual(buildRegistry({}).names(), [
         'clipboard',
         'file',
@@ -138,8 +140,10 @@ test('buildRegistry without agents.custom keeps the built-in agent set and leave
         'claude-cli',
         'opencode',
         'devin-cli',
+        'antigravity-ide',
+        'antigravity',
     ]);
-    assert.equal(buildRegistry({ custom: [{ name: 'antigravity' }] }).has('antigravity'), false);
+    assert.equal(buildRegistry({ antigravity: false, custom: [{ name: 'antigravity' }] }).has('antigravity'), false);
     // The new built-in names are reserved too, so a custom client cannot take them over.
     assert.equal(buildRegistry({ claudeCli: false, custom: [{ name: 'claude-cli' }] }).has('claude-cli'), false);
 });

@@ -14,13 +14,13 @@ import {
     shouldWriteAntigravityIdePromptFile,
 } from './antigravity-ide-cli.js';
 
-test('Antigravity IDE stays unregistered until config turns it on', () => {
-    assert.equal(buildRegistry({}).has('antigravity-ide'), false);
+test('Antigravity IDE is registered by default and can be turned off in config', () => {
+    assert.equal(buildRegistry({}).has('antigravity-ide'), true);
     assert.equal(buildRegistry({ antigravityIde: false }).has('antigravity-ide'), false);
     assert.equal(buildRegistry({ antigravityIde: { enabled: false } }).has('antigravity-ide'), false);
     const enabled = buildRegistry({ antigravityIde: true });
     assert.equal(enabled.has('antigravity-ide'), true);
-    assert.deepEqual(enabled.names().slice(-1), ['antigravity-ide']);
+    assert.deepEqual(enabled.names().slice(-2), ['antigravity-ide', 'antigravity']);
 });
 
 test('resolveAntigravityIdeCommandCandidates prefers command, then the platform install', () => {

@@ -12,7 +12,19 @@ import { AGENT_MARK_BRANDS } from '../lib/agent-icons.js';
 import { setLocale } from '../lib/i18n.js';
 
 /** `enabledAgents` for a zero-config project: every agent `buildRegistry` registers by default. */
-const ZERO_CONFIG_AGENTS = ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode'];
+const ZERO_CONFIG_AGENTS = [
+    'clipboard',
+    'file',
+    'codex-app',
+    'claude-app',
+    'cursor-app',
+    'grok-build',
+    'claude-cli',
+    'opencode',
+    'devin-cli',
+    'antigravity-ide',
+    'antigravity',
+];
 
 type PlacementInput = Parameters<typeof computeDropdownPlacement>[0];
 type Placement = ReturnType<typeof computeDropdownPlacement>;
@@ -191,24 +203,36 @@ test('visibleAgentActions drops agents turned off in plugin config', () => {
 
 test('visibleAgentActions keeps every configured app agent', () => {
     const names = visibleAgentActions({ enabledAgents: ZERO_CONFIG_AGENTS }).map((action) => action.name);
-    assert.deepEqual(names, ['codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode']);
+    assert.deepEqual(names, [
+        'codex-app',
+        'claude-app',
+        'cursor-app',
+        'grok-build',
+        'claude-cli',
+        'opencode',
+        'devin-cli',
+        'antigravity-ide',
+        'antigravity',
+    ]);
 });
 
 test('visibleAgentActions drops Claude Code CLI and OpenCode once config turns them off (AC-8)', () => {
     const names = visibleAgentActions({
         enabledAgents: ZERO_CONFIG_AGENTS.filter((name) => name !== 'claude-cli' && name !== 'opencode'),
     }).map((action) => action.name);
-    assert.deepEqual(names, ['codex-app', 'claude-app', 'cursor-app', 'grok-build']);
+    assert.deepEqual(names, ['codex-app', 'claude-app', 'cursor-app', 'grok-build', 'devin-cli', 'antigravity-ide', 'antigravity']);
 });
 
-test('visibleAgentActions hides Antigravity until those agents are enabled', () => {
+test('visibleAgentActions includes Antigravity by default and hides opt-in IDE agents until enabled', () => {
     const zeroConfig = visibleAgentActions({ enabledAgents: ZERO_CONFIG_AGENTS }).map((action) => action.name);
-    assert.equal(zeroConfig.includes('antigravity-ide'), false);
-    assert.equal(zeroConfig.includes('antigravity'), false);
+    assert.equal(zeroConfig.includes('antigravity-ide'), true);
+    assert.equal(zeroConfig.includes('antigravity'), true);
+    assert.equal(zeroConfig.includes('devin-ide'), false);
+    assert.equal(zeroConfig.includes('windsurf-ide'), false);
     const optedIn = visibleAgentActions({
-        enabledAgents: [...ZERO_CONFIG_AGENTS, 'antigravity-ide', 'antigravity'],
+        enabledAgents: [...ZERO_CONFIG_AGENTS, 'devin-ide', 'windsurf-ide'],
     }).map((action) => action.name);
-    assert.deepEqual(optedIn.slice(-2), ['antigravity-ide', 'antigravity']);
+    assert.deepEqual(optedIn.slice(-2), ['devin-ide', 'windsurf-ide']);
 });
 
 test('Claude Code CLI and OpenCode rows carry a label, a brand mark, and a title in both locales (AC-12)', () => {

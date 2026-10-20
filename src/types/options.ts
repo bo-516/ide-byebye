@@ -74,10 +74,10 @@ export interface IdeByebyeOptions {
   clickModifier?: ClickModifier;
   /**
    * Enter-key target: a footer agent (`'codex-app'` / `'claude-app'` / `'cursor-app'` /
-   * `'grok-build'` / `'claude-cli'` / `'opencode'` / `'antigravity-ide'` / `'antigravity'` or an `agents.custom` name).
+   * `'grok-build'` / `'claude-cli'` / `'opencode'` / `'devin-cli'` / `'antigravity-ide'` / `'antigravity'` or an
+   * `agents.custom` name).
    * Default `'claude-app'`. `'clipboard'` / `'file'` and unknown / disabled ids fall back to the
    * first enabled footer agent; once the user clicks a footer agent, Enter follows that remembered choice instead.
-   * `'antigravity-ide'` and `'antigravity'` are only enabled after `agents.antigravityIde` / `agents.antigravity`.
    */
   defaultAgent?: AgentId;
   /** Handoff hint: plan only vs allow edits. Default `'prompt-only'`. */
@@ -107,8 +107,8 @@ export interface IdeByebyeOptions {
   recording?: boolean | RecordingOptions;
   /**
    * Per-agent enable / overrides, plus `custom` clients.
-   * Default `{}` (clipboard, file, Codex, Claude, Cursor, Grok Build, Claude Code CLI, OpenCode on).
-   * `antigravityIde` and `antigravity` stay off until set.
+   * Default `{}` (clipboard, file, Codex, Claude, Cursor, Grok Build, Claude Code CLI, OpenCode, Devin CLI,
+   * Antigravity IDE, Antigravity on). `devinIde` and `windsurfIde` stay off until set.
    */
   agents?: AgentsOptions;
   /**

@@ -14,18 +14,18 @@ import {
     shouldWriteAntigravityPromptFile,
 } from './antigravity-launcher.js';
 
-test('Antigravity CLI stays unregistered until config turns it on', () => {
-    assert.equal(buildRegistry({}).has('antigravity'), false);
+test('Antigravity is registered by default and can be turned off in config', () => {
+    assert.equal(buildRegistry({}).has('antigravity'), true);
     assert.equal(buildRegistry({ antigravity: false }).has('antigravity'), false);
     assert.equal(buildRegistry({ antigravity: { enabled: false } }).has('antigravity'), false);
     const enabled = buildRegistry({ antigravity: { command: '/opt/agy', mode: 'plan' } });
     assert.equal(enabled.has('antigravity'), true);
-    assert.equal(enabled.has('antigravity-ide'), false);
+    assert.equal(enabled.has('antigravity-ide'), true);
 });
 
-test('both opt-in agents register after the default footer agents', () => {
+test('both Antigravity agents register by default at the end of the default footer agents', () => {
     assert.deepEqual(
-        buildRegistry({ antigravityIde: true, antigravity: true }).names(),
+        buildRegistry({}).names(),
         ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode', 'devin-cli', 'antigravity-ide', 'antigravity'],
     );
 });

@@ -46,8 +46,8 @@ monorepo 里，与其设 `pathStyle: 'absolute'`，不如把 Agent 的 `projectR
 
 ## Agent
 
-内置 13 个 Agent，其中 9 个默认开启。`agents.<key>: false`（或 `{ enabled: false }`）关闭；
-传对象则保持开启并覆盖选项。4 个可选 Agent 不设置对应 key 就不会出现。
+内置 13 个 Agent，其中 11 个默认开启。`agents.<key>: false`（或 `{ enabled: false }`）关闭；
+传对象则保持开启并覆盖选项。2 个可选 Agent 不设置对应 key 就不会出现。
 
 | Key | Id | 默认 | 作用 |
 | --- | --- | --- | --- |
@@ -58,10 +58,10 @@ monorepo 里，与其设 `pathStyle: 'absolute'`，不如把 Agent 的 `projectR
 | `claudeCli` | `claude-cli` | 开启 | 打开 **Claude Code CLI**：经 `claude-cli://` 预填，或在 Terminal 运行并直接提交。 |
 | `opencode` | `opencode` | 开启 | 打开 **OpenCode**：1.x 桌面版里预填，或在 Terminal 运行 CLI 并直接提交。 |
 | `devinCli` | `devin-cli` | 开启 | 在 Terminal 运行 **Devin**，prompt 作为第一条消息。 |
+| `antigravityIde` | `antigravity-ide` | 开启 | 用 **Antigravity IDE** 打开项目，prompt 放进 agent 输入框。 |
+| `antigravity` | `antigravity` | 开启 | 打开 **Antigravity** 桌面应用，prompt 放进输入框。 |
 | `clipboard` | `clipboard` | 开启 | **复制 Prompt** 按钮。永远不是 Enter 目标。 |
 | `file` | `file` | 开启 | 把请求写成 Markdown 放到 `outputDir/requests/`。没有按钮，用 `promptMode: 'file'` 触发。 |
-| `antigravityIde` | `antigravity-ide` | 需开启 | 用 **Antigravity IDE** 打开项目，prompt 放进 agent 输入框。 |
-| `antigravity` | `antigravity` | 需开启 | 打开 **Antigravity** 桌面应用，prompt 放进输入框。 |
 | `devinIde` | `devin-ide` | 需开启 | 打开 **Devin Desktop**，prompt 放进 Cascade 输入框。 |
 | `windsurfIde` | `windsurf-ide` | 需开启 | 打开 **Windsurf**，prompt 放进 Cascade 输入框。 |
 
@@ -185,7 +185,7 @@ prompt，改走 `devin --prompt-file`。
 
 #### `agents.antigravityIde`
 
-需开启。用 `antigravity-ide <projectRoot>` 打开项目，把 prompt 放进 agent 输入框，不自动发送。
+用 `antigravity-ide <projectRoot>` 打开项目，把 prompt 放进 agent 输入框，不自动发送。
 
 | 选项 | 默认 | 作用 |
 | --- | --- | --- |
@@ -197,8 +197,7 @@ prompt，改走 `devin --prompt-file`。
 
 #### `agents.antigravity`
 
-需开启。打开 **Antigravity** 桌面应用，把 prompt 写进输入框。只有没装桌面应用时才改用
-`agy` CLI。
+打开 **Antigravity** 桌面应用，把 prompt 写进输入框。只有没装桌面应用时才改用 `agy` CLI。
 
 | 选项 | 默认 | 作用 |
 | --- | --- | --- |

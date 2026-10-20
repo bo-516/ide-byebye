@@ -38,12 +38,7 @@ export default {
   },
   plugins: [
     new rspack.HtmlRspackPlugin({ template: './webpack.html', title: 'ai-inspector · demo (rspack)' }),
-    inspector({
-      agents: {
-        antigravityIde: true,
-        antigravity: true,
-      },
-    }),
+    inspector(),
   ],
   devServer: {
     // Dev server 5's default host can be [::1] only, which refuses 127.0.0.1.

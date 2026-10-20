@@ -90,9 +90,10 @@ function runLauncher(launchPath: string) {
 /**
  * Create the Antigravity IDE adapter.
  *
- * Boundary: registered only when `agents.antigravityIde` is `true` or an options object (`buildRegistry` does not
- * default it on). The CLI opens the project folder. A local bridge extension then places the prompt in the agent
- * input and does not submit it. `openCommand` / `openArgs` are ignored. Availability requires a working CLI binary.
+ * Boundary: registered by default in `buildRegistry` unless `agents.antigravityIde` is `false` or
+ * `{ enabled: false }`. The CLI opens the project folder. A local bridge extension then places the prompt in the
+ * agent input and does not submit it. `openCommand` / `openArgs` are ignored. Availability requires a working CLI
+ * binary.
  *
  * @param {Record<string, unknown>} config Antigravity IDE adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.

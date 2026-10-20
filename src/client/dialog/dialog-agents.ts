@@ -54,9 +54,8 @@ export const AGENT_LABELS = {
 /**
  * App-agent actions offered as send destinations in the dialog.
  *
- * Boundary: this list is UI-only; an agent is offered only when `enabledAgents` includes its name. Antigravity IDE
- * Antigravity IDE / Antigravity / Devin Desktop / Windsurf stay off unless the plugin config registers them, so a
- * zero-config page does not list them.
+ * Boundary: this list is UI-only; an agent is offered only when `enabledAgents` includes its name. Devin Desktop /
+ * Windsurf stay off unless the plugin config registers them, so a zero-config page does not list them.
  * Adding an action without a matching registered adapter lists an unavailable destination instead of sending to a
  * missing route. `titleKey` is resolved to a localized title at call time by `configuredActions()`. `kind` describes the
  * handoff (`app` opens a desktop app, `ide` an editor, `terminal` a CLI in a new terminal) and picks the icon only

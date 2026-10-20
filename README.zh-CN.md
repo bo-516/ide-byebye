@@ -60,7 +60,7 @@ token 少约 2/3，耗时少一半，上下文少一半。Codex、Claude、Curso
 | --- | --- |
 | **框架** | React、Vue、Svelte、Solid、Preact、Angular，以及 Next.js、Nuxt、SvelteKit |
 | **构建工具** | Vite、webpack、rspack、rsbuild、esbuild、Farm、Next.js（Turbopack 和 webpack）、Angular CLI |
-| **Agent** | Codex App、Claude App、Cursor、Grok Build、Claude Code CLI、OpenCode、Devin CLI。可选开启：Antigravity、Devin Desktop、Windsurf，或者[你自己的客户端](./CONFIGURATION.zh-CN.md#agentscustom) |
+| **Agent** | Codex App、Claude App、Cursor、Grok Build、Claude Code CLI、OpenCode、Devin CLI、Antigravity IDE、Antigravity。可选开启：Devin Desktop、Windsurf，或者[你自己的客户端](./CONFIGURATION.zh-CN.md#agentscustom) |
 
 只在开发环境运行，不带模型、不带 AI SDK，也从不改你的文件。它负责拼好 prompt、打开
 Agent，改代码的是 Agent。
@@ -160,8 +160,8 @@ export default await angularProxy();
 | Claude Code CLI | 开启 | 你的终端，预填（或 Terminal，直接提交） | — |
 | OpenCode | 开启 | 1.x 桌面版预填，或 CLI 直接提交 | — |
 | Devin CLI | 开启 | Terminal，直接提交 | ✓ 恢复该会话 |
-| Antigravity IDE | 需开启 | agent 输入框，预填 | 实验性 |
-| Antigravity | 需开启 | 桌面版输入框，预填 | — |
+| Antigravity IDE | 开启 | agent 输入框，预填 | 实验性 |
+| Antigravity | 开启 | 桌面版输入框，预填 | — |
 | Devin Desktop | 需开启 | Cascade 输入框，预填 | — |
 | Windsurf | 需开启 | Cascade 输入框，预填 | — |
 | 你自己的客户端 | 需开启 | 经 `postMessage` 或 HTTP 送进已在运行的 app | — |

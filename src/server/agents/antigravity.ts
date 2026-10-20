@@ -57,10 +57,10 @@ function launchAntigravityApp(appPath: string) {
 /**
  * Create the Antigravity adapter.
  *
- * Boundary: registered only when `agents.antigravity` is `true` or an options object. The desktop app is preferred:
- * the prompt is written into its composer (`?q=` on the app's own loopback window). The `agy` CLI is only used when
- * that app is not installed. Availability is the installed app, not a running window, so the button stays enabled
- * when Antigravity is installed but closed.
+ * Boundary: registered by default in `buildRegistry` unless `agents.antigravity` is `false` or `{ enabled: false }`.
+ * The desktop app is preferred: the prompt is written into its composer (`?q=` on the app's own loopback window).
+ * The `agy` CLI is only used when that app is not installed. Availability is the installed app, not a running
+ * window, so the button stays enabled when Antigravity is installed but closed.
  *
  * @param {Record<string, unknown>} config Antigravity adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.
