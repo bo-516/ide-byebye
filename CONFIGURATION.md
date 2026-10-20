@@ -210,6 +210,11 @@ the agent input without sending it.
 Opens the **Antigravity** desktop app and writes the prompt into its composer.
 Falls back to the `agy` CLI only when the desktop app isn't installed.
 
+The composer switches to the Antigravity project whose folder contains
+`projectRoot` (the innermost one if several do). If no project contains it,
+Antigravity stays on the current project; add the folder as a project in
+Antigravity once.
+
 | Option | Default | What it does |
 | --- | --- | --- |
 | `command` | `agy`, then `~/.local/bin/agy` (Windows: `%LOCALAPPDATA%\agy\bin\agy.exe`) | CLI path. |

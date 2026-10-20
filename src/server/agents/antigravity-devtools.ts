@@ -95,14 +95,16 @@ function evaluateInPage(wsUrl: string, expression: string, timeoutMs = 8000) {
 /**
  * Put `prompt` into the running Antigravity composer's input.
  *
- * Boundary: waits until the desktop app exposes a loopback page, then navigates that page to `/?q=&ws=`. The app
- * copies `q` into the input and removes it from the address bar. If the app is not running, this keeps returning null
- * until `timeoutMs`. It does not launch the app; the caller does that first.
+ * Boundary: waits until the desktop app exposes a loopback page, then navigates that page to `/?q=&ws=&section=`.
+ * The app copies `q` into the input and removes it from the address bar. `sectionId` switches the project; without it
+ * the composer opens in whatever project was showing. If the app is not running, this keeps returning null until
+ * `timeoutMs`. It does not launch the app; the caller does that first.
  *
- * @param {{ prompt: string, workspaceDir?: string, timeoutMs?: number, userDataDir?: string }} input Prompt and optional project directory.
+ * @param {{ prompt: string, workspaceDir?: string, sectionId?: string, timeoutMs?: number, userDataDir?: string }} input
+ *        Prompt, optional project directory, and optional Antigravity project id.
  * @returns {Promise<boolean>} True when the composer URL was applied.
  */
-export async function injectAntigravityComposer(input: { prompt: string, workspaceDir?: string, timeoutMs?: number, userDataDir?: string }) {
+export async function injectAntigravityComposer(input: { prompt: string, workspaceDir?: string, sectionId?: string, timeoutMs?: number, userDataDir?: string }) {
     const userDataDir = input.userDataDir || antigravityUserDataDir();
     const deadline = Date.now() + (input.timeoutMs ?? 20000);
     let page = null;
@@ -114,7 +116,7 @@ export async function injectAntigravityComposer(input: { prompt: string, workspa
     }
     if (!page)
         return false;
-    const target = buildAntigravityComposerUrl(page.url, input.prompt, input.workspaceDir);
+    const target = buildAntigravityComposerUrl(page.url, input.prompt, input.workspaceDir, input.sectionId);
     await evaluateInPage(page.webSocketDebuggerUrl, antigravityNavigateExpression(target));
     return true;
 }

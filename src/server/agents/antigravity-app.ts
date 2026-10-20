@@ -82,17 +82,19 @@ export function parseDevToolsActivePort(text: string) {
 /**
  * Build the in-app URL that prefills the Antigravity composer.
  *
- * Boundary: the Antigravity window reads `q` into its input and `ws` as the workspace, then strips `q` from the
- * address bar. The result stays on the page's own loopback origin. Any other host is rejected so a tampered page URL
- * cannot be used to navigate somewhere else. `workspaceDir` must be an absolute filesystem path; it is encoded as a
- * `file:` URL.
+ * Boundary: the Antigravity window reads `q` into its input, then strips it from the address bar. `section` picks the
+ * project the new conversation opens in; with projects enabled (the desktop default) the app ignores `ws`, so
+ * without `section` the composer stays on whatever project was open. `ws` is still sent for builds without
+ * projects, where it selects the workspace. The result stays on the page's own loopback origin. Any other host is
+ * rejected so a tampered page URL cannot be used to navigate somewhere else.
  *
  * @param {string} pageUrl Current Antigravity page URL (`https://127.0.0.1:<port>/`).
  * @param {string} prompt Prompt text placed in the composer. An empty string still navigates, but the app ignores an empty `q`.
- * @param {string} [workspaceDir] Project directory the composer should bind to.
+ * @param {string} [workspaceDir] Absolute project directory, encoded as a `file:` URL in `ws`.
+ * @param {string} [sectionId] Antigravity project id (see `resolveAntigravityProject`). Blank leaves the project unchanged.
  * @returns {string} Absolute URL on the same origin.
  */
-export function buildAntigravityComposerUrl(pageUrl: string, prompt: string, workspaceDir?: string) {
+export function buildAntigravityComposerUrl(pageUrl: string, prompt: string, workspaceDir?: string, sectionId?: string) {
     const current = new URL(pageUrl);
     if (current.protocol !== 'https:' && current.protocol !== 'http:')
         throw new Error('Unexpected Antigravity page URL');
@@ -102,6 +104,8 @@ export function buildAntigravityComposerUrl(pageUrl: string, prompt: string, wor
     next.searchParams.set('q', String(prompt ?? ''));
     if (typeof workspaceDir === 'string' && workspaceDir.trim())
         next.searchParams.set('ws', pathToFileURL(workspaceDir).href);
+    if (typeof sectionId === 'string' && sectionId.trim())
+        next.searchParams.set('section', sectionId.trim());
     return next.toString();
 }
 
