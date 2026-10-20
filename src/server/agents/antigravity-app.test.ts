@@ -47,7 +47,21 @@ test('buildAntigravityComposerUrl stays on the app origin and carries the prompt
     assert.equal(parsed.pathname, '/');
     assert.equal(parsed.searchParams.get('q'), 'Make the button primary');
     assert.equal(parsed.searchParams.get('ws'), 'file:///tmp/proj');
+    assert.equal(parsed.searchParams.has('section'), false);
     assert.throws(() => buildAntigravityComposerUrl('https://evil.example/', 'x', '/tmp'));
+});
+
+test('buildAntigravityComposerUrl switches the project through section', () => {
+    const url = new URL(buildAntigravityComposerUrl(
+        'https://127.0.0.1:62594/c/abc?section=old-project',
+        'Make the button primary',
+        '/tmp/proj',
+        'ce4ea324-94f2-4abf-b32f-aeb9b3a908c7',
+    ));
+    assert.equal(url.pathname, '/');
+    assert.equal(url.searchParams.get('section'), 'ce4ea324-94f2-4abf-b32f-aeb9b3a908c7');
+    assert.equal(url.searchParams.get('q'), 'Make the button primary');
+    assert.equal(new URL(buildAntigravityComposerUrl('https://127.0.0.1:1/', 'x', '/tmp', '  ')).searchParams.has('section'), false);
 });
 
 test('selectAntigravityPage keeps only the loopback composer page', () => {

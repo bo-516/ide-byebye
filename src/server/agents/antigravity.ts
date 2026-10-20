@@ -3,6 +3,7 @@ import { resolveFirstCommand, writeHandoffPromptFile, writeLaunchFiles } from '.
 import { openTarget } from './opener.js';
 import { resolveAntigravityApp } from './antigravity-app.js';
 import { injectAntigravityComposer } from './antigravity-devtools.js';
+import { resolveAntigravityProject } from './antigravity-projects.js';
 import {
     antigravityMissingMessage,
     buildAntigravityFilePrompt,
@@ -58,9 +59,11 @@ function launchAntigravityApp(appPath: string) {
  * Create the Antigravity adapter.
  *
  * Boundary: registered by default in `buildRegistry` unless `agents.antigravity` is `false` or `{ enabled: false }`.
- * The desktop app is preferred: the prompt is written into its composer (`?q=` on the app's own loopback window).
- * The `agy` CLI is only used when that app is not installed. Availability is the installed app, not a running
- * window, so the button stays enabled when Antigravity is installed but closed.
+ * The desktop app is preferred: the prompt is written into its composer (`?q=` on the app's own loopback window),
+ * switched to the Antigravity project whose folder contains the project root (`?section=`). With no such project
+ * the app stays on its current project and the output says so. The `agy` CLI is only used when that app is not
+ * installed. Availability is the installed app, not a running window, so the button stays enabled when Antigravity
+ * is installed but closed.
  *
  * @param {Record<string, unknown>} config Antigravity adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.
@@ -100,21 +103,26 @@ export function createAntigravityAdapter(config: Record<string, unknown> = {}) {
                 }
                 const cwd = resolveAntigravityProjectRoot(config, context);
                 if (appPath) {
+                    const project = resolveAntigravityProject(cwd);
                     await launchAntigravityApp(appPath);
-                    const injected = await injectAntigravityComposer({ prompt, workspaceDir: cwd });
+                    const injected = await injectAntigravityComposer({ prompt, workspaceDir: cwd, sectionId: project?.id });
                     if (!injected)
                         throw new Error('Antigravity opened, but its window was not ready for the prompt');
-                    const completed = { type: 'completed', text: 'Antigravity opened with the prompt in the composer' };
+                    const where = project ? ` in the ${project.name} project` : '';
+                    const completed = { type: 'completed', text: `Antigravity opened${where} with the prompt in the composer` };
                     events.push(completed);
                     context.emit(completed);
+                    const notes = [
+                        `Opened Antigravity${where} with the prompt in the composer.`,
+                        project ? '' : `No Antigravity project contains ${cwd}, so the current project was kept. Add that folder as a project in Antigravity to switch to it automatically.`,
+                        writtenPromptPath ? `Full request context was written to ${writtenPromptPath}.` : '',
+                    ];
                     return {
                         ok: true,
                         agent: 'antigravity',
                         requestId: request.id,
                         events,
-                        output: writtenPromptPath
-                            ? `Opened Antigravity with the prompt in the composer. Full request context was written to ${writtenPromptPath}.`
-                            : 'Opened Antigravity with the prompt in the composer.',
+                        output: notes.filter(Boolean).join(' '),
                         writtenPromptPath,
                     };
                 }

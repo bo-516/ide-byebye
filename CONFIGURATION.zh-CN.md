@@ -199,6 +199,9 @@ prompt，改走 `devin --prompt-file`。
 
 打开 **Antigravity** 桌面应用，把 prompt 写进输入框。只有没装桌面应用时才改用 `agy` CLI。
 
+会自动切到文件夹包含 `projectRoot` 的那个 Antigravity 项目（有多个时取最内层的）。如果没有任何项目包含它，
+Antigravity 会停在当前项目；在 Antigravity 里把这个文件夹添加为项目一次即可。
+
 | 选项 | 默认 | 作用 |
 | --- | --- | --- |
 | `command` | `agy`，其次 `~/.local/bin/agy`（Windows：`%LOCALAPPDATA%\agy\bin\agy.exe`） | CLI 路径。 |

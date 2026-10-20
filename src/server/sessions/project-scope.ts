@@ -73,13 +73,15 @@ export function normalizeScopePath(input: string, io: SessionFs = fs) {
  *
  * Boundary: equality is its own result because security's `isInsideRoot` treats equality as outside, and session
  * scope must treat "same directory" as in scope. `win32` comparison is case-insensitive via `path.win32.relative`.
+ * Exported for the Antigravity project lookup, which needs the same equal-or-inside rule. Callers normalize both
+ * paths first (see {@link normalizeScopePath}); unnormalized symlinks compare as `outside`.
  *
  * @param {string} child Candidate path.
  * @param {string} parent Root path.
  * @param {string} platform Node platform id.
  * @returns {'equal' | 'inside' | 'outside'}
  */
-function classify(child: string, parent: string, platform: string) {
+export function classifyScopePath(child: string, parent: string, platform: string) {
     const api = pathApi(platform);
     const rel = api.relative(parent, child);
     if (rel === '')
@@ -117,7 +119,7 @@ export function buildProjectScope(projectRoot: string, extraRoots: string[] = []
     for (const candidate of [root, gitRoot, ...extras]) {
         if (!candidate)
             continue;
-        if (!roots.some((existing) => classify(candidate, existing, platform) === 'equal'))
+        if (!roots.some((existing) => classifyScopePath(candidate, existing, platform) === 'equal'))
             roots.push(candidate);
     }
     return { projectRoot: root, gitRoot, home, roots, platform };
@@ -151,18 +153,18 @@ export function matchSessionCwd(cwd: string, scope: { projectRoot: string, gitRo
         return false;
     }
     for (const root of scope.roots ?? []) {
-        const relation = classify(resolved, root, platform);
+        const relation = classifyScopePath(resolved, root, platform);
         if (relation === 'equal' || relation === 'inside')
             return true;
     }
     const api = pathApi(platform);
-    if (classify(scope.projectRoot, resolved, platform) !== 'inside')
+    if (classifyScopePath(scope.projectRoot, resolved, platform) !== 'inside')
         return false;
     // The session directory contains the project. Reject home and anything above it — that covers the filesystem
     // root and any volume ancestor, which would match every project the user owns.
-    if (scope.home && classify(scope.home, resolved, platform) !== 'outside')
+    if (scope.home && classifyScopePath(scope.home, resolved, platform) !== 'outside')
         return false;
-    if (scope.gitRoot && classify(resolved, scope.gitRoot, platform) !== 'outside')
+    if (scope.gitRoot && classifyScopePath(resolved, scope.gitRoot, platform) !== 'outside')
         return true;
     const depth = api.relative(resolved, scope.projectRoot).split(api.sep).length;
     return depth <= MAX_SCOPE_ANCESTOR_DEPTH;
