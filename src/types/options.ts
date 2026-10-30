@@ -1,4 +1,4 @@
-import type { Locale, Theme, ClickModifier, AgentId, ApplyMode, PathStyle } from './primitives.js';
+import type { Locale, Theme, ClickModifier, PickButton, AgentId, ApplyMode, PathStyle } from './primitives.js';
 import type { AgentsOptions } from './agents.js';
 
 /**
@@ -69,9 +69,19 @@ export interface IdeByebyeOptions {
   hotkey?: string;
   /**
    * Click-to-pick modifier. Default `'auto'` (⌘ or Ctrl, including DevTools mobile emulation).
-   * `null` / `false` disables modifier-picking (hotkey and 4s long-press still work).
+   * `null` / `false` disables modifier-picking (the hotkey still works).
    */
   clickModifier?: ClickModifier;
+  /**
+   * Floating pick button: tap it, then tap an element. Default `'touch'` (shown while the primary pointer is coarse).
+   * `true` always shows it, `false` never does. While a draft is pinned, the same button resumes it.
+   */
+  pickButton?: PickButton;
+  /**
+   * Pick by holding still on an element: 1s on touch, 4s with a mouse. Default `false`, because a hold is also the
+   * page's own gesture (long-press menus, text selection).
+   */
+  longPress?: boolean;
   /**
    * Enter-key target: a footer agent (`'codex-app'` / `'claude-app'` / `'cursor-app'` /
    * `'grok-build'` / `'claude-cli'` / `'opencode'` / `'devin-cli'` / `'antigravity-ide'` / `'antigravity'` or an

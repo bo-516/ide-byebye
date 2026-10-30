@@ -28,6 +28,8 @@ package ships type definitions.
 | `locale` | `'zh' \| 'en'` | auto | UI language: this option, then `navigator.language`, then `zh`. Any string starting with `zh` means Chinese. Prompts are never localized. |
 | `hotkey` | `string` | `'Alt+Shift+I'` | Toggles the picker. `+`-joined, case-insensitive. Modifiers: `alt`/`option`, `shift`, `ctrl`/`control`, `meta`/`cmd`/`command`; the last token is the key. |
 | `clickModifier` | `string \| null \| false` | `'auto'` | Hold-to-pick key: ⌘ on macOS, Ctrl elsewhere. Force one with `'meta'` / `'ctrl'` / `'alt'` / `'shift'`; `null` / `false` turns click-to-pick off (the hotkey still works). |
+| `pickButton` | `boolean \| 'touch'` | `'touch'` | Floating pick button: tap it, then tap an element (or press and slide to it; the highlight follows your finger). `'touch'` shows it while the primary pointer is a finger (phones, tablets, DevTools device mode), `true` always, `false` never. While a dialog is pinned, the same button resumes it. Pick mode blocks scrolling, so scroll first. |
+| `longPress` | `boolean` | `false` | Pick by holding still on an element: 1s on touch, 4s with a mouse. Off by default because a hold is also the page's own gesture (long-press menus, text selection). |
 | `applyMode` | `'prompt-only' \| 'agent-edit'` | `'prompt-only'` | Hint in the handoff: propose a plan only, or allow edits. |
 | `outputDir` | `string` | `'.intent-inspector'` | Where handoff files and media go. Must stay inside the project root. Gitignore it. |
 | `maxSourceContextLines` | `number` | `60` | Source lines around the element that go into the prompt. |

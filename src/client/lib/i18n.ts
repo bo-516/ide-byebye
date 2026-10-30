@@ -1,5 +1,6 @@
 import { CLIENT_CONFIG_GLOBAL } from '../../shared/constants.js';
 import { normalizeLocale } from '../../shared/locale.js';
+import { PICK_STRINGS } from './i18n-pick.js';
 import { STATE_STRINGS } from './i18n-state.js';
 
 // Re-exported so existing importers of `normalizeLocale` from this module keep working; the implementation now lives in
@@ -30,6 +31,7 @@ export const LOCALES = ['zh', 'en'];
  */
 const STRINGS: Record<string, { zh: string; en: string }> = {
     ...STATE_STRINGS,
+    ...PICK_STRINGS,
     // --- intent editor / dialog shell ---
     'intent.placeholder': {
         zh: '例如：把这个按钮改成主按钮，并加 loading 状态',

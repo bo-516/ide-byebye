@@ -43,3 +43,9 @@ export type ClickModifier =
   | 'shift'
   | null
   | false;
+
+/**
+ * When the floating pick button shows: `'touch'` while the primary pointer is coarse (phones, tablets, DevTools device
+ * mode), `true` always, `false` never.
+ */
+export type PickButton = boolean | 'touch';

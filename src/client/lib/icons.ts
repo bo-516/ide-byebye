@@ -32,6 +32,7 @@ const ICON_PATHS: Record<string, string> = {
     ide: "<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='m10 10-2.5 2.5L10 15M14 10l2.5 2.5L14 15'/>",
     terminal: "<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='m7.5 10 2.5 2.5L7.5 15M12.5 15.5h4'/>",
     custom: "<path d='M9 3.5v4M15 3.5v4M6.5 7.5h11v3a5.5 5.5 0 0 1-11 0zM12 16v4.5'/>",
+    inspect: "<path d='M10.5 20.5h-4a3 3 0 0 1-3-3v-11a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v4'/><path d='M12 12l8.5 3.1-3.6 1.5-1.6 3.7z' fill='black'/>",
 };
 
 /**

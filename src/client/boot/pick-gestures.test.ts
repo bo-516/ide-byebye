@@ -109,12 +109,14 @@ function capturingNode() {
     return node;
 }
 
-function makeController(matchModifier: string | null = 'auto') {
+/** Long-press is opt-in (`longPress` plugin option); tests of the hold path pass `true`. */
+function makeController(matchModifier: string | null = 'auto', longPress = false) {
     const clock = createClock();
     const picker = mockPicker();
     const controller = createPickGestureController({
         picker,
         matchModifier,
+        longPress,
         schedule: (fn, ms) => clock.schedule(fn, ms),
         cancelSchedule: (id) => clock.cancel(id),
         now: () => clock.now(),
@@ -213,7 +215,7 @@ test('keydown Command plus a touch click with metaKey false still picks', () => 
 });
 
 test('keydown Command plus pointerup without metaKey picks and cancels the long-press timer', () => {
-    const { clock, picker, controller } = makeController('auto');
+    const { clock, picker, controller } = makeController('auto', true);
     const node = pageNode();
     controller.onKeyDown(keyEvent({ metaKey: true }));
     controller.onPointerDown(pointerEvent({ target: node, pointerId: 1, metaKey: false }));
@@ -287,8 +289,8 @@ test('explicit meta does not pick from Ctrl-only flags', () => {
     assert.equal(picker.calls.select.length, 0);
 });
 
-test('modifier picking is off when matchModifier is null; long-press still opens', () => {
-    const { clock, picker, controller } = makeController(null);
+test('modifier picking is off when matchModifier is null; an opted-in long-press still opens', () => {
+    const { clock, picker, controller } = makeController(null, true);
     const node = pageNode();
     controller.onKeyDown(keyEvent({ metaKey: true }));
     controller.onClick(pointerEvent({ target: node, metaKey: true }));
@@ -301,7 +303,7 @@ test('modifier picking is off when matchModifier is null; long-press still opens
 });
 
 test('long-press 4s selects the pressed target on mouse', () => {
-    const { clock, picker, controller } = makeController('auto');
+    const { clock, picker, controller } = makeController('auto', true);
     const node = pageNode();
     controller.onPointerDown(pointerEvent({
         target: node,
@@ -319,7 +321,7 @@ test('long-press 4s selects the pressed target on mouse', () => {
 });
 
 test('touch / device-mode long-press opens at 1s, not 4s', () => {
-    const { clock, picker, controller } = makeController('auto');
+    const { clock, picker, controller } = makeController('auto', true);
     const node = pageNode();
     controller.onPointerDown(pointerEvent({
         target: node,
@@ -336,7 +338,7 @@ test('touch / device-mode long-press opens at 1s, not 4s', () => {
 });
 
 test('moving past the tolerance cancels the long-press timer', () => {
-    const { clock, picker, controller } = makeController('auto');
+    const { clock, picker, controller } = makeController('auto', true);
     controller.onPointerDown(pointerEvent({ pointerId: 1, clientX: 0, clientY: 0 }));
     controller.onPointerMove(pointerEvent({
         pointerId: 1,
@@ -348,7 +350,7 @@ test('moving past the tolerance cancels the long-press timer', () => {
 });
 
 test('releasing before 4s does not long-press select', () => {
-    const { clock, picker, controller } = makeController('auto');
+    const { clock, picker, controller } = makeController('auto', true);
     controller.onPointerDown(pointerEvent({ pointerId: 1 }));
     clock.advance(LONG_PRESS_DURATION_MS - 1);
     controller.onPointerUp(pointerEvent({ pointerId: 1 }));
@@ -357,7 +359,7 @@ test('releasing before 4s does not long-press select', () => {
 });
 
 test('plugin UI and busy picker never start a long-press', () => {
-    const { clock, picker, controller } = makeController('auto');
+    const { clock, picker, controller } = makeController('auto', true);
     controller.onPointerDown(pointerEvent({ target: pluginNode() }));
     clock.advance(LONG_PRESS_DURATION_MS);
     assert.equal(picker.calls.select.length, 0);
@@ -369,7 +371,7 @@ test('plugin UI and busy picker never start a long-press', () => {
 });
 
 test('a successful pick swallows the following click within the consume window', () => {
-    const { clock, picker, controller } = makeController('auto');
+    const { clock, picker, controller } = makeController('auto', true);
     const node = pageNode();
     controller.onPointerDown(pointerEvent({ target: node, pointerId: 1 }));
     clock.advance(LONG_PRESS_DURATION_MS);
@@ -385,8 +387,50 @@ test('a successful pick swallows the following click within the consume window',
     assert.equal(picker.calls.select.length, 2);
 });
 
+test('the long-press that opened the dialog swallows its release, however late it comes', () => {
+    const { clock, picker, controller } = makeController('auto', true);
+    const node = pageNode();
+    controller.onPointerDown(pointerEvent({ target: node, pointerId: 4, pointerType: 'touch' }));
+    clock.advance(LONG_PRESS_DURATION_TOUCH_MS);
+    assert.equal(picker.calls.select.length, 1);
+    // The finger stays down well past the consume window, then lifts over the dialog's scrim.
+    clock.advance(PICK_CONSUME_MS * 4);
+    const up = pointerEvent({ target: pluginNode(), pointerId: 4, pointerType: 'touch' });
+    controller.onPointerUp(up);
+    assert.equal(up.prevented, true);
+    assert.equal(up.immediate, true);
+    // touchend stays on the touchstart target (the page element); cancelling it also stops the compat mouse events.
+    const touchEnd = pointerEvent({ target: node, pointerId: undefined });
+    controller.onPointerUp(touchEnd);
+    assert.equal(touchEnd.prevented, true);
+    const click = pointerEvent({ target: pluginNode(), pointerId: undefined });
+    controller.onClick(click);
+    assert.equal(click.prevented, true);
+    // The next tap on the dialog belongs to the dialog again.
+    clock.advance(PICK_CONSUME_MS);
+    controller.onPointerDown(pointerEvent({ target: pluginNode(), pointerId: 5, pointerType: 'touch' }));
+    const nextUp = pointerEvent({ target: pluginNode(), pointerId: 5, pointerType: 'touch' });
+    controller.onPointerUp(nextUp);
+    assert.equal(nextUp.prevented, undefined);
+});
+
+test('a new press drops a held pick whose release never reached the controller', () => {
+    const { clock, picker, controller } = makeController('auto', true);
+    controller.onPointerDown(pointerEvent({ target: pageNode(), pointerId: 4, pointerType: 'touch' }));
+    clock.advance(LONG_PRESS_DURATION_TOUCH_MS);
+    assert.equal(picker.calls.select.length, 1);
+    // Separate step: the fake clock fires timers at the end of an advance, which would date the pick 500ms late.
+    clock.advance(PICK_CONSUME_MS);
+    // A page capture listener stopped pointerup / touchend. The next tap lands on the dialog; its touchend has no
+    // pointerId, so a stale hold would have matched it and cancelled the tap's click.
+    controller.onPointerDown(pointerEvent({ target: pluginNode(), pointerId: 5, pointerType: 'touch' }));
+    const touchEnd = pointerEvent({ target: pluginNode(), pointerId: undefined });
+    controller.onPointerUp(touchEnd);
+    assert.equal(touchEnd.prevented, undefined);
+});
+
 test('contextmenu is swallowed only while a press is in flight', () => {
-    const { controller } = makeController('auto');
+    const { controller } = makeController('auto', true);
     const idle = pointerEvent();
     controller.onContextMenu(idle);
     assert.equal(idle.prevented, undefined);
@@ -396,8 +440,69 @@ test('contextmenu is swallowed only while a press is in flight', () => {
     assert.equal(during.prevented, true);
 });
 
+/** `documentElement` stand-in that records the selection / callout lock the controller writes during a press. */
+function styleRoot() {
+    const writes: string[] = [];
+    return {
+        writes,
+        style: {
+            setProperty(property: string) {
+                writes.push(property);
+            },
+            removeProperty() {},
+        },
+    };
+}
+
+test('long-press is off by default: a plain press is left entirely to the page', () => {
+    const root = styleRoot();
+    const node = capturingNode();
+    const clock = createClock();
+    const picker = mockPicker();
+    const controller = createPickGestureController({
+        picker,
+        matchModifier: 'auto',
+        schedule: (fn, ms) => clock.schedule(fn, ms),
+        cancelSchedule: (id) => clock.cancel(id),
+        now: () => clock.now(),
+        root,
+    });
+    controller.onPointerDown(pointerEvent({ target: node, pointerId: 3, pointerType: 'touch' }));
+    // No capture and no user-select lock: page drag-select, double-click select and long-press menus keep working.
+    assert.equal(node.captured.length, 0);
+    assert.equal(root.writes.length, 0);
+    const menu = pointerEvent({ target: node });
+    controller.onContextMenu(menu);
+    assert.equal(menu.prevented, undefined);
+    const select = pointerEvent({ target: node });
+    controller.onSelectStart(select);
+    assert.equal(select.prevented, undefined);
+    clock.advance(LONG_PRESS_DURATION_MS);
+    assert.equal(picker.calls.preview, 0);
+    assert.equal(picker.calls.select.length, 0);
+    const up = pointerEvent({ target: node, pointerId: 3, pointerType: 'touch' });
+    controller.onPointerUp(up);
+    assert.equal(up.prevented, undefined);
+
+    // A modifier press is still the inspector's, exactly as before.
+    controller.onKeyDown(keyEvent({ metaKey: true }));
+    controller.onPointerDown(pointerEvent({ target: node, pointerId: 4 }));
+    assert.deepEqual(node.captured, [4]);
+    assert.ok(root.writes.includes('user-select'));
+    controller.onPointerUp(pointerEvent({ target: node, pointerId: 4 }));
+    assert.equal(picker.calls.select.length, 1);
+});
+
+test('moves over the plugin UI leave the highlight to touch pick mode', () => {
+    const { picker, controller } = makeController('auto');
+    controller.onPointerMove(pointerEvent({ pointerType: 'touch', target: pluginNode() }));
+    assert.equal(picker.calls.hide, 0);
+    controller.onPointerMove(pointerEvent({ pointerType: 'touch', target: pageNode() }));
+    assert.equal(picker.calls.hide, 1);
+});
+
 test('Chrome long-press conversion (contextmenu + pointercancel) still opens at 4s', () => {
-    const { clock, picker, controller } = makeController('auto');
+    const { clock, picker, controller } = makeController('auto', true);
     const node = pageNode();
     controller.onPointerDown(pointerEvent({ target: node, pointerId: 1 }));
     const menu = pointerEvent({ button: 2, target: node });

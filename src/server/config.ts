@@ -1,5 +1,6 @@
 import { DEFAULT_HOTKEY, DEFAULT_MAX_HTML_SNIPPET, DEFAULT_MAX_SOURCE_CONTEXT_LINES, DEFAULT_OUTPUT_DIR, } from '../shared/constants.js';
 import { normalizeLocale } from '../shared/locale.js';
+import { normalizeLongPress, normalizePickButton } from '../shared/pick-trigger.js';
 import { normalizeTheme } from '../shared/theme.js';
 
 /**
@@ -141,6 +142,8 @@ export function resolveOptions(options: {
     theme?: unknown;
     hotkey?: unknown;
     clickModifier?: unknown;
+    pickButton?: unknown;
+    longPress?: unknown;
     defaultAgent?: unknown;
     outputDir?: unknown;
     applyMode?: unknown;
@@ -162,6 +165,9 @@ export function resolveOptions(options: {
         // 'auto' resolves per-platform in the browser (⌘ on macOS, Ctrl elsewhere) so ⌘/Ctrl-click works with zero
         // config; pass an explicit modifier to override, or `false`/`null` to disable click-picking.
         clickModifier: options.clickModifier ?? 'auto',
+        // Touch devices pick through the floating button; a hold on the page stays the page's gesture unless opted in.
+        pickButton: normalizePickButton(options.pickButton),
+        longPress: normalizeLongPress(options.longPress),
         defaultAgent: options.defaultAgent ?? 'claude-app',
         // Callers pass this to `path.resolve`, which requires a string. Non-strings still flow through unchanged.
         outputDir: options.outputDir as string ?? DEFAULT_OUTPUT_DIR,

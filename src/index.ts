@@ -17,6 +17,7 @@ export type {
     AgentId,
     ApplyMode,
     ClickModifier,
+    PickButton,
     AgentOpenOptions,
     ClaudeAppAgentOptions,
     CodexAppAgentOptions,

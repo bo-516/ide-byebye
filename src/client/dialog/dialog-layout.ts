@@ -162,7 +162,7 @@ export abstract class DialogLayout {
             reposition: () => this.repositionForContent(),
             showError: (text: string) => this.showError(text),
         });
-        this.pin = new DialogPin(parent, { onRestore: () => this.handleOrbRestore() });
+        this.pin = new DialogPin(parent, { onRestore: () => this.handleOrbRestore(), isDialogOpen: () => this.isOpen() });
     }
     isOpen() {
         return this.backdrop != null;
