@@ -1,6 +1,7 @@
 import { el, isAgentVisible } from './dialog-utils.js';
 import { t } from '../lib/i18n.js';
 import { iconSvg } from '../lib/icons.js';
+import { bindScrimDismiss } from '../lib/event-isolation.js';
 import { DialogPins } from './dialog-pins.js';
 import type { ElementSelection } from './dialog-types.js';
 
@@ -21,16 +22,14 @@ export abstract class DialogShell extends DialogPins {
      * destination is a setting (it rarely changes), so it is a compact picker rather than a button per agent; Send and
      * Enter both go to it. The session menu observes `.cii-footer` for placement, so the class must stay. Agents
      * turned off in plugin config are never offered (including `clipboard`, which backs Copy); with no destination at
-     * all, the picker and Send hide and Copy becomes the primary action.
+     * all, the picker and Send hide and Copy becomes the primary action. A tap or click on the scrim closes the dialog
+     * only once the gesture has ended (`bindScrimDismiss`), so no part of it falls through to the page.
      * @param {ElementSelection | null} _selection Current primary selection, intentionally unused by static layout.
      * @returns {void}
      */
     render(_selection: ElementSelection | null) {
         const backdrop = el('div', 'cii-backdrop');
-        backdrop.addEventListener('mousedown', (e: MouseEvent) => {
-            if (e.target === backdrop)
-                this.close();
-        });
+        bindScrimDismiss(backdrop, () => this.close());
         const dialog = el('div', 'cii-dialog');
         // --- header: pin + close sit in the top-right corner, away from the hand-off keys ---
         const header = el('div', 'cii-header');

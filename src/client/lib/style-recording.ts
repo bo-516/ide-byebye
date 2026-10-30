@@ -152,6 +152,12 @@ export const RECORDING_STYLE = `
   box-shadow: var(--cii-shadow-ink), 0 0 0 4px var(--cii-accent-soft);
   cursor: grab;
   pointer-events: auto;
+  /* Without these a touch drag pans the page and ends in pointercancel, and a hold starts a selection or callout. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   transition: box-shadow 160ms ease;
   animation: cii-fade-in 200ms ease-out;
 }

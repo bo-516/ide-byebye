@@ -57,6 +57,8 @@ function makeClientConfig(resolved: ReturnType<typeof resolveOptions>, registry:
         theme: resolved.theme,
         hotkey: resolved.hotkey,
         clickModifier: resolved.clickModifier,
+        pickButton: resolved.pickButton,
+        longPress: resolved.longPress,
         defaultAgent,
         applyMode: resolved.applyMode,
         apiOrigin: resolved.apiOrigin || origin,

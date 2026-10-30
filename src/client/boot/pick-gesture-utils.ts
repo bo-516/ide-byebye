@@ -1,12 +1,15 @@
-/** Mouse / trackpad hold duration that opens the intent dialog. */
+/** Mouse / trackpad hold duration that opens the intent dialog when the `longPress` option is on. */
 export const LONG_PRESS_DURATION_MS = 4000;
-/** Touch / DevTools-mobile hold duration that opens the intent dialog. */
+/** Touch / DevTools-mobile hold duration that opens the intent dialog when the `longPress` option is on. */
 export const LONG_PRESS_DURATION_TOUCH_MS = 1000;
 /** Show the inspect overlay before the dialog so a hold is not silent. */
 export const LONG_PRESS_HINT_MS = 400;
 /** Pointer travel (px) above which a press is treated as a scroll/drag, not a long-press. */
 export const LONG_PRESS_MOVE_PX = 16;
-/** Swallow the synthesized click/pointerup that follows a successful pick. */
+/**
+ * Swallow the synthesized click/pointerup that follows a successful pick. For a long-press pick the window starts at
+ * the release, not at the pick, since the finger can stay down well past the dialog opening.
+ */
 export const PICK_CONSUME_MS = 500;
 
 /** One finger's viewport point on a touch list. A missing list means "not a touch event". */
@@ -226,12 +229,15 @@ export interface PointerGestureEvent extends ModifierGestureEvent {
     stopImmediatePropagation(): void;
 }
 
-/** In-flight press. `timer` is whatever `schedule` returned (`Timeout` in production, a number in tests). */
+/**
+ * In-flight press. `timer` is whatever `schedule` returned (`Timeout` in production, a number in tests); both timers
+ * are null when long-press is off and only a modifier press is being tracked.
+ */
 export interface PressSnapshot<Timer> {
     pointerId?: number;
     x: number;
     y: number;
     target: unknown;
-    timer: Timer;
-    hintTimer: Timer;
+    timer: Timer | null;
+    hintTimer: Timer | null;
 }

@@ -27,6 +27,8 @@
 | `locale` | `'zh' \| 'en'` | 自动 | 界面语言：本选项 → `navigator.language` → `zh`。以 `zh` 开头即中文。prompt 永远不做本地化。 |
 | `hotkey` | `string` | `'Alt+Shift+I'` | 切换选取器。用 `+` 连接，大小写不敏感。修饰键：`alt`/`option`、`shift`、`ctrl`/`control`、`meta`/`cmd`/`command`；最后一段是主键。 |
 | `clickModifier` | `string \| null \| false` | `'auto'` | 按住选取的键：macOS 是 ⌘，其他平台是 Ctrl。可用 `'meta'` / `'ctrl'` / `'alt'` / `'shift'` 强制指定；`null` / `false` 关闭点击选取（快捷键仍可用）。 |
+| `pickButton` | `boolean \| 'touch'` | `'touch'` | 悬浮选取按钮：点它，再点要改的元素（也可以按住滑过去，高亮跟着手指走）。`'touch'` 在主要输入是手指时显示（手机、平板、DevTools 设备模式），`true` 总是显示，`false` 不显示。有固定的弹窗时，同一个按钮用来恢复它。选取时页面不能滚动，请先滚到位置。 |
+| `longPress` | `boolean` | `false` | 在元素上按住不动来选取：触屏 1 秒，鼠标 4 秒。默认关闭，因为长按也是页面自己的手势（长按菜单、选中文字）。 |
 | `applyMode` | `'prompt-only' \| 'agent-edit'` | `'prompt-only'` | 写进交接里的提示：只出方案，还是允许改文件。 |
 | `outputDir` | `string` | `'.intent-inspector'` | 交接文件和媒体的目录，必须在项目根内。请加入 gitignore。 |
 | `maxSourceContextLines` | `number` | `60` | 元素周围写进 prompt 的源码行数。 |

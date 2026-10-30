@@ -48,6 +48,8 @@ test('resolveOptions fills safe defaults and preserves explicit overrides', () =
     assert.equal(defaults.theme, null);
     assert.equal(defaults.hotkey, DEFAULT_HOTKEY);
     assert.equal(defaults.clickModifier, 'auto');
+    assert.equal(defaults.pickButton, 'touch');
+    assert.equal(defaults.longPress, false);
     assert.equal(defaults.defaultAgent, 'claude-app');
     assert.equal(defaults.outputDir, DEFAULT_OUTPUT_DIR);
     assert.equal(defaults.applyMode, 'prompt-only');
@@ -69,6 +71,8 @@ test('resolveOptions fills safe defaults and preserves explicit overrides', () =
         theme: 'dark',
         hotkey: 'Ctrl+I',
         clickModifier: 'meta',
+        pickButton: false,
+        longPress: true,
         defaultAgent: 'clipboard',
         outputDir: '.out',
         applyMode: 'agent-edit',
@@ -85,6 +89,8 @@ test('resolveOptions fills safe defaults and preserves explicit overrides', () =
     assert.equal(custom.theme, 'dark');
     assert.equal(custom.hotkey, 'Ctrl+I');
     assert.equal(custom.clickModifier, 'meta');
+    assert.equal(custom.pickButton, false);
+    assert.equal(custom.longPress, true);
     assert.equal(custom.defaultAgent, 'clipboard');
     assert.equal(custom.outputDir, '.out');
     assert.equal(custom.applyMode, 'agent-edit');

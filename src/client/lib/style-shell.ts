@@ -30,6 +30,14 @@ button:focus-visible, [role="button"]:focus-visible {
   font: 13px/1.45 var(--cii-font);
   animation: cii-fade-in 160ms ease-out;
 }
+/* Drags and wheel scrolls on a full-screen layer must not scroll the page under it. touch-action stops touch pans that
+   start on the layer or on panel chrome. A wheel ignores touch-action and chains on to the page unless the layer is a
+   scroll container that contains it, hence overflow: hidden (the layer is viewport-sized, so it clips nothing visible).
+   Every scroll area inside resets touch-action so its own content stays scrollable, and once that content hits its end
+   (or never overflowed) the gesture chains on to the page; contain on each one cuts that chain. touch-action: none on
+   the scroll areas themselves would freeze them. The recording viewer sits outside the scrim, so it is listed too. */
+.cii-backdrop, .cii-recording-lightbox { touch-action: none; overflow: hidden; overscroll-behavior: contain; }
+.cii-backdrop *, .cii-recording-lightbox * { overscroll-behavior: contain; }
 
 .cii-dialog {
   position: absolute;

@@ -3,7 +3,6 @@ import {
     applyKeyboardModifierEvent,
     emptyHeldModifiers,
     hasLiveModifierFlags,
-    matchingClickModifier,
     matchesClickModifier,
     mergeModifierFlags,
 } from './click-modifier.js';
@@ -40,25 +39,32 @@ export {
 } from './pick-gesture-utils.js';
 
 /**
- * Create the pick-gesture state machine (modifier+pointer and long-press).
+ * Create the pick-gesture state machine (modifier+pointer, and long-press when enabled).
  *
  * Purpose: Chrome device mode turns clicks into touch and drops `metaKey` on the synthesized event; this controller
  * tracks Command/Ctrl from keydown and treats `pointerup`/`click` as the same pick. Real mouse / pen events resync
  * that tracker from their own flags, so a keyup the page never saw cannot leave ⌘ stuck and make plain clicks pick.
- * A stationary press opens the dialog with no modifier: 1s on touch (mobile / device mode), 4s on mouse.
+ * With `longPress`, a stationary press opens the dialog with no modifier: 1s on touch (mobile / device mode), 4s on
+ * mouse. The finger (or button) is usually still down when the dialog opens; its release is swallowed however late it
+ * comes, because a `touchend` that reached the page would end the page's own gesture and its compat mouse events /
+ * click would land on whatever is under the finger.
  * Boundary: does not attach listeners (see `installPickGestures`). `picker.selectTarget` is the only way it opens the
  * dialog — if that returns false (plugin UI, picker already active, dialog open), the gesture is a no-op. Timers come
- * from `schedule`/`cancelSchedule` so tests can fire the hold path without waiting. Omitting `matchModifier` disables
- * ⌘/Ctrl picking but long-press stays on. Pointer capture, when used, is taken on the press target — never on
+ * from `schedule`/`cancelSchedule` so tests can fire the hold path without waiting. Without `longPress` only a press
+ * that starts with the modifier held is tracked: a plain press gets no pointer capture, no `user-select` lock and no
+ * swallowed `contextmenu` / `selectstart`, so page long-press menus and text selection keep working. Omitting
+ * `matchModifier` disables ⌘/Ctrl picking. Pointer capture, when used, is taken on the press target — never on
  * `document.documentElement` — and `pointerup` inspects `press.target` because capture retargets `event.target`.
  *
- * @param {{ picker: { isActive: () => boolean, dialog: { isOpen: () => boolean }, previewTarget: Function, hidePreview: Function, selectTarget: Function }, matchModifier: string | null, schedule?: Function, cancelSchedule?: Function, now?: () => number, root?: HTMLElement | null }} options
+ * @param {{ picker: { isActive: () => boolean, dialog: { isOpen: () => boolean }, previewTarget: Function, hidePreview: Function, selectTarget: Function }, matchModifier: string | null, longPress?: boolean, schedule?: Function, cancelSchedule?: Function, now?: () => number, root?: HTMLElement | null }} options
  * @returns {{ onKeyDown: Function, onKeyUp: Function, onPointerDown: Function, onPointerMove: Function, onPointerUp: Function, onPointerCancel: Function, onClick: Function, onContextMenu: Function, onSelectStart: Function, onScroll: Function, onBlur: Function, dispose: Function }}
  */
 export function createPickGestureController<Timer = ReturnType<typeof setTimeout>>(options: {
     picker: GesturePicker;
-    /** Omitted is the same as null: modifier-picking stays off and long-press still runs. */
+    /** Omitted is the same as null: modifier-picking stays off. */
     matchModifier?: string | null;
+    /** `true` picks on a stationary hold. Omitted or `false` tracks modifier presses only. */
+    longPress?: boolean;
     schedule?: (callback: () => void, delayMs: number) => Timer;
     cancelSchedule?: (timer: Timer) => void;
     now?: () => number;
@@ -66,6 +72,7 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
 }) {
     const picker = options.picker;
     const matchModifier = options.matchModifier ?? null;
+    const longPress = options.longPress === true;
     // Casts erase. Tests supply numeric ids; production uses Node/DOM `setTimeout`, which is not a `number`.
     const schedule = options.schedule || (setTimeout as unknown as (callback: () => void, delayMs: number) => Timer);
     const cancelSchedule = options.cancelSchedule || (clearTimeout as unknown as (timer: Timer) => void);
@@ -76,6 +83,9 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
     let captureEl: PointerCapturer | null = null;
     let capturePointerId: number | null = null;
     let lastPickAt = Number.NEGATIVE_INFINITY;
+    // The long-press that picked, while its pointer is still down. Null once released, or when a new press shows the
+    // release was missed.
+    let heldPick: Pick<PressSnapshot<Timer>, 'pointerId'> | null = null;
 
     // Mouse / pen flags are the live OS state: resync first, or a Command/Ctrl keyup swallowed outside the page without
     // a window blur (system shortcut, input-source switch, screenshot tool) keeps every later plain click a pick.
@@ -150,8 +160,10 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
         if (!press && captureEl == null)
             return;
         if (press) {
-            cancelSchedule(press.timer);
-            cancelSchedule(press.hintTimer);
+            if (press.timer != null)
+                cancelSchedule(press.timer);
+            if (press.hintTimer != null)
+                cancelSchedule(press.hintTimer);
             press = null;
         }
         releasePointer();
@@ -174,6 +186,37 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
         return true;
     };
 
+    // First release event of the held pick (pointerup, or touchend / mouseup when they come first): swallow it and
+    // restart the consume window, which then swallows the rest. A cancelled `touchend` also stops the browser from
+    // synthesizing compat mouse events and the click.
+    const releaseHeldPick = (event: PointerGestureEvent) => {
+        if (!heldPick || !isMatchingPress(heldPick, event))
+            return false;
+        heldPick = null;
+        lastPickAt = now();
+        clearPress();
+        swallow(event);
+        return true;
+    };
+
+    // The hold that picks and the earlier hint preview. Both re-read `press` when they fire, so a cleared press turns
+    // them into no-ops even if a cancel was missed.
+    const scheduleHold = (event: PointerGestureEvent): Pick<PressSnapshot<Timer>, 'timer' | 'hintTimer'> => ({
+        timer: schedule(() => {
+            if (!press)
+                return;
+            const current = press;
+            press = null;
+            if (trySelect(current.target, { x: current.x, y: current.y }, null))
+                heldPick = { pointerId: current.pointerId };
+        }, longPressDurationMs(event)),
+        hintTimer: schedule(() => {
+            if (!press || busy())
+                return;
+            picker.previewTarget(press.target);
+        }, LONG_PRESS_HINT_MS),
+    });
+
     const startPress = (event: PointerGestureEvent) => {
         if (!isPrimaryPress(event))
             return;
@@ -181,29 +224,17 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
             return;
         if (busy())
             return;
+        // Without long-press only a modifier press belongs to the inspector. A plain one keeps its native text
+        // selection, callout and context menu, and the page keeps its own pointer capture.
+        if (!longPress && !modifierHeld(event))
+            return;
         clearPress();
         const point = pointFromEvent(event);
         const target = event.target;
         blockNativeCallout(true);
         capturePointer(event);
-        press = {
-            pointerId: event.pointerId,
-            x: point.x,
-            y: point.y,
-            target,
-            timer: schedule(() => {
-                if (!press)
-                    return;
-                const current = press;
-                press = null;
-                trySelect(current.target, { x: current.x, y: current.y }, null);
-            }, longPressDurationMs(event)),
-            hintTimer: schedule(() => {
-                if (!press || busy())
-                    return;
-                picker.previewTarget(press.target);
-            }, LONG_PRESS_HINT_MS),
-        };
+        const timers = longPress ? scheduleHold(event) : { timer: null, hintTimer: null };
+        press = { pointerId: event.pointerId, x: point.x, y: point.y, target, ...timers };
     };
 
     return {
@@ -216,6 +247,10 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
                 picker.hidePreview();
         },
         onPointerDown(event: PointerGestureEvent) {
+            // Only one primary pointer is down at a time, so a new primary press means the held pick's release was
+            // missed (e.g. a page capture listener stopped it). Keeping it would swallow this press's touchend.
+            if (isPrimaryPress(event))
+                heldPick = null;
             startPress(event);
         },
         onPointerMove(event: PointerGestureEvent) {
@@ -231,10 +266,13 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
                 picker.previewTarget(resolvePickTarget(press, event));
                 return;
             }
-            if (!press && matchModifier)
+            // Moves over the plugin's own UI leave the highlight alone: touch pick mode paints it from under its glass.
+            if (!press && matchModifier && !isPluginNode(event.target))
                 picker.hidePreview();
         },
         onPointerUp(event: PointerGestureEvent) {
+            if (releaseHeldPick(event))
+                return;
             if (recentlyPicked()) {
                 swallow(event);
                 clearPress();
@@ -293,75 +331,13 @@ export function createPickGestureController<Timer = ReturnType<typeof setTimeout
             held.ctrl = false;
             held.meta = false;
             held.shift = false;
+            heldPick = null;
             clearPress();
             picker.hidePreview();
         },
         dispose() {
+            heldPick = null;
             clearPress();
         },
-    };
-}
-
-/**
- * Attach pick gestures to the host document.
- *
- * Purpose: wires the controller from `createPickGestureController` to capture-phase listeners so the inspector sees
- * Command/Ctrl and long-press before the page. Device-mode touch and desktop mouse share this one path.
- * Boundary: listeners live for the page lifetime (the client does not hot-unmount). `clickModifierRaw` of `false` /
- * `null` skips modifier-picking but still installs long-press. Passing a picker whose `dialog` is missing will throw
- * on the first pointerdown.
- *
- * @param {{ picker: GesturePicker, clickModifierRaw: string | false | null | undefined, platform: string, target?: EventTarget, view?: Window }} options
- * @returns {() => void} Detach function (tests; production boot never calls it).
- */
-export function installPickGestures(options: {
-    picker: GesturePicker;
-    clickModifierRaw: string | false | null | undefined;
-    platform: string;
-    /** Defaults to `document`. Typed as `EventTarget` because tests may pass a stand-in; its listeners see `Event`. */
-    target?: EventTarget;
-    view?: Window;
-}): () => void {
-    const view = options.view || window;
-    const target = options.target || document;
-    const matchModifier = matchingClickModifier(options.clickModifierRaw, options.platform);
-    const controller = createPickGestureController({
-        picker: options.picker,
-        matchModifier,
-    });
-    const capture = true;
-    const captureActive = { capture: true, passive: false };
-    // `EventTarget` types every listener as `Event`. Pointer handlers are not `Event`s, so the cast goes through `unknown`.
-    // Both assertions erase: add and remove still share the same function.
-    target.addEventListener('pointerdown', controller.onPointerDown as unknown as EventListener, captureActive);
-    target.addEventListener('pointermove', controller.onPointerMove as unknown as EventListener, capture);
-    target.addEventListener('pointerup', controller.onPointerUp as unknown as EventListener, capture);
-    target.addEventListener('pointercancel', controller.onPointerCancel, capture);
-    target.addEventListener('mouseup', controller.onPointerUp as unknown as EventListener, capture);
-    target.addEventListener('touchend', controller.onPointerUp as unknown as EventListener, captureActive);
-    target.addEventListener('click', controller.onClick as unknown as EventListener, capture);
-    target.addEventListener('contextmenu', controller.onContextMenu as unknown as EventListener, captureActive);
-    target.addEventListener('selectstart', controller.onSelectStart as unknown as EventListener, captureActive);
-    target.addEventListener('keydown', controller.onKeyDown as unknown as EventListener, capture);
-    target.addEventListener('keyup', controller.onKeyUp as unknown as EventListener, capture);
-    view.addEventListener('scroll', controller.onScroll, capture);
-    view.addEventListener('blur', controller.onBlur);
-    target.addEventListener('visibilitychange', controller.onBlur, capture);
-    return () => {
-        target.removeEventListener('pointerdown', controller.onPointerDown as unknown as EventListener, capture);
-        target.removeEventListener('pointermove', controller.onPointerMove as unknown as EventListener, capture);
-        target.removeEventListener('pointerup', controller.onPointerUp as unknown as EventListener, capture);
-        target.removeEventListener('pointercancel', controller.onPointerCancel, capture);
-        target.removeEventListener('mouseup', controller.onPointerUp as unknown as EventListener, capture);
-        target.removeEventListener('touchend', controller.onPointerUp as unknown as EventListener, capture);
-        target.removeEventListener('click', controller.onClick as unknown as EventListener, capture);
-        target.removeEventListener('contextmenu', controller.onContextMenu as unknown as EventListener, capture);
-        target.removeEventListener('selectstart', controller.onSelectStart as unknown as EventListener, capture);
-        target.removeEventListener('keydown', controller.onKeyDown as unknown as EventListener, capture);
-        target.removeEventListener('keyup', controller.onKeyUp as unknown as EventListener, capture);
-        view.removeEventListener('scroll', controller.onScroll, capture);
-        view.removeEventListener('blur', controller.onBlur);
-        target.removeEventListener('visibilitychange', controller.onBlur, capture);
-        controller.dispose();
     };
 }

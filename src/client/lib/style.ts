@@ -1,11 +1,13 @@
 import { DIALOG_Z_INDEX, PLUGIN_NODE_ATTR } from '../../shared/constants.js';
 import { DEFAULT_THEME } from '../../shared/theme.js';
 import { AGENT_ICONS_STYLE } from './agent-icons.js';
+import { isolateUiEvents } from './event-isolation.js';
 import { ICONS_STYLE } from './icons.js';
 import { CAPTURE_STYLE } from './style-capture.js';
 import { DESTINATION_STYLE } from './style-destination.js';
 import { FOOTER_STYLE } from './style-footer.js';
 import { OVERLAY_STYLE } from './style-overlay.js';
+import { PICK_STYLE } from './style-pick.js';
 import { PREVIEWS_STYLE } from './style-previews.js';
 import { RECORDING_STYLE } from './style-recording.js';
 import { RECORDING_EDITOR_STYLE } from './style-recording-editor.js';
@@ -20,21 +22,24 @@ import { TOOLS_STYLE } from './style-tools.js';
  *
  * Boundary: icon masks and design tokens come first because every later fragment reads them (light and dark themes
  * both live in the tokens), then shell defaults precede the page highlight and dependent controls, and the destination
- * brand marks follow the destination picker whose kind glyphs they override, and the component-state tool comes last
- * because it restyles capture-tool and recording-pill rules; omitting or reordering fragments can
+ * brand marks follow the destination picker whose kind glyphs they override, the component-state tool follows the
+ * capture-tool and recording-pill rules it restyles, and the pick button comes last because it restyles the pin orb
+ * from the recording fragment; omitting or reordering fragments can
  * alter button, picker, or editor presentation. Session-menu overrides remain appended by `createUi`, and the editor
  * styles by `installDialogReferenceStyle`.
  * @type {string} Complete base CSS text for consumers that render or inject the plugin UI.
  */
 export const STYLE_TEXT = ICONS_STYLE + TOKENS_STYLE + SHELL_STYLE + OVERLAY_STYLE + PREVIEWS_STYLE + FOOTER_STYLE
     + TOOLS_STYLE + DESTINATION_STYLE + AGENT_ICONS_STYLE + RECORDING_STYLE + RECORDING_EDITOR_STYLE + CAPTURE_STYLE
-    + STATE_STYLE;
+    + STATE_STYLE + PICK_STYLE;
 
 /**
  * Create an isolated shadow-DOM host for all plugin UI so page CSS cannot leak
- * in and our styles cannot leak out. The host carries the marker attribute so
- * the picker never selects our own UI, and the theme attribute that TOKENS_STYLE
- * keys the dark tokens on.
+ * in and our styles cannot leak out. Input events are isolated the same way:
+ * taps, clicks and keystrokes on the UI stop at the shadow root, so the page's
+ * bubble-phase listeners never see them (see `isolateUiEvents`). The host carries
+ * the marker attribute so the picker never selects our own UI, and the theme
+ * attribute that TOKENS_STYLE keys the dark tokens on.
  *
  * @param {string} [theme] `'light'` / `'auto'` / `'dark'`, normally `normalizeTheme(config.theme) ?? DEFAULT_THEME`.
  * Omitted or any other value renders the light theme.
@@ -60,6 +65,7 @@ export function createUi(theme: string = DEFAULT_THEME) {
         `z-index: ${DIALOG_Z_INDEX}`,
     ].join(';');
     const root = host.attachShadow({ mode: 'open' });
+    isolateUiEvents(root);
     const style = document.createElement('style');
     style.textContent = STYLE_TEXT + SESSION_PICKER_STYLE;
     root.appendChild(style);
