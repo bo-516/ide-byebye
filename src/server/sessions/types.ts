@@ -21,7 +21,17 @@ export const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 export const DEVIN_SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{1,79}$/;
 
 /**
- * Per-agent id patterns. All three shipped session agents use {@link SESSION_ID_PATTERN}.
+ * OpenCode session id shape (`ses_` followed by an alphanumeric token, e.g. `ses_f9a103a5effepX7TCcFnkKPZNR`).
+ *
+ * Boundary: only the `ses_` prefix plus ASCII letters and digits are accepted, so a page-supplied id cannot become a
+ * CLI flag, path segment, or shell token before it is embedded as a single-quoted `--session` argument.
+ *
+ * @type {RegExp}
+ */
+export const OPENCODE_SESSION_ID_PATTERN = /^ses_[A-Za-z0-9]{6,64}$/;
+
+/**
+ * Per-agent id patterns for every session-capable built-in agent.
  *
  * Boundary: an agent missing from this map cannot accept `targetSessionId` (`target-invalid`).
  *
@@ -32,6 +42,7 @@ export const SESSION_ID_PATTERNS = {
     'grok-build': SESSION_ID_PATTERN,
     'antigravity-ide': SESSION_ID_PATTERN,
     'devin-cli': DEVIN_SESSION_ID_PATTERN,
+    opencode: OPENCODE_SESSION_ID_PATTERN,
 };
 
 /**

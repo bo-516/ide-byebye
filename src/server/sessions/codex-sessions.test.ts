@@ -108,7 +108,7 @@ test('a lifecycle event outside the head and the 512KB tail is idle, and reads s
     const head = Buffer.from(JSON.stringify({ payload: { id, cwd: project, thread_source: 'user' } }) + '\n');
     head.copy(buf, 0);
     const event = Buffer.from(`{"payload":{"type":"task_started"}}`);
-    event.copy(buf, 10_000);
+    event.copy(buf, 40_000);
     fs.writeFileSync(file, buf);
     fs.mkdirSync(path.join(home, 'thread-writer-locks'), { recursive: true });
     fs.writeFileSync(path.join(home, 'thread-writer-locks', `${id}.lock`), '');
@@ -132,8 +132,26 @@ test('a lifecycle event outside the head and the 512KB tail is idle, and reads s
     });
     assert.equal(listed.sessions[0]?.status, 'idle');
     assert.ok(bytes > 0);
-    assert.ok(bytes <= 4096 + 65536 + 524288);
+    assert.ok(bytes <= 32768 + 65536 + 524288);
     assert.ok(bytes < size);
+});
+
+test('a large session_meta line with cwd and thread_source past 4 KB is still parsed inside the 32 KB head', () => {
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-large-head-'));
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-large-home-'));
+    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const meta = JSON.stringify({
+        type: 'session_meta',
+        payload: {
+            padding: 'x'.repeat(20_000),
+            id,
+            cwd: project,
+            thread_source: 'user',
+        },
+    });
+    writeRollout(home, id, `${meta}\n`);
+    const listed = listCodexSessions({ projectRoot: project, config: { sessions: { home } } });
+    assert.deepEqual(listed.sessions.map((session) => session.id), [id]);
 });
 
 test('a missing Codex home is an empty list and an unreadable rollout shape is unsupported-format', () => {

@@ -72,7 +72,7 @@ async function withRequest(intent: string, fn: (input: { projectRoot: string, re
 test('isAvailable: a 1.x desktop or any CLI is enough, including the CLI inside a 2.x app (FR-8, AC-7)', async () => {
     const available = async (host: { version?: string, cli?: string[] }) => (await createOpenCodeAdapter({}, fakeHost(host).deps).isAvailable()).available;
     assert.equal(await available({ version: '1.18.34' }), true);
-    assert.equal(await available({ version: '2.0.6', cli: [BUNDLED_CLI] }), true);
+    assert.equal(await available({ version: '2.0.29', cli: [BUNDLED_CLI] }), true);
     assert.equal(await available({ cli: ['opencode'] }), true);
     const none = await createOpenCodeAdapter({}, fakeHost({}).deps).isAvailable();
     assert.equal(none.available, false);
@@ -94,9 +94,9 @@ test('a 1.x desktop on macOS gets a prefilled new-session deeplink without probi
     });
 });
 
-test('2.0.6 with no opencode on PATH runs the bundled CLI in Terminal and submits (AC-6)', async () => {
+test('2.0.29 with no opencode on PATH runs the bundled CLI in Terminal and submits (AC-6)', async () => {
     await withRequest('-leading dash stays the prompt', async ({ projectRoot, request, context }) => {
-        const host = fakeHost({ version: '2.0.6', cli: [BUNDLED_CLI] });
+        const host = fakeHost({ version: '2.0.29', cli: [BUNDLED_CLI] });
         const result = await createOpenCodeAdapter({}, host.deps).send(request, context);
         assert.equal(result.ok, true, String(result.error));
         const launchPath = host.opened[0];
@@ -144,5 +144,35 @@ test('launch terminal ignores a 1.x desktop; nothing installed fails with the re
         assert.equal(none.ok, false);
         assert.match(String(none.error), /OpenCode not found/);
         assert.equal(none.events.at(-1)?.type, 'failed');
+    });
+});
+
+test('sessions: enabled by default except in app mode, lists via CLI, and resumes via --session with no path leaks', async () => {
+    assert.equal(createOpenCodeAdapter({}).sessionsEnabled, true);
+    assert.equal(createOpenCodeAdapter({ sessions: false }).sessionsEnabled, false);
+    assert.equal(createOpenCodeAdapter({ launch: 'app' }).sessionsEnabled, false);
+
+    await withRequest('continue this refactor', async ({ projectRoot, request, context }) => {
+        const sessionId = 'ses_f9a103a5effepX7TCcFnkKPZNR';
+        const host = fakeHost(
+            { version: '1.18.34', cli: [BUNDLED_CLI] },
+            { list: () => JSON.stringify([{ id: sessionId, title: 'Refactor', directory: projectRoot, updated: 1794797350230 }]) },
+        );
+        const adapter = createOpenCodeAdapter({ promptMode: 'file' }, host.deps);
+        const listed = await adapter.listSessions({ projectRoot });
+        assert.equal(listed.delivery, 'resume-submit');
+        assert.equal(listed.sessions.length, 1);
+        assert.equal(listed.sessions[0].id, sessionId);
+
+        const result = await adapter.send(request, {
+            ...context,
+            targetSession: { id: sessionId, cwd: projectRoot, targetable: true },
+        });
+        assert.equal(result.ok, true, String(result.error));
+        assert.equal(result.targetSessionId, sessionId);
+        assert.equal('writtenPromptPath' in result, false);
+        assert.equal(JSON.stringify(result).includes(projectRoot), false);
+        const launchPath = host.opened[0];
+        assert.match(fs.readFileSync(launchPath, 'utf8'), new RegExp(`--session '${sessionId}' --prompt=`));
     });
 });

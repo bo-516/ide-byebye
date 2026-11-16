@@ -34,7 +34,7 @@ interface SessionControllerDeps {
 }
 
 /** Agents that list sessions before discovery; opt-in adapters stay off until `GET /agents` advertises them. */
-const DEFAULT_SESSION_AGENTS = new Set(['codex-app', 'grok-build']);
+const DEFAULT_SESSION_AGENTS = new Set(['codex-app', 'grok-build', 'devin-cli', 'opencode']);
 
 /**
  * Stored per-agent session targets and the session menu the destination picker opens.

@@ -41,7 +41,7 @@ export class AgentRegistry {
      * Whether this agent may list and receive an existing session.
      *
      * Boundary: unknown names are false (they are not an error here). The flag is the adapter's `sessionsEnabled`
-     * bit, set from config at registration — Codex and Grok default on, Antigravity only when
+     * bit, set from config at registration — Codex, Grok, Devin CLI, and OpenCode default on, Antigravity IDE only when
      * `experimentalSessions` is true. Callers still re-check the id at send time.
      *
      * @param {unknown} name Registered agent name. A non-string is not capable.

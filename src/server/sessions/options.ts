@@ -38,7 +38,7 @@ function clampLookback(value: unknown) {
 }
 
 /**
- * Read the session-menu options from a Codex or Grok adapter config.
+ * Read the session-menu options from a session-capable adapter config (Codex, Grok, Devin CLI, OpenCode).
  *
  * Boundary: `sessions: false` disables the menu. `true`, a missing field, or an object all enable it — the object
  * only overrides limit, lookback, and home. `home` is trimmed; a blank string means "use the agent default".

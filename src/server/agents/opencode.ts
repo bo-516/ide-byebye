@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readSessionPicker } from '../sessions/options.js';
+import { listOpenCodeSessions } from '../sessions/opencode-sessions.js';
 import { probeCommandVersion, resolveFirstCommand, writeLaunchFiles } from './launch-files.js';
 import { readPositiveLimit, resolveAgentProjectRoot, shouldWriteLauncherPromptFile } from './launch-prompt.js';
 import { buildLauncherFile } from './launch-script.js';
@@ -32,6 +34,20 @@ export interface OpenCodeDeps {
     probe: (command: string) => Promise<boolean>;
     /** Opens a deeplink or launcher; `config` carries `openCommand` / `openArgs`. */
     open: (config: Record<string, unknown>, target: string) => Promise<void>;
+    /** Optional `opencode session list` runner override for tests. */
+    list?: (command: string, cwd: string) => string;
+}
+
+/** Result returned by {@link createOpenCodeAdapter}'s `send`. */
+export interface OpenCodeSendResult {
+    ok: boolean;
+    agent: 'opencode';
+    requestId: string;
+    events: AgentEmitEvent[];
+    output?: string;
+    error?: string;
+    writtenPromptPath?: string;
+    targetSessionId?: string;
 }
 
 /** Route context the adapter reads. */
@@ -40,6 +56,7 @@ interface OpenCodeContext {
     outputDir: string;
     projectRoot: string;
     prompt: string;
+    targetSession?: { id: string, cwd: string, targetable?: boolean } | null;
 }
 
 /**
@@ -84,17 +101,19 @@ function defaultDeps(): OpenCodeDeps {
  * Create the OpenCode adapter (`opencode`).
  *
  * Boundary: `launch: 'auto'` (default) opens a new desktop session with the prompt prefilled when the macOS app is a
- * 1.x build; 2.x desktops drop deeplinks, so they — and CLI-only or non-macOS installs — get a Terminal launcher
- * running `opencode <dir> --prompt=<prompt>`, which submits it. The app is found from fixed bundle paths or
- * `appPath`; nothing comes from the page. The background service and its password are never touched.
+ * 1.x build; 2.x desktops drop `new-session` deeplinks, so they — along with CLI-only or non-macOS installs and any
+ * existing-session resume (`targetSession`) — get a Terminal launcher running `opencode <dir> [--session <id>]
+ * --prompt=<prompt>`, which submits it. `launch: 'app'` forces deeplinks and disables session listing. The background
+ * service and its password are never touched.
  *
  * @param {Record<string, unknown>} [config] `agents.opencode` options.
  * @param {Partial<OpenCodeDeps>} [overrides] Replacement side effects for tests.
- * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.
+ * @returns {{ name: string, sessionsEnabled: boolean, isAvailable: Function, listSessions: Function, send: Function }} Agent adapter.
  */
 export function createOpenCodeAdapter(config: Record<string, unknown> = {}, overrides: Partial<OpenCodeDeps> = {}) {
     const deps: OpenCodeDeps = { ...defaultDeps(), ...overrides };
     const launch = readOpenCodeLaunch(config.launch);
+    const sessionsEnabled = launch !== 'app' && readSessionPicker(config).enabled;
     /** @returns {string | null} The first installed desktop bundle (macOS only). */
     const findApp = () => openCodeAppCandidates(config, deps).find((candidate) => deps.exists(candidate)) ?? null;
     /** @param {string | null} appPath Installed bundle. @returns {number | null} Its major version, if readable. */
@@ -110,28 +129,52 @@ export function createOpenCodeAdapter(config: Record<string, unknown> = {}, over
 
     return {
         name: 'opencode',
+        sessionsEnabled,
         async isAvailable() {
             const appPath = findApp();
             if (launch === 'app' || deeplinkReady(readMajor(appPath)) || await resolveCli(appPath))
                 return { available: true };
             return { available: false, reason: OPENCODE_NOT_FOUND };
         },
-        async send(request: HandoffPromptRequest, context: OpenCodeContext) {
+        /**
+         * List project sessions via `opencode session list --format json`. Not called when `sessionsEnabled` is false.
+         *
+         * @param {{ projectRoot: string }} ctx Inspector project root.
+         * @returns {Promise<{ sessions: Array<Record<string, unknown>>, delivery: string, notice?: string }>}
+         */
+        async listSessions(ctx: { projectRoot: string }) {
+            return listOpenCodeSessions({
+                projectRoot: ctx.projectRoot,
+                config,
+                io: {
+                    resolveCommand: () => resolveCli(findApp()),
+                    runList: deps.list,
+                },
+            });
+        },
+        async send(request: HandoffPromptRequest, context: OpenCodeContext): Promise<OpenCodeSendResult> {
+            const target = context.targetSession;
             const events: AgentEmitEvent[] = [];
             const push = (type: string, text: string) => {
                 const event = { type, text };
                 events.push(event);
                 context.emit(event);
             };
-            push('started', 'Opening OpenCode');
+            push('started', target ? 'Resuming OpenCode session' : 'Opening OpenCode');
             try {
-                const directory = resolveAgentProjectRoot(config, context);
-                const handoff = createPromptHandoff(request, context, config, push);
+                const directory = target ? target.cwd : resolveAgentProjectRoot(config, context);
+                const pathConfig = target ? { ...config, projectRoot: target.cwd } : config;
+                const handoff = createPromptHandoff(request, context, pathConfig, (type, text) => {
+                    push(type, target && type === 'file-change' ? 'Wrote prompt handoff' : text);
+                });
                 const appPath = findApp();
-                const desktopMajor = launch === 'auto' ? readMajor(appPath) : null;
-                const command = launch === 'app' || deeplinkReady(desktopMajor) ? null : await resolveCli(appPath);
-                const route = pickOpenCodeRoute({ launch, platform: deps.platform, desktopMajor, cliAvailable: command !== null });
-                if (config.promptMode === 'file')
+                const desktopMajor = !target && launch === 'auto' ? readMajor(appPath) : null;
+                const skipCli = !target && (launch === 'app' || deeplinkReady(desktopMajor));
+                const command = skipCli ? null : await resolveCli(appPath);
+                const route = target
+                    ? (command ? { route: 'terminal' as const } : { route: 'unavailable' as const })
+                    : pickOpenCodeRoute({ launch, platform: deps.platform, desktopMajor, cliAvailable: command !== null });
+                if (pathConfig.promptMode === 'file')
                     handoff.toPointer();
                 if (route.route === 'app') {
                     const urlLimit = readPositiveLimit(config.promptUrlLimit, DEFAULT_OPENCODE_PROMPT_URL_LIMIT);
@@ -150,7 +193,7 @@ export function createOpenCodeAdapter(config: Record<string, unknown> = {}, over
                 }
                 if (!command)
                     throw new Error(OPENCODE_NOT_FOUND);
-                if (shouldWriteLauncherPromptFile(config, handoff.state.prompt))
+                if (shouldWriteLauncherPromptFile(pathConfig, handoff.state.prompt))
                     handoff.toPointer();
                 const { launchPath, promptPath } = writeLaunchFiles({
                     request,
@@ -162,10 +205,10 @@ export function createOpenCodeAdapter(config: Record<string, unknown> = {}, over
                         command,
                         cwd: directory,
                         promptPath: promptFile,
-                        args: openCodeLauncherArgs(directory),
+                        args: openCodeLauncherArgs(directory, target?.id),
                     }, deps.platform),
                 });
-                push('file-change', `Wrote launcher ${launchPath}`);
+                push('file-change', target ? 'Wrote launcher' : `Wrote launcher ${launchPath}`);
                 await deps.open(config, launchPath);
                 push('completed', 'OpenCode opened and the prompt was submitted');
                 return {
@@ -173,8 +216,12 @@ export function createOpenCodeAdapter(config: Record<string, unknown> = {}, over
                     agent: 'opencode',
                     requestId: request.id,
                     events,
-                    output: `Opened OpenCode in Terminal and submitted the prompt (${promptPath}).${handoff.note()}`,
-                    writtenPromptPath: handoff.state.writtenPromptPath ?? promptPath,
+                    output: target
+                        ? 'Opened OpenCode and submitted the prompt to the session.'
+                        : `Opened OpenCode in Terminal and submitted the prompt (${promptPath}).${handoff.note()}`,
+                    ...(target
+                        ? { targetSessionId: target.id }
+                        : { writtenPromptPath: handoff.state.writtenPromptPath ?? promptPath }),
                 };
             }
             catch (err) {

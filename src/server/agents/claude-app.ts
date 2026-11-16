@@ -43,7 +43,7 @@ export function buildClaudeAppDeepLink(input: {
  * Collect the absolute paths referenced by an intent request, for repeatable
  * `file` deeplink params and the custom-client payload's `files`.
  *
- * Boundary: Claude Desktop 2.42304 reads `file` only for telemetry and never
+ * Boundary: Claude Desktop (2.x–5.x) reads `file` only for telemetry and never
  * opens these paths, so the prompt's `@` refs are what actually deliver them; a
  * custom `scheme` / `route` handler may still honor the params.
  * `source.filePath` values are already validated inside the project root by
@@ -171,7 +171,7 @@ export function createClaudeAppAdapter(config: Record<string, unknown> = {}) {
                 const files = config.attachFiles === false
                     ? []
                     : collectClaudeAppFiles(request, { includeScreenshots: config.attachScreenshots !== false });
-                // Claude Desktop 2.42304 drops `file` params; the prompt's `@` refs already name these paths.
+                // Claude Desktop (2.x–5.x) drops `file` params; the prompt's `@` refs already name these paths.
                 if (files.length) {
                     const event = { type: 'notice', text: `Added ${files.length} \`file\` param(s) to the deeplink; Claude Desktop ignores them, the prompt's @ refs carry the paths` };
                     events.push(event);

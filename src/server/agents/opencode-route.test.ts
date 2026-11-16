@@ -34,7 +34,7 @@ function plist(version: string) {
 
 test('parseOpenCodeBundleMajor reads the XML plist major and gives up on binary plists', () => {
     assert.equal(parseOpenCodeBundleMajor(plist('1.18.34')), 1);
-    assert.equal(parseOpenCodeBundleMajor(plist('2.0.6')), 2);
+    assert.equal(parseOpenCodeBundleMajor(plist('2.0.29')), 2);
     assert.equal(parseOpenCodeBundleMajor('bplist00\u0000\u0001binary'), null);
     assert.equal(parseOpenCodeBundleMajor(plist('beta')), null);
     assert.equal(parseOpenCodeBundleMajor(''), null);
@@ -88,6 +88,17 @@ test('the launcher passes the directory and glues the prompt to --prompt= in bas
     const encoded = buildWindowsLauncherScript({ ...input, command: 'opencode.exe', cwd: 'C:\\shop', args: openCodeLauncherArgs('C:\\shop') })
         .match(/-EncodedCommand\s+(\S+)/)?.[1] ?? '';
     assert.match(Buffer.from(encoded, 'base64').toString('utf16le'), /& 'opencode\.exe' 'C:\\shop' "--prompt=\$prompt"$/);
+
+    const resumed = buildPosixLauncherScript({
+        ...input,
+        args: openCodeLauncherArgs('/Users/me/shop', 'ses_f9a103a5effepX7TCcFnkKPZNR'),
+    });
+    assert.equal(
+        resumed.split('\n')[3],
+        `exec '/Applications/OpenCode.app/Contents/Resources/opencode-cli' '/Users/me/shop' --session 'ses_f9a103a5effepX7TCcFnkKPZNR' --prompt="$(cat '/Users/me/shop/.intent-inspector/launches/a.opencode.prompt.txt')"`,
+    );
+    assert.throws(() => openCodeLauncherArgs('/Users/me/shop', '--eval'), /Invalid OpenCode session id/);
+    assert.throws(() => openCodeLauncherArgs('/Users/me/shop', 'ses_../bad'), /Invalid OpenCode session id/);
 });
 
 test('app and CLI candidates: macOS bundles, the install script, then the CLI inside the app', () => {

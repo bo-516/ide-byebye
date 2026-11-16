@@ -135,7 +135,7 @@ export interface AntigravityAgentOptions extends AgentOpenOptions {
   pathStyle?: PathStyle;
   /** Screenshot / still paths in the Antigravity prompt. Default `'absolute'`. */
   artifactPathStyle?: PathStyle;
-  /** Passed as `agy --mode` (`plan`, `accept-edits`). Omitted → CLI default. */
+  /** Passed as `agy --mode` (`plan`, `accept-edits`, `auto`). Omitted → CLI default. */
   mode?: string;
   /** In `auto` mode, longer prompts switch to a file pointer. Default `12000`. */
   promptArgLimit?: number;
@@ -150,7 +150,7 @@ export interface GrokBuildAgentOptions extends AgentOpenOptions {
   pathStyle?: PathStyle;
   /** Screenshot / still paths in the Grok prompt. Default `'absolute'`. */
   artifactPathStyle?: PathStyle;
-  /** Passed as `--permission-mode` (`plan`, `acceptEdits`, `default`, …). */
+  /** Passed as `--permission-mode` (`plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`, `default`, …). */
   permissionMode?: string;
   /** In `auto` mode, longer prompts switch to a file pointer. Default `12000`. */
   promptArgLimit?: number;
@@ -211,6 +211,12 @@ export interface OpenCodeAgentOptions extends AgentOpenOptions {
   promptUrlLimit?: number;
   /** Terminal route: longer prompts switch to a file pointer. Default `12000`. */
   promptArgLimit?: number;
+  /**
+   * Existing-session list (the `›` beside this agent in the destination picker), populated by
+   * `opencode session list --format json`. Default on (except when `launch` is `'app'`). `false` removes it.
+   * Sends resume the chosen session in Terminal with `opencode <dir> --session <id> --prompt=<prompt>`.
+   */
+  sessions?: boolean | SessionPickerOptions;
 }
 
 /**

@@ -7,8 +7,8 @@ import { readSessionPicker } from './options.js';
 import { buildProjectScope, matchSessionCwd, normalizeScopePath, sessionLocation, sessionProjectName } from './project-scope.js';
 import { SESSION_ID_PATTERN, sessionTitle } from './types.js';
 
-/** Bytes read from the start of a rollout. `cwd` on this machine sits inside the first 4 KB. */
-const HEAD_BYTES = 4096;
+/** Bytes read from the start of a rollout. Recent `session_meta` lines reach ~23 KB, so 32 KB covers reordered fields. */
+const HEAD_BYTES = 32768;
 /** First tail window for lifecycle events. */
 const TAIL_BYTES = 65536;
 /** One extra tail read when the first window has no lifecycle event. Never the whole file. */
@@ -216,7 +216,7 @@ function listRolloutFiles(sessionsDir: string, lookbackMs: number, now: number, 
  * `working` requires the last lifecycle event to be `task_started` AND a writer lock; a leftover `task_started`
  * without the lock is `idle`. A missing home returns an empty list and no notice. When rollout files exist but none
  * of their heads match the meta shape, the result is `{ notice: "unsupported-format" }` so the new-session path is
- * unchanged. Reads stay bounded: 4 KB head, 64 KB tail, and one 512 KB tail retry.
+ * unchanged. Reads stay bounded: 32 KB head, 64 KB tail, and one 512 KB tail retry.
  *
  * @param {{ projectRoot: string, config?: { projectRoot?: unknown, sessions?: unknown }, now?: number, io?: SessionFs, env?: NodeJS.ProcessEnv, homeDir?: string }} input
  *        Inspector project root plus the Codex adapter config. `config.projectRoot` is an extra scope root.

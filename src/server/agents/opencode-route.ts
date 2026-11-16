@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { OPENCODE_SESSION_ID_PATTERN } from '../sessions/types.js';
 import type { LaunchArg } from './launch-script.js';
 
 /** URL scheme the OpenCode desktop app registers. */
@@ -7,8 +8,8 @@ export const OPENCODE_SCHEME = 'opencode';
 /**
  * Desktop major versions whose `opencode://new-session` deeplink is handled.
  *
- * Boundary: 2.x (beta, 2.0.6) still registers the scheme but its renderer has no listener, so the URL is dropped
- * silently; `auto` sends 2.x to the Terminal route. Add a major here once its desktop handles the link again.
+ * Boundary: 2.x (through 2.0.29) registers the scheme only for authorization and drops `new-session` URLs silently;
+ * `auto` sends 2.x to the Terminal route. Add a major here once its desktop handles the link again.
  */
 export const OPENCODE_DEEPLINK_MAJORS: readonly number[] = [1];
 
@@ -92,16 +93,35 @@ export function buildOpenCodeDeepLink(input: { directory: string, prompt: string
 }
 
 /**
- * Arguments after the binary for the Terminal route: `<directory> --prompt=<prompt>`.
+ * `--session <id>` arguments when resuming an existing OpenCode session, or none for a new session.
+ *
+ * Boundary: `sessionId` must match {@link OPENCODE_SESSION_ID_PATTERN} before reaching a launcher script. Any other
+ * value throws so a page-supplied string cannot inject a CLI flag or shell token.
+ *
+ * @param {string | undefined} sessionId Target session id, omitted for a new session.
+ * @returns {LaunchArg[]} Zero or two launcher arguments.
+ */
+function resumeArgs(sessionId: string | undefined): LaunchArg[] {
+    if (sessionId == null || sessionId === '')
+        return [];
+    if (!OPENCODE_SESSION_ID_PATTERN.test(String(sessionId)))
+        throw new Error('Invalid OpenCode session id');
+    return [{ flag: '--session' }, { value: String(sessionId) }];
+}
+
+/**
+ * Arguments after the binary for the Terminal route: `<directory> [--session <id>] --prompt=<prompt>`.
  *
  * Boundary: the prompt is glued to `--prompt=` as one argument, so a prompt that starts with `-` cannot be read as a
  * flag by either CLI generation (effect/cli in 2.x, yargs in 1.x). Both TUIs submit it once the model is ready.
+ * Passing an invalid `resumeSessionId` throws before any file is written.
  *
  * @param {string} directory Project folder the session opens in.
+ * @param {string | undefined} [resumeSessionId] Existing session id (`ses_…`) to continue, if any.
  * @returns {LaunchArg[]} Launcher arguments.
  */
-export function openCodeLauncherArgs(directory: string): LaunchArg[] {
-    return [{ value: directory }, { prompt: true, prefix: '--prompt=' }];
+export function openCodeLauncherArgs(directory: string, resumeSessionId?: string): LaunchArg[] {
+    return [{ value: directory }, ...resumeArgs(resumeSessionId), { prompt: true, prefix: '--prompt=' }];
 }
 
 /**
