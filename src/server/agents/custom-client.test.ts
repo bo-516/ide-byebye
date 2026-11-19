@@ -125,6 +125,12 @@ test('buildRegistry registers custom clients and refuses built-in names', () => 
         'devin-cli',
         'antigravity-ide',
         'antigravity',
+        'workbuddy-app',
+        'workbuddy-cli',
+        'trae-app',
+        'trae-cli',
+        'qoder-app',
+        'qoder-cli',
         'grok-desktop',
     ]);
 });
@@ -142,6 +148,12 @@ test('buildRegistry without agents.custom keeps the built-in agent set and leave
         'devin-cli',
         'antigravity-ide',
         'antigravity',
+        'workbuddy-app',
+        'workbuddy-cli',
+        'trae-app',
+        'trae-cli',
+        'qoder-app',
+        'qoder-cli',
     ]);
     assert.equal(buildRegistry({ antigravity: false, custom: [{ name: 'antigravity' }] }).has('antigravity'), false);
     // The new built-in names are reserved too, so a custom client cannot take them over.

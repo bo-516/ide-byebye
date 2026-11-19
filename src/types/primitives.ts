@@ -27,6 +27,12 @@ export type AgentId =
   | 'devin-cli'
   | 'antigravity-ide'
   | 'antigravity'
+  | 'workbuddy-app'
+  | 'workbuddy-cli'
+  | 'trae-app'
+  | 'trae-cli'
+  | 'qoder-app'
+  | 'qoder-cli'
   | 'devin-ide'
   | 'windsurf-ide'
   | (string & {});

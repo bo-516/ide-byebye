@@ -84,7 +84,8 @@ export interface IdeByebyeOptions {
   longPress?: boolean;
   /**
    * Enter-key target: a footer agent (`'codex-app'` / `'claude-app'` / `'cursor-app'` /
-   * `'grok-build'` / `'claude-cli'` / `'opencode'` / `'devin-cli'` / `'antigravity-ide'` / `'antigravity'` or an
+   * `'grok-build'` / `'claude-cli'` / `'opencode'` / `'devin-cli'` / `'antigravity-ide'` / `'antigravity'` /
+   * `'workbuddy-app'` / `'workbuddy-cli'` / `'trae-app'` / `'trae-cli'` / `'qoder-app'` / `'qoder-cli'` or an
    * `agents.custom` name).
    * Default `'claude-app'`. `'clipboard'` / `'file'` and unknown / disabled ids fall back to the
    * first enabled footer agent; once the user clicks a footer agent, Enter follows that remembered choice instead.

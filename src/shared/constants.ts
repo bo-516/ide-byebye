@@ -150,6 +150,12 @@ export const ALL_AGENT_NAMES = [
     'devin-cli',
     'antigravity-ide',
     'antigravity',
+    'workbuddy-app',
+    'workbuddy-cli',
+    'trae-app',
+    'trae-cli',
+    'qoder-app',
+    'qoder-cli',
     'devin-ide',
     'windsurf-ide',
 ];

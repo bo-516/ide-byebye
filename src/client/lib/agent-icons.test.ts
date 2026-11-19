@@ -65,6 +65,13 @@ test('the two Antigravity launchers show different marks, so their rows can be t
     const app = AGENT_MARK_BRANDS.antigravity;
     assert.notEqual(ide, app);
     assert.notEqual(AGENT_MARKS[ide].image, AGENT_MARKS[app].image);
+    for (const [client, cli] of [
+        ['workbuddy-app', 'workbuddy-cli'],
+        ['trae-app', 'trae-cli'],
+        ['qoder-app', 'qoder-cli'],
+    ] as const) {
+        assert.notEqual(AGENT_MARK_BRANDS[client], AGENT_MARK_BRANDS[cli]);
+    }
 });
 
 test('the shipped stylesheet is built from the vendor marks', () => {

@@ -1,14 +1,12 @@
-import { spawn } from 'node:child_process';
-import { resolveFirstCommand, writeHandoffPromptFile, writeLaunchFiles } from './launch-files.js';
+import { resolveFirstCommand, writeLaunchFiles } from './launch-files.js';
+import { readPositiveLimit } from './launch-prompt.js';
 import { openTarget } from './opener.js';
-import { resolveAntigravityApp } from './antigravity-app.js';
-import { injectAntigravityComposer } from './antigravity-devtools.js';
-import { resolveAntigravityProject } from './antigravity-projects.js';
+import { createPromptHandoff, type HandoffPromptRequest } from './prompt-handoff.js';
+import { buildAntigravityDeepLink, DEFAULT_ANTIGRAVITY_PROMPT_URL_LIMIT, resolveAntigravityApp } from './antigravity-app.js';
+import { resolveAntigravityProject, type AntigravityProject } from './antigravity-projects.js';
 import {
     antigravityMissingMessage,
-    buildAntigravityFilePrompt,
     buildAntigravityLauncherFile,
-    buildAntigravityPrompt,
     resolveAntigravityCommandCandidates,
     resolveAntigravityProjectRoot,
     shouldWriteAntigravityPromptFile,
@@ -24,55 +22,40 @@ function resolveAntigravityCommand(config: { command?: unknown }) {
     return resolveFirstCommand(resolveAntigravityCommandCandidates(config));
 }
 
-/**
- * Focus the installed Antigravity desktop app without starting a second copy.
- *
- * Boundary: macOS uses `open -a`, which returns when LaunchServices has accepted the request. Other platforms spawn
- * the executable detached so this function does not wait for the user to quit the app. A missing binary rejects.
- *
- * @param {string} appPath App bundle or executable from {@link resolveAntigravityApp}.
- * @returns {Promise<void>} Resolves once the OS has been asked to open the app.
- */
-function launchAntigravityApp(appPath: string) {
-    return new Promise((resolve, reject) => {
-        if (process.platform === 'darwin') {
-            const child = spawn('open', ['-a', appPath], { stdio: 'ignore' });
-            child.once('error', reject);
-            child.once('close', (code) => {
-                if (code === 0)
-                    resolve(undefined);
-                else
-                    reject(new Error(`Could not open Antigravity (exit ${code ?? 'unknown'})`));
-            });
-            return;
-        }
-        const child = spawn(appPath, [], { stdio: 'ignore', detached: true });
-        child.once('error', reject);
-        child.once('spawn', () => {
-            child.unref();
-            resolve(undefined);
-        });
-    });
+/** Side effects of the desktop route, replaceable in tests. */
+export interface AntigravityDeps {
+    /** Installed desktop app path, or null (see {@link resolveAntigravityApp}). */
+    findApp: () => string | null;
+    /** Antigravity project whose folder contains `dir`, or null. */
+    findProject: (dir: string) => AntigravityProject | null;
+    /** Hand a deep link or launcher path to the OS opener. */
+    open: (config: Record<string, unknown>, target: string) => Promise<void>;
 }
 
 /**
  * Create the Antigravity adapter.
  *
  * Boundary: registered by default in `buildRegistry` unless `agents.antigravity` is `false` or `{ enabled: false }`.
- * The desktop app is preferred: the prompt is written into its composer (`?q=` on the app's own loopback window),
- * switched to the Antigravity project whose folder contains the project root (`?section=`). With no such project
- * the app stays on its current project and the output says so. The `agy` CLI is only used when that app is not
- * installed. Availability is the installed app, not a running window, so the button stays enabled when Antigravity
- * is installed but closed.
+ * The desktop app is preferred: an `antigravity://open` link puts the prompt in its home composer, switched to the
+ * Antigravity project whose folder contains the project root. With no such project the app stays on its current
+ * project and the output says so. The link is handed to the OS, so the app is launched when it is closed. The `agy`
+ * CLI is only used when that app is not installed. Availability is the installed app, not a running window.
  *
  * @param {Record<string, unknown>} config Antigravity adapter options from plugin config.
+ * @param {Partial<AntigravityDeps>} [overrides] Replacement side effects for tests.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.
  */
-export function createAntigravityAdapter(config: Record<string, unknown> = {}) {
+export function createAntigravityAdapter(config: Record<string, unknown> = {}, overrides: Partial<AntigravityDeps> = {}) {
+    const deps: AntigravityDeps = {
+        findApp: () => resolveAntigravityApp(),
+        findProject: (dir) => resolveAntigravityProject(dir),
+        open: (openConfig, target) => openTarget(openConfig, target),
+        ...overrides,
+    };
     return {
         name: 'antigravity',
         async isAvailable() {
-            if (resolveAntigravityApp())
+            if (deps.findApp())
                 return { available: true };
             const command = await resolveAntigravityCommand(config);
             if (!command)
@@ -82,68 +65,66 @@ export function createAntigravityAdapter(config: Record<string, unknown> = {}) {
                 };
             return { available: true };
         },
-        async send(request: Parameters<typeof buildAntigravityPrompt>[0] & { id: string, createdAt: string | number | Date }, context: {
+        async send(request: HandoffPromptRequest, context: {
             emit: (event: { type: string, text?: string }) => void,
             prompt: string,
             outputDir: string,
             projectRoot: string,
         }) {
-            const events = [{ type: 'started', text: 'Opening Antigravity' }];
-            context.emit(events[0]);
+            const events: { type: string, text: string }[] = [];
+            const push = (type: string, text: string) => {
+                const event = { type, text };
+                events.push(event);
+                context.emit(event);
+            };
+            push('started', 'Opening Antigravity');
             try {
-                const appPath = resolveAntigravityApp();
-                let prompt = buildAntigravityPrompt(request, config);
-                let writtenPromptPath: string | undefined;
-                if (shouldWriteAntigravityPromptFile(config, prompt)) {
-                    writtenPromptPath = writeHandoffPromptFile(request, { ...context, prompt });
-                    prompt = buildAntigravityFilePrompt(request, writtenPromptPath, config);
-                    const event = { type: 'file-change', text: `Wrote ${writtenPromptPath}` };
-                    events.push(event);
-                    context.emit(event);
-                }
                 const cwd = resolveAntigravityProjectRoot(config, context);
-                if (appPath) {
-                    const project = resolveAntigravityProject(cwd);
-                    await launchAntigravityApp(appPath);
-                    const injected = await injectAntigravityComposer({ prompt, workspaceDir: cwd, sectionId: project?.id });
-                    if (!injected)
-                        throw new Error('Antigravity opened, but its window was not ready for the prompt');
+                const handoff = createPromptHandoff(request, context, config, push);
+                if (config.promptMode === 'file')
+                    handoff.toPointer();
+                if (deps.findApp()) {
+                    const project = deps.findProject(cwd);
+                    const linkFor = (prompt: string) => buildAntigravityDeepLink({ prompt, projectId: project?.id });
+                    const urlLimit = readPositiveLimit(config.promptUrlLimit, DEFAULT_ANTIGRAVITY_PROMPT_URL_LIMIT);
+                    const fits = (prompt: string) => linkFor(prompt).length <= urlLimit;
+                    if (!fits(handoff.state.prompt))
+                        handoff.toPointer();
+                    if (!handoff.fitIntent(fits))
+                        throw new Error(`The Antigravity link is longer than promptUrlLimit (${urlLimit}) even with the request moved to a file`);
+                    await deps.open(config, linkFor(handoff.state.prompt));
                     const where = project ? ` in the ${project.name} project` : '';
-                    const completed = { type: 'completed', text: `Antigravity opened${where} with the prompt in the composer` };
-                    events.push(completed);
-                    context.emit(completed);
+                    push('completed', `Antigravity opened${where} with the prompt in the composer`);
                     const notes = [
                         `Opened Antigravity${where} with the prompt in the composer.`,
                         project ? '' : `No Antigravity project contains ${cwd}, so the current project was kept. Add that folder as a project in Antigravity to switch to it automatically.`,
-                        writtenPromptPath ? `Full request context was written to ${writtenPromptPath}.` : '',
                     ];
                     return {
                         ok: true,
                         agent: 'antigravity',
                         requestId: request.id,
                         events,
-                        output: notes.filter(Boolean).join(' '),
-                        writtenPromptPath,
+                        output: notes.filter(Boolean).join(' ') + handoff.note(),
+                        writtenPromptPath: handoff.state.writtenPromptPath,
                     };
                 }
                 const command = await resolveAntigravityCommand(config);
                 if (!command)
                     throw new Error(antigravityMissingMessage(config));
+                if (shouldWriteAntigravityPromptFile(config, handoff.state.prompt))
+                    handoff.toPointer();
                 const mode = typeof config.mode === 'string' && config.mode.trim() ? config.mode.trim() : undefined;
                 const { launchPath, promptPath } = writeLaunchFiles({
                     request,
                     context,
                     tag: 'agy',
-                    prompt,
+                    prompt: handoff.state.prompt,
                     buildScript: (promptFile) => buildAntigravityLauncherFile({ command, cwd, promptPath: promptFile, mode }),
                 });
-                const launchEvent = { type: 'file-change', text: `Wrote launcher ${launchPath}` };
-                events.push(launchEvent);
-                context.emit(launchEvent);
-                await openTarget(config, launchPath);
-                const completed = { type: 'completed', text: 'Antigravity opened with a prefilled prompt' };
-                events.push(completed);
-                context.emit(completed);
+                push('file-change', `Wrote launcher ${launchPath}`);
+                await deps.open(config, launchPath);
+                push('completed', 'Antigravity opened with a prefilled prompt');
+                const writtenPromptPath = handoff.state.writtenPromptPath;
                 return {
                     ok: true,
                     agent: 'antigravity',
@@ -157,9 +138,7 @@ export function createAntigravityAdapter(config: Record<string, unknown> = {}) {
             }
             catch (err) {
                 const error = err instanceof Error ? err.message : String(err);
-                const failed = { type: 'failed', text: error };
-                events.push(failed);
-                context.emit(failed);
+                push('failed', error);
                 return {
                     ok: false,
                     agent: 'antigravity',

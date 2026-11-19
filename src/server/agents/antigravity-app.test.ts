@@ -3,19 +3,11 @@ import path from 'node:path';
 import test from 'node:test';
 import {
     antigravityAppCandidates,
-    antigravityNavigateExpression,
-    antigravityUserDataDir,
-    buildAntigravityComposerUrl,
-    parseDevToolsActivePort,
+    buildAntigravityDeepLink,
     resolveAntigravityApp,
-    selectAntigravityPage,
 } from './antigravity-app.js';
 
-test('antigravityUserDataDir and app candidates follow the platform', () => {
-    assert.equal(
-        antigravityUserDataDir('darwin', '/Users/me'),
-        path.join('/Users/me', 'Library', 'Application Support', 'Antigravity'),
-    );
+test('app candidates follow the platform', () => {
     assert.deepEqual(antigravityAppCandidates('darwin', '/Users/me'), [
         '/Applications/Antigravity.app',
         path.join('/Users/me', 'Applications', 'Antigravity.app'),
@@ -27,53 +19,22 @@ test('antigravityUserDataDir and app candidates follow the platform', () => {
     assert.equal(resolveAntigravityApp('linux', '/home/me', {}, () => false), null);
 });
 
-test('parseDevToolsActivePort reads the port and ignores a blank file', () => {
-    assert.deepEqual(parseDevToolsActivePort('62579\n/devtools/browser/abc\n'), {
-        port: 62579,
-        browserPath: '/devtools/browser/abc',
-    });
-    assert.equal(parseDevToolsActivePort(''), null);
-    assert.equal(parseDevToolsActivePort('nope'), null);
+test('buildAntigravityDeepLink carries the prompt and the project on the open route', () => {
+    const url = new URL(buildAntigravityDeepLink({
+        prompt: '@src/App.vue #12\nMake it 100% & primary',
+        projectId: ' ce4ea324-94f2-4abf-b32f-aeb9b3a908c7 ',
+    }));
+    // The app accepts the empty host or `open`; anything else is routed elsewhere.
+    assert.equal(url.protocol, 'antigravity:');
+    assert.equal(url.hostname, 'open');
+    assert.equal(url.searchParams.get('prompt'), '@src/App.vue #12\nMake it 100% & primary');
+    assert.equal(url.searchParams.get('project'), 'ce4ea324-94f2-4abf-b32f-aeb9b3a908c7');
+    // `+` would decode as a space through URLSearchParams, so spaces must be %20.
+    assert.equal(buildAntigravityDeepLink({ prompt: 'a b+c' }), 'antigravity://open?prompt=a%20b%2Bc');
+    assert.equal(new URL(buildAntigravityDeepLink({ prompt: 'a b+c' })).searchParams.get('prompt'), 'a b+c');
 });
 
-test('buildAntigravityComposerUrl stays on the app origin and carries the prompt', () => {
-    const url = buildAntigravityComposerUrl(
-        'https://127.0.0.1:62594/conversations/1',
-        'Make the button primary',
-        '/tmp/proj',
-    );
-    const parsed = new URL(url);
-    assert.equal(parsed.origin, 'https://127.0.0.1:62594');
-    assert.equal(parsed.pathname, '/');
-    assert.equal(parsed.searchParams.get('q'), 'Make the button primary');
-    assert.equal(parsed.searchParams.get('ws'), 'file:///tmp/proj');
-    assert.equal(parsed.searchParams.has('section'), false);
-    assert.throws(() => buildAntigravityComposerUrl('https://evil.example/', 'x', '/tmp'));
-});
-
-test('buildAntigravityComposerUrl switches the project through section', () => {
-    const url = new URL(buildAntigravityComposerUrl(
-        'https://127.0.0.1:62594/c/abc?section=old-project',
-        'Make the button primary',
-        '/tmp/proj',
-        'ce4ea324-94f2-4abf-b32f-aeb9b3a908c7',
-    ));
-    assert.equal(url.pathname, '/');
-    assert.equal(url.searchParams.get('section'), 'ce4ea324-94f2-4abf-b32f-aeb9b3a908c7');
-    assert.equal(url.searchParams.get('q'), 'Make the button primary');
-    assert.equal(new URL(buildAntigravityComposerUrl('https://127.0.0.1:1/', 'x', '/tmp', '  ')).searchParams.has('section'), false);
-});
-
-test('selectAntigravityPage keeps only the loopback composer page', () => {
-    const page = selectAntigravityPage([
-        { type: 'page', url: 'devtools://devtools/bundled/inspector.html', webSocketDebuggerUrl: 'ws://bad' },
-        { type: 'page', url: 'https://127.0.0.1:62594/', webSocketDebuggerUrl: 'ws://127.0.0.1:62579/devtools/page/1' },
-    ]);
-    assert.equal(page?.webSocketDebuggerUrl, 'ws://127.0.0.1:62579/devtools/page/1');
-    assert.equal(selectAntigravityPage([{ type: 'page', url: 'https://example.com', webSocketDebuggerUrl: 'ws://x' }]), null);
-});
-
-test('antigravityNavigateExpression embeds the URL as a JavaScript string', () => {
-    const expression = antigravityNavigateExpression('https://127.0.0.1:1/?q="hi"');
-    assert.equal(expression, 'location.href = "https://127.0.0.1:1/?q=\\"hi\\""');
+test('buildAntigravityDeepLink leaves out a blank project', () => {
+    assert.equal(buildAntigravityDeepLink({ prompt: 'hi', projectId: '  ' }), 'antigravity://open?prompt=hi');
+    assert.equal(buildAntigravityDeepLink({ prompt: 'hi' }), 'antigravity://open?prompt=hi');
 });

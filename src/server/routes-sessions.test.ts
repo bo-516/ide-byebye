@@ -280,8 +280,15 @@ test('/agents rows report how images reach each agent', async () => {
     const registry = buildRegistry({ claudeApp: false, cursorApp: false, antigravityIde: true });
     const listed = await registry.listAvailable();
     assert.equal(listed.find((agent) => agent.name === 'antigravity-ide')?.images, 'attachment');
-    for (const row of listed.filter((agent) => agent.name !== 'antigravity-ide'))
+    assert.equal(listed.find((agent) => agent.name === 'qoder-cli')?.images, 'attachment');
+    for (const row of listed.filter((agent) => agent.name !== 'antigravity-ide' && agent.name !== 'qoder-cli'))
         assert.equal(row.images, 'path', row.name);
-    const noFiles = await buildRegistry({ claudeApp: false, cursorApp: false, antigravityIde: { addFiles: false } }).listAvailable();
+    const noFiles = await buildRegistry({
+        claudeApp: false,
+        cursorApp: false,
+        antigravityIde: { addFiles: false },
+        qoderCli: { attachImages: false },
+    }).listAvailable();
     assert.equal(noFiles.find((agent) => agent.name === 'antigravity-ide')?.images, 'path');
+    assert.equal(noFiles.find((agent) => agent.name === 'qoder-cli')?.images, 'path');
 });

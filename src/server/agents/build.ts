@@ -10,6 +10,12 @@ import { createClaudeCliAdapter } from './claude-cli.js';
 import { createOpenCodeAdapter } from './opencode.js';
 import { createAntigravityIdeAdapter } from './antigravity-ide.js';
 import { createAntigravityAdapter } from './antigravity.js';
+import { createWorkBuddyAppAdapter } from './workbuddy-app.js';
+import { createWorkBuddyCliAdapter } from './workbuddy-cli.js';
+import { createTraeAppAdapter } from './trae-app.js';
+import { createTraeCliAdapter } from './trae-cli.js';
+import { createQoderAppAdapter } from './qoder-app.js';
+import { createQoderCliAdapter } from './qoder-cli.js';
 import { createDevinCliAdapter } from './devin-cli.js';
 import { createDevinIdeAdapter } from './devin-ide.js';
 import { createWindsurfIdeAdapter } from './windsurf-ide.js';
@@ -19,7 +25,8 @@ import { createCustomAgentAdapters } from './custom-client.js';
  * Construct the agent registry from the (already-resolved) agent config map.
  *
  * Boundary: clipboard, file, Codex, Claude, Cursor, Grok Build, Claude Code CLI (`claudeCli`), OpenCode
- * (`opencode`), Devin CLI (`devinCli`), Antigravity IDE (`antigravityIde`), and Antigravity (`antigravity`) are
+ * (`opencode`), Devin CLI (`devinCli`), Antigravity IDE (`antigravityIde`), Antigravity (`antigravity`), WorkBuddy
+ * (`workbuddyApp` / `workbuddyCli`), TRAE (`traeApp` / `traeCli`), and Qoder (`qoderApp` / `qoderCli`) are
  * enabled by default; pass `agents.<name>: false` (or `{ enabled: false }`) to opt out. A missing CLI or app only
  * greys the row out (`isAvailable`). Devin Desktop (`devinIde`) and Windsurf (`windsurfIde`) stay
  * unregistered until the host sets `true` or an options object — omitting them leaves the footer unchanged. App agents
@@ -64,6 +71,24 @@ export function buildRegistry(agents: Record<string, unknown>) {
     const antigravity = coerceAgentConfig(agents.antigravity ?? true);
     if (antigravity)
         registry.register(createAntigravityAdapter(antigravity));
+    const workbuddyApp = coerceAgentConfig(agents.workbuddyApp ?? true);
+    if (workbuddyApp)
+        registry.register(createWorkBuddyAppAdapter(workbuddyApp));
+    const workbuddyCli = coerceAgentConfig(agents.workbuddyCli ?? true);
+    if (workbuddyCli)
+        registry.register(createWorkBuddyCliAdapter(workbuddyCli));
+    const traeApp = coerceAgentConfig(agents.traeApp ?? true);
+    if (traeApp)
+        registry.register(createTraeAppAdapter(traeApp));
+    const traeCli = coerceAgentConfig(agents.traeCli ?? true);
+    if (traeCli)
+        registry.register(createTraeCliAdapter(traeCli));
+    const qoderApp = coerceAgentConfig(agents.qoderApp ?? true);
+    if (qoderApp)
+        registry.register(createQoderAppAdapter(qoderApp));
+    const qoderCli = coerceAgentConfig(agents.qoderCli ?? true);
+    if (qoderCli)
+        registry.register(createQoderCliAdapter(qoderCli));
     // Opt-in: no `?? true`, so a project that never mentions these keys does not grow the footer.
     const devinIde = coerceAgentConfig(agents.devinIde);
     if (devinIde)

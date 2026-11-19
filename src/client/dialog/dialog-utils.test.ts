@@ -24,6 +24,12 @@ const ZERO_CONFIG_AGENTS = [
     'devin-cli',
     'antigravity-ide',
     'antigravity',
+    'workbuddy-app',
+    'workbuddy-cli',
+    'trae-app',
+    'trae-cli',
+    'qoder-app',
+    'qoder-cli',
 ];
 
 type PlacementInput = Parameters<typeof computeDropdownPlacement>[0];
@@ -213,6 +219,12 @@ test('visibleAgentActions keeps every configured app agent', () => {
         'devin-cli',
         'antigravity-ide',
         'antigravity',
+        'workbuddy-app',
+        'workbuddy-cli',
+        'trae-app',
+        'trae-cli',
+        'qoder-app',
+        'qoder-cli',
     ]);
 });
 
@@ -220,7 +232,21 @@ test('visibleAgentActions drops Claude Code CLI and OpenCode once config turns t
     const names = visibleAgentActions({
         enabledAgents: ZERO_CONFIG_AGENTS.filter((name) => name !== 'claude-cli' && name !== 'opencode'),
     }).map((action) => action.name);
-    assert.deepEqual(names, ['codex-app', 'claude-app', 'cursor-app', 'grok-build', 'devin-cli', 'antigravity-ide', 'antigravity']);
+    assert.deepEqual(names, [
+        'codex-app',
+        'claude-app',
+        'cursor-app',
+        'grok-build',
+        'devin-cli',
+        'antigravity-ide',
+        'antigravity',
+        'workbuddy-app',
+        'workbuddy-cli',
+        'trae-app',
+        'trae-cli',
+        'qoder-app',
+        'qoder-cli',
+    ]);
 });
 
 test('visibleAgentActions includes Antigravity by default and hides opt-in IDE agents until enabled', () => {

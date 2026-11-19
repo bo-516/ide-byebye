@@ -62,6 +62,12 @@ monorepo 里，与其设 `pathStyle: 'absolute'`，不如把 Agent 的 `projectR
 | `devinCli` | `devin-cli` | 开启 | 在 Terminal 运行 **Devin**，prompt 作为第一条消息。 |
 | `antigravityIde` | `antigravity-ide` | 开启 | 用 **Antigravity IDE** 打开项目，prompt 放进 agent 输入框。 |
 | `antigravity` | `antigravity` | 开启 | 打开 **Antigravity** 桌面应用，prompt 放进输入框。 |
+| `workbuddyApp` | `workbuddy-app` | 开启 | 打开 **WorkBuddy** 桌面应用并切到项目目录，预填 prompt。 |
+| `workbuddyCli` | `workbuddy-cli` | 开启 | 在 Terminal 运行 **WorkBuddy CLI**（`codebuddy`）并带上 prompt。 |
+| `traeApp` | `trae-app` | 开启 | 打开 **TRAE** / **TRAE CN** 侧边栏聊天并预填 prompt。 |
+| `traeCli` | `trae-cli` | 开启 | 在 Terminal 运行 **TRAE CLI**（`traecli`）并带上 prompt。 |
+| `qoderApp` | `qoder-app` | 开启 | 打开 **Qoder** 聊天并预填 prompt。 |
+| `qoderCli` | `qoder-cli` | 开启 | 在 Terminal 运行 **Qoder CLI**（`qodercli`）并挂载截图附件。 |
 | `clipboard` | `clipboard` | 开启 | **复制 Prompt** 按钮。永远不是 Enter 目标。 |
 | `file` | `file` | 开启 | 把请求写成 Markdown 放到 `outputDir/requests/`。没有按钮，用 `promptMode: 'file'` 触发。 |
 | `devinIde` | `devin-ide` | 需开启 | 打开 **Devin Desktop**，prompt 放进 Cascade 输入框。 |
@@ -199,7 +205,8 @@ prompt，改走 `devin --prompt-file`。
 
 #### `agents.antigravity`
 
-打开 **Antigravity** 桌面应用，把 prompt 写进输入框。只有没装桌面应用时才改用 `agy` CLI。
+用 `antigravity://open` 链接打开 **Antigravity** 桌面应用，把 prompt 放进首页输入框。输入框里已有草稿时，
+prompt 接在草稿后面。只有没装桌面应用时才改用 `agy` CLI。
 
 会自动切到文件夹包含 `projectRoot` 的那个 Antigravity 项目（有多个时取最内层的）。如果没有任何项目包含它，
 Antigravity 会停在当前项目；在 Antigravity 里把这个文件夹添加为项目一次即可。
@@ -208,7 +215,53 @@ Antigravity 会停在当前项目；在 Antigravity 里把这个文件夹添加�
 | --- | --- | --- |
 | `command` | `agy`，其次 `~/.local/bin/agy`（Windows：`%LOCALAPPDATA%\agy\bin\agy.exe`） | CLI 路径。 |
 | `mode` | — | `agy --mode`（`plan`、`accept-edits`）。 |
+| `promptUrlLimit` | `8000` | 桌面应用：链接超过这个长度改用文件指针。 |
 | `projectRoot` / `pathStyle` / `artifactPathStyle` / `promptArgLimit` | | 见上文。 |
+
+#### `agents.workbuddyApp` 与 `agents.workbuddyCli`
+
+`workbuddyApp` 打开 `workbuddy-ai://task?action=start`（旧版客户端为 `workbuddy://`）
+链接，把 `cwd` 设为 `projectRoot` 并预填输入框。`workbuddyCli` 在 Terminal 运行交互式
+`codebuddy`，依次探测 PATH 上的 `codebuddy`、`~/.local/bin/codebuddy`、
+`~/.codebuddy/bin/codebuddy` 以及 `WorkBuddy AI.app` / `WorkBuddy.app` 内置的 CLI。
+
+| 选项 | 默认 | 作用 |
+| --- | --- | --- |
+| `appPath` | 各平台安装路径 | 桌面应用路径（同时供 `workbuddyCli` 查找内置 CLI）。 |
+| `scheme`（`workbuddyApp`） | 自动（`workbuddy-ai` 或 `workbuddy`） | Deeplink 协议头。 |
+| `welcomeMode`（`workbuddyApp`） | `'code'` | `'code'` / `'work'` / `'design'`。 |
+| `command`（`workbuddyCli`） | `codebuddy`、用户目录、其次应用包内 CLI | CLI 路径。 |
+| `permissionMode` / `model` | — | 传给任务链接或 `codebuddy` CLI。 |
+| `projectRoot` / `pathStyle` / `artifactPathStyle` / `promptUrlLimit` / `promptArgLimit` | | 见上文。 |
+
+#### `agents.traeApp` 与 `agents.traeCli`
+
+`traeApp` 打开 `<scheme>://trae.ai-ide/side-chat?query=…`（国际版 `trae`，国内版
+`Trae CN` 为 `trae-cn`），超过 TRAE 2000 字符 URI 上限时自动改用文件指针。
+`traeCli` 在 Terminal 运行交互式 `traecli --cd <projectRoot>`。
+
+| 选项 | 默认 | 作用 |
+| --- | --- | --- |
+| `edition`（`traeApp`） | `'auto'` | `'auto'` / `'cn'` / `'intl'`。 |
+| `appPath` / `scheme` / `authority` / `route`（`traeApp`） | 平台默认 | 覆盖应用路径或 deeplink 路由。 |
+| `command`（`traeCli`） | `traecli`、`~/.local/bin/traecli`、`traex` | CLI 路径。 |
+| `permissionMode`（`traeCli`） | — | `--permission-mode`（`default`、`auto`、`bypass_permissions`）。 |
+| `projectRoot` / `pathStyle` / `artifactPathStyle` / `promptUrlLimit` / `promptArgLimit` | | 见上文。 |
+
+#### `agents.qoderApp` 与 `agents.qoderCli`
+
+`qoderApp` 打开 `qoder://aicoding.aicoding-deeplink/chat?text=…` 预填聊天输入框（不自动发送）。
+`qoderCli` 在 Terminal 运行 `qodercli --prompt-interactive=…`，并通过 `--attachment`
+一并挂载截图与粘贴图片。
+
+| 选项 | 默认 | 作用 |
+| --- | --- | --- |
+| `appPath` / `scheme` / `authority` / `route`（`qoderApp`） | `qoder://aicoding.aicoding-deeplink/chat` | 应用路径或 deeplink 各段。 |
+| `mode` / `isNewChat`（`qoderApp`） | — | `/chat` 可选参数（`agent`、`ask`、`chat`、`experts`）。 |
+| `command`（`qoderCli`） | `$QODERCLI_PATH`、`qodercli`、`~/.local/bin/qodercli`、`~/.qoder/bin/qodercli` | CLI 路径。 |
+| `attachImages`（`qoderCli`） | `true` | 通过 `--attachment` 附加截图与粘贴图片。 |
+| `permissionMode` / `model`（`qoderCli`） | — | `--permission-mode` / `--model`。 |
+| `projectRoot` / `pathStyle` / `artifactPathStyle` / `promptUrlLimit` / `promptArgLimit` | | 见上文。 |
 
 #### `agents.devinIde` 与 `agents.windsurfIde`
 

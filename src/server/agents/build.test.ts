@@ -36,9 +36,25 @@ async function listedAgents(agents: Record<string, unknown>) {
     }
 }
 
-test('GET /agents lists Claude Code CLI, OpenCode, Devin CLI, Antigravity IDE, and Antigravity by default, right after Grok Build', async () => {
+test('GET /agents lists default built-in agents in registry order', async () => {
     assert.deepEqual((await listedAgents({})).map((row) => row.name), [
-        'clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode', 'devin-cli', 'antigravity-ide', 'antigravity',
+        'clipboard',
+        'file',
+        'codex-app',
+        'claude-app',
+        'cursor-app',
+        'grok-build',
+        'claude-cli',
+        'opencode',
+        'devin-cli',
+        'antigravity-ide',
+        'antigravity',
+        'workbuddy-app',
+        'workbuddy-cli',
+        'trae-app',
+        'trae-cli',
+        'qoder-app',
+        'qoder-cli',
     ]);
 });
 

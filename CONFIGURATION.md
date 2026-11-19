@@ -23,7 +23,7 @@ package ships type definitions.
 | Option | Type | Default | What it does |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` | `false` turns it off completely: no server, no injection. |
-| `defaultAgent` | `string` | `'claude-app'` | Enter target: `'codex-app'`, `'claude-app'`, `'cursor-app'`, `'grok-build'`, `'claude-cli'`, `'opencode'`, `'devin-cli'`, `'antigravity-ide'`, `'antigravity'`, `'devin-ide'`, `'windsurf-ide'`, or an [`agents.custom`](#agentscustom) name. Unknown or disabled values, `'clipboard'` and `'file'` fall back to the first enabled footer agent. Once you pick another agent in the dialog, Enter follows that choice (remembered per browser). |
+| `defaultAgent` | `string` | `'claude-app'` | Enter target: `'codex-app'`, `'claude-app'`, `'cursor-app'`, `'grok-build'`, `'claude-cli'`, `'opencode'`, `'devin-cli'`, `'antigravity-ide'`, `'antigravity'`, `'workbuddy-app'`, `'workbuddy-cli'`, `'trae-app'`, `'trae-cli'`, `'qoder-app'`, `'qoder-cli'`, `'devin-ide'`, `'windsurf-ide'`, or an [`agents.custom`](#agentscustom) name. Unknown or disabled values, `'clipboard'` and `'file'` fall back to the first enabled footer agent. Once you pick another agent in the dialog, Enter follows that choice (remembered per browser). |
 | `theme` | `'light' \| 'auto' \| 'dark'` | `'light'` | Dialog theme. `'auto'` follows the OS. When unset, the page logs a console hint naming this option. |
 | `locale` | `'zh' \| 'en'` | auto | UI language: this option, then `navigator.language`, then `zh`. Any string starting with `zh` means Chinese. Prompts are never localized. |
 | `hotkey` | `string` | `'Alt+Shift+I'` | Toggles the picker. `+`-joined, case-insensitive. Modifiers: `alt`/`option`, `shift`, `ctrl`/`control`, `meta`/`cmd`/`command`; the last token is the key. |
@@ -65,6 +65,12 @@ options. The two opt-in agents stay hidden until you set their key.
 | `devinCli` | `devin-cli` | on | Runs **Devin** in Terminal with the prompt as the first message. |
 | `antigravityIde` | `antigravity-ide` | on | Opens **Antigravity IDE** on the project, prompt in the agent input. |
 | `antigravity` | `antigravity` | on | Opens the **Antigravity** desktop app, prompt in its composer. |
+| `workbuddyApp` | `workbuddy-app` | on | Opens the **WorkBuddy** desktop app in the project folder, prompt prefilled. |
+| `workbuddyCli` | `workbuddy-cli` | on | Runs **WorkBuddy CLI** (`codebuddy`) in Terminal with the prompt. |
+| `traeApp` | `trae-app` | on | Opens **TRAE** / **TRAE CN** Side AI Chat with the prompt prefilled. |
+| `traeCli` | `trae-cli` | on | Runs **TRAE CLI** (`traecli`) in Terminal with the prompt. |
+| `qoderApp` | `qoder-app` | on | Opens **Qoder** chat with the prompt prefilled. |
+| `qoderCli` | `qoder-cli` | on | Runs **Qoder CLI** (`qodercli`) in Terminal with the prompt and image attachments. |
 | `clipboard` | `clipboard` | on | The **Copy prompt** button. Never an Enter target. |
 | `file` | `file` | on | Writes the request as Markdown under `outputDir/requests/`. No button; reach it with `promptMode: 'file'`. |
 | `devinIde` | `devin-ide` | opt-in | Opens **Devin Desktop**, prompt in the Cascade composer. |
@@ -209,8 +215,10 @@ the agent input without sending it.
 
 #### `agents.antigravity`
 
-Opens the **Antigravity** desktop app and writes the prompt into its composer.
-Falls back to the `agy` CLI only when the desktop app isn't installed.
+Opens the **Antigravity** desktop app with an `antigravity://open` link that
+puts the prompt in its home composer. If the composer already holds a draft,
+the prompt is added after it. Falls back to the `agy` CLI only when the desktop
+app isn't installed.
 
 The composer switches to the Antigravity project whose folder contains
 `projectRoot` (the innermost one if several do). If no project contains it,
@@ -221,7 +229,55 @@ Antigravity once.
 | --- | --- | --- |
 | `command` | `agy`, then `~/.local/bin/agy` (Windows: `%LOCALAPPDATA%\agy\bin\agy.exe`) | CLI path. |
 | `mode` | — | `agy --mode` (`plan`, `accept-edits`). |
+| `promptUrlLimit` | `8000` | Desktop app: longer links switch to a file pointer. |
 | `projectRoot` / `pathStyle` / `artifactPathStyle` / `promptArgLimit` | | See above. |
+
+#### `agents.workbuddyApp` and `agents.workbuddyCli`
+
+`workbuddyApp` opens a `workbuddy-ai://task?action=start` (or `workbuddy://` on
+legacy builds) link with `cwd` set to `projectRoot` and the prompt prefilled in
+the composer. `workbuddyCli` runs interactive `codebuddy` in Terminal, probing
+`codebuddy` on PATH, `~/.local/bin/codebuddy`, `~/.codebuddy/bin/codebuddy`, and
+the CLI bundled inside `WorkBuddy AI.app` / `WorkBuddy.app`.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `appPath` | platform install paths | Desktop bundle path (`workbuddyApp` and `workbuddyCli` bundled fallback). |
+| `scheme` (`workbuddyApp`) | auto (`workbuddy-ai` or `workbuddy`) | Deeplink scheme. |
+| `welcomeMode` (`workbuddyApp`) | `'code'` | `'code'` / `'work'` / `'design'`. |
+| `command` (`workbuddyCli`) | `codebuddy`, user paths, then app bundle | CLI path. |
+| `permissionMode` / `model` | — | Passed to the task link or `codebuddy` CLI. |
+| `projectRoot` / `pathStyle` / `artifactPathStyle` / `promptUrlLimit` / `promptArgLimit` | | See above. |
+
+#### `agents.traeApp` and `agents.traeCli`
+
+`traeApp` opens `<scheme>://trae.ai-ide/side-chat?query=…` (`trae` for global
+builds, `trae-cn` for `Trae CN`), switching prompts above TRAE's 2000-character
+URI cap to a file pointer. `traeCli` runs interactive `traecli --cd <projectRoot>`
+in Terminal.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `edition` (`traeApp`) | `'auto'` | `'auto'` / `'cn'` / `'intl'`. |
+| `appPath` / `scheme` / `authority` / `route` (`traeApp`) | platform defaults | Override bundle path or deeplink route. |
+| `command` (`traeCli`) | `traecli`, `~/.local/bin/traecli`, `traex` | CLI path. |
+| `permissionMode` (`traeCli`) | — | `--permission-mode` (`default`, `auto`, `bypass_permissions`). |
+| `projectRoot` / `pathStyle` / `artifactPathStyle` / `promptUrlLimit` / `promptArgLimit` | | See above. |
+
+#### `agents.qoderApp` and `agents.qoderCli`
+
+`qoderApp` opens `qoder://aicoding.aicoding-deeplink/chat?text=…` to prefill a
+chat session without auto-sending. `qoderCli` runs `qodercli --prompt-interactive=…`
+in Terminal and attaches screenshots and pasted images with `--attachment`.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `appPath` / `scheme` / `authority` / `route` (`qoderApp`) | `qoder://aicoding.aicoding-deeplink/chat` | Bundle path or deeplink parts. |
+| `mode` / `isNewChat` (`qoderApp`) | — | Optional `/chat` query parameters (`agent`, `ask`, `chat`, `experts`). |
+| `command` (`qoderCli`) | `$QODERCLI_PATH`, `qodercli`, `~/.local/bin/qodercli`, `~/.qoder/bin/qodercli` | CLI path. |
+| `attachImages` (`qoderCli`) | `true` | Pass captured screenshots and pasted images via `--attachment`. |
+| `permissionMode` / `model` (`qoderCli`) | — | `--permission-mode` / `--model`. |
+| `projectRoot` / `pathStyle` / `artifactPathStyle` / `promptUrlLimit` / `promptArgLimit` | | See above. |
 
 #### `agents.devinIde` and `agents.windsurfIde`
 

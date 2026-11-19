@@ -7,7 +7,7 @@ import { classifyScopePath, normalizeScopePath } from '../sessions/project-scope
 /**
  * One Antigravity desktop project, reduced to what composer routing needs.
  *
- * Boundary: `id` is the sidebar section id the app routes on (`/?section=<id>`). `folders` are absolute local paths
+ * Boundary: `id` is the sidebar section id the app routes on (`antigravity://open?project=<id>`). `folders` are absolute local paths
  * taken from the project's folder resources; remote and google3 resources are dropped. A project with no local
  * folder can never match a workspace.
  */

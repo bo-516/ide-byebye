@@ -1,26 +1,17 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+
+/** URL scheme the Antigravity desktop app registers (`CFBundleURLSchemes`). Antigravity IDE uses `antigravity-ide`. */
+export const ANTIGRAVITY_SCHEME = 'antigravity';
 
 /**
- * Where the Antigravity desktop app writes `DevToolsActivePort`.
+ * Default length budget for the prompt deep link.
  *
- * Boundary: this is the Electron user-data directory, not the project. A wrong platform string looks in the wrong
- * home folder and the composer injection never finds the window.
- *
- * @param {string} [platform=process.platform] Node platform id.
- * @param {string} [homedir=os.homedir()] User home directory.
- * @param {NodeJS.ProcessEnv} [env=process.env] Environment, used for Windows `%APPDATA%`.
- * @returns {string} Absolute directory that contains `DevToolsActivePort` when the app is running.
+ * Boundary: Windows opens links through `cmd /c start`, whose whole command line is capped at 8191 characters, so the
+ * default leaves room for the opener prefix. Longer links switch to a file pointer.
  */
-export function antigravityUserDataDir(platform = process.platform, homedir = os.homedir(), env: NodeJS.ProcessEnv = process.env) {
-    if (platform === 'darwin')
-        return path.join(homedir, 'Library', 'Application Support', 'Antigravity');
-    if (platform === 'win32')
-        return path.join(env.APPDATA || homedir, 'Antigravity');
-    return path.join(homedir, '.config', 'Antigravity');
-}
+export const DEFAULT_ANTIGRAVITY_PROMPT_URL_LIMIT = 8000;
 
 /**
  * Installed Antigravity.app / executable paths, in probe order.
@@ -63,89 +54,21 @@ export function resolveAntigravityApp(platform = process.platform, homedir = os.
 }
 
 /**
- * Parse Electron's `DevToolsActivePort` file.
+ * Build the deep link that opens the Antigravity home composer with `prompt` in it.
  *
- * Boundary: the first line is the port and the second is the browser websocket path. A blank or non-numeric port
- * returns null so a stale file does not send the prompt to a random local port.
+ * Boundary: the desktop app (2.33.0 checked) handles `antigravity://open?prompt=&project=`: it focuses or launches the
+ * window, switches to the project, and appends the prompt to the home draft. It strips control and bidi characters but
+ * keeps newlines. A blank `projectId` leaves the app on its current project. An app with a blocking dialog open
+ * ignores the link.
  *
- * @param {string} text File contents.
- * @returns {{ port: number, browserPath: string } | null} Parsed endpoint, or null when the file is unusable.
+ * @param {{ prompt: string, projectId?: string }} input Prompt text and optional Antigravity project id
+ *        (see `resolveAntigravityProject`).
+ * @returns {string} Deep link URL.
  */
-export function parseDevToolsActivePort(text: string) {
-    const [portLine = '', browserPath = ''] = String(text ?? '').split(/\r?\n/);
-    const port = Number(portLine.trim());
-    if (!Number.isInteger(port) || port <= 0 || port > 65535)
-        return null;
-    return { port, browserPath: browserPath.trim() };
-}
-
-/**
- * Build the in-app URL that prefills the Antigravity composer.
- *
- * Boundary: the Antigravity window reads `q` into its input, then strips it from the address bar. `section` picks the
- * project the new conversation opens in; with projects enabled (the desktop default) the app ignores `ws`, so
- * without `section` the composer stays on whatever project was open. `ws` is still sent for builds without
- * projects, where it selects the workspace. The result stays on the page's own loopback origin. Any other host is
- * rejected so a tampered page URL cannot be used to navigate somewhere else.
- *
- * @param {string} pageUrl Current Antigravity page URL (`https://127.0.0.1:<port>/`).
- * @param {string} prompt Prompt text placed in the composer. An empty string still navigates, but the app ignores an empty `q`.
- * @param {string} [workspaceDir] Absolute project directory, encoded as a `file:` URL in `ws`.
- * @param {string} [sectionId] Antigravity project id (see `resolveAntigravityProject`). Blank leaves the project unchanged.
- * @returns {string} Absolute URL on the same origin.
- */
-export function buildAntigravityComposerUrl(pageUrl: string, prompt: string, workspaceDir?: string, sectionId?: string) {
-    const current = new URL(pageUrl);
-    if (current.protocol !== 'https:' && current.protocol !== 'http:')
-        throw new Error('Unexpected Antigravity page URL');
-    if (current.hostname !== '127.0.0.1' && current.hostname !== 'localhost')
-        throw new Error('Refusing to navigate a non-local Antigravity page');
-    const next = new URL('/', current.origin);
-    next.searchParams.set('q', String(prompt ?? ''));
-    if (typeof workspaceDir === 'string' && workspaceDir.trim())
-        next.searchParams.set('ws', pathToFileURL(workspaceDir).href);
-    if (typeof sectionId === 'string' && sectionId.trim())
-        next.searchParams.set('section', sectionId.trim());
-    return next.toString();
-}
-
-/**
- * Pick the Antigravity composer page out of a DevTools `/json/list` payload.
- *
- * Boundary: only an `https`/`http` page on loopback is eligible. Extension pages, devtools pages, and remote URLs
- * are ignored. When several local pages exist, the first one is used.
- *
- * @param {unknown} list Parsed `/json/list` body.
- * @returns {{ url: string, webSocketDebuggerUrl: string } | null} Page to navigate, or null.
- */
-export function selectAntigravityPage(list: unknown) {
-    if (!Array.isArray(list))
-        return null;
-    for (const entry of list) {
-        if (!entry || entry.type !== 'page' || typeof entry.url !== 'string' || typeof entry.webSocketDebuggerUrl !== 'string')
-            continue;
-        try {
-            const url = new URL(entry.url);
-            if ((url.protocol === 'https:' || url.protocol === 'http:')
-                && (url.hostname === '127.0.0.1' || url.hostname === 'localhost'))
-                return { url: entry.url, webSocketDebuggerUrl: entry.webSocketDebuggerUrl };
-        }
-        catch {
-            // Skip malformed targets.
-        }
-    }
-    return null;
-}
-
-/**
- * JavaScript that navigates the Antigravity window onto the composer URL.
- *
- * Boundary: `targetUrl` is embedded with `JSON.stringify`, so the prompt cannot break out of the string. The
- * expression only assigns `location.href`.
- *
- * @param {string} targetUrl URL from {@link buildAntigravityComposerUrl}.
- * @returns {string} Expression for `Runtime.evaluate`.
- */
-export function antigravityNavigateExpression(targetUrl: string) {
-    return `location.href = ${JSON.stringify(targetUrl)}`;
+export function buildAntigravityDeepLink(input: { prompt: string, projectId?: string }) {
+    let url = `${ANTIGRAVITY_SCHEME}://open?prompt=${encodeURIComponent(String(input.prompt ?? ''))}`;
+    const projectId = typeof input.projectId === 'string' ? input.projectId.trim() : '';
+    if (projectId)
+        url += `&project=${encodeURIComponent(projectId)}`;
+    return url;
 }

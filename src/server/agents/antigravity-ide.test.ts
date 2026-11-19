@@ -20,7 +20,9 @@ test('Antigravity IDE is registered by default and can be turned off in config',
     assert.equal(buildRegistry({ antigravityIde: { enabled: false } }).has('antigravity-ide'), false);
     const enabled = buildRegistry({ antigravityIde: true });
     assert.equal(enabled.has('antigravity-ide'), true);
-    assert.deepEqual(enabled.names().slice(-2), ['antigravity-ide', 'antigravity']);
+    const names = enabled.names();
+    const idx = names.indexOf('antigravity-ide');
+    assert.deepEqual(names.slice(idx, idx + 2), ['antigravity-ide', 'antigravity']);
 });
 
 test('resolveAntigravityIdeCommandCandidates prefers command, then the platform install', () => {

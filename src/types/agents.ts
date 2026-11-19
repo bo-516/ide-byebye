@@ -1,4 +1,21 @@
 import type { PathStyle } from './primitives.js';
+import type {
+  QoderAppAgentOptions,
+  QoderCliAgentOptions,
+  TraeAppAgentOptions,
+  TraeCliAgentOptions,
+  WorkBuddyAppAgentOptions,
+  WorkBuddyCliAgentOptions,
+} from './agents-cn.js';
+
+export type {
+  QoderAppAgentOptions,
+  QoderCliAgentOptions,
+  TraeAppAgentOptions,
+  TraeCliAgentOptions,
+  WorkBuddyAppAgentOptions,
+  WorkBuddyCliAgentOptions,
+} from './agents-cn.js';
 
 /**
  * Agent option types: shared open options, every built-in adapter's option object, custom
@@ -123,8 +140,8 @@ export interface AntigravityIdeAgentOptions extends AgentOpenOptions {
 
 /**
  * Antigravity desktop app / CLI (`agy`). On by default.
- * Opens the desktop app, or a Terminal session when only `agy` is installed; `openCommand` / `openArgs` choose how
- * that launcher is started.
+ * Opens the desktop app with an `antigravity://open` prompt link, or a Terminal session when only `agy` is installed;
+ * `openCommand` / `openArgs` choose how that link or launcher is opened.
  */
 export interface AntigravityAgentOptions extends AgentOpenOptions {
   /** CLI binary (`agy`, then `~/.local/bin/agy`). Absolute path if PATH differs. */
@@ -137,7 +154,9 @@ export interface AntigravityAgentOptions extends AgentOpenOptions {
   artifactPathStyle?: PathStyle;
   /** Passed as `agy --mode` (`plan`, `accept-edits`, `auto`). Omitted → CLI default. */
   mode?: string;
-  /** In `auto` mode, longer prompts switch to a file pointer. Default `12000`. */
+  /** Desktop app: encoded links longer than this switch to a file pointer. Default `8000`. */
+  promptUrlLimit?: number;
+  /** `agy` Terminal route: longer prompts switch to a file pointer. Default `12000`. */
   promptArgLimit?: number;
 }
 
@@ -344,6 +363,18 @@ export interface AgentsOptions {
   antigravityIde?: AgentEntry<AntigravityIdeAgentOptions>;
   /** Antigravity handoff (`antigravity`). On by default; `false` removes it. */
   antigravity?: AgentEntry<AntigravityAgentOptions>;
+  /** WorkBuddy desktop app handoff (`workbuddy-app`). On by default; `false` removes it. */
+  workbuddyApp?: AgentEntry<WorkBuddyAppAgentOptions>;
+  /** WorkBuddy / CodeBuddy CLI handoff (`workbuddy-cli`). On by default; `false` removes it. */
+  workbuddyCli?: AgentEntry<WorkBuddyCliAgentOptions>;
+  /** TRAE IDE chat handoff (`trae-app`). On by default; `false` removes it. */
+  traeApp?: AgentEntry<TraeAppAgentOptions>;
+  /** TRAE CLI handoff (`trae-cli`). On by default; `false` removes it. */
+  traeCli?: AgentEntry<TraeCliAgentOptions>;
+  /** Qoder IDE / Desktop chat handoff (`qoder-app`). On by default; `false` removes it. */
+  qoderApp?: AgentEntry<QoderAppAgentOptions>;
+  /** Qoder CLI handoff (`qoder-cli`). On by default; `false` removes it. */
+  qoderCli?: AgentEntry<QoderCliAgentOptions>;
   /**
    * Extra footer agents that deliver the prompt straight into a running
    * client's input box. Omit it and the plugin behaves exactly as before.

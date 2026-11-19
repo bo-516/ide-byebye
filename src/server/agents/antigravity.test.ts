@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { buildRegistry } from './build.js';
+import { createAntigravityAdapter, type AntigravityDeps } from './antigravity.js';
 import {
     antigravityLauncherExtension,
     buildAntigravityFilePrompt,
@@ -23,11 +25,10 @@ test('Antigravity is registered by default and can be turned off in config', () 
     assert.equal(enabled.has('antigravity-ide'), true);
 });
 
-test('both Antigravity agents register by default at the end of the default footer agents', () => {
-    assert.deepEqual(
-        buildRegistry({}).names(),
-        ['clipboard', 'file', 'codex-app', 'claude-app', 'cursor-app', 'grok-build', 'claude-cli', 'opencode', 'devin-cli', 'antigravity-ide', 'antigravity'],
-    );
+test('both Antigravity agents register by default in order after devin-cli', () => {
+    const names = buildRegistry({}).names();
+    const idx = names.indexOf('devin-cli');
+    assert.deepEqual(names.slice(idx + 1, idx + 3), ['antigravity-ide', 'antigravity']);
 });
 
 test('resolveAntigravityCommandCandidates prefers command, then the user install', () => {
@@ -108,4 +109,111 @@ test('buildAntigravityLauncherFile encodes the Windows launcher', () => {
     const program = Buffer.from(encoded, 'base64').toString('utf16le');
     assert.match(program, /--mode 'accept-edits' --prompt-interactive \$prompt/);
     assert.match(program, /Get-Content -LiteralPath 'C:\\repo\\prompt\.txt'/);
+});
+
+/** `send` arguments of the adapter under test. */
+type SendArgs = Parameters<ReturnType<typeof createAntigravityAdapter>['send']>;
+
+/**
+ * Run `fn` against a throwaway project and a request whose intent is `intent`.
+ *
+ * @param {string} intent User intent.
+ * @param {(input: { projectRoot: string, request: SendArgs[0], context: SendArgs[1] }) => Promise<void>} fn Test body.
+ */
+async function withRequest(intent: string, fn: (input: { projectRoot: string, request: SendArgs[0], context: SendArgs[1] }) => Promise<void>) {
+    // Realpath: macOS tmpdir is a /var symlink, and prompt paths are made relative against the real root.
+    const projectRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ide-byebye-antigravity-')));
+    const request = {
+        id: 'r1',
+        createdAt: '2026-11-19T04:00:00.000Z',
+        projectRoot,
+        intent,
+        selection: { line: 145 },
+        source: { filePath: path.join(projectRoot, 'src', 'views', 'CreatorProfile.vue'), selectedNodeRange: { startLine: 145, endLine: 224 } },
+    };
+    const context = { emit: () => {}, outputDir: path.join(projectRoot, '.intent-inspector'), projectRoot, prompt: '' };
+    try {
+        await fn({ projectRoot, request, context });
+    }
+    finally {
+        fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+}
+
+/**
+ * Fake host with the desktop app installed and the given project resolved.
+ *
+ * @param {{ id: string, name: string } | null} project Antigravity project for the project root.
+ * @returns {{ deps: Partial<AntigravityDeps>, opened: string[] }} Overrides plus the opened targets.
+ */
+function desktopHost(project: { id: string, name: string } | null) {
+    const opened: string[] = [];
+    const deps: Partial<AntigravityDeps> = {
+        findApp: () => '/Applications/Antigravity.app',
+        findProject: () => (project ? { ...project, folders: [] } : null),
+        open: async (_config, target) => {
+            opened.push(target);
+        },
+    };
+    return { deps, opened };
+}
+
+test('the desktop route opens the prompt link in the matching project', async () => {
+    await withRequest('Make the card wider', async ({ request, context }) => {
+        const host = desktopHost({ id: 'ce4ea324-94f2-4abf-b32f-aeb9b3a908c7', name: 'novel' });
+        const result = await createAntigravityAdapter({}, host.deps).send(request, context);
+        assert.equal(result.ok, true, String(result.error));
+        assert.equal(host.opened.length, 1);
+        const url = new URL(host.opened[0]);
+        assert.equal(`${url.protocol}//${url.hostname}`, 'antigravity://open');
+        assert.equal(url.searchParams.get('project'), 'ce4ea324-94f2-4abf-b32f-aeb9b3a908c7');
+        assert.match(url.searchParams.get('prompt') as string, /^@src\/views\/CreatorProfile\.vue #145-224\n/);
+        assert.match(url.searchParams.get('prompt') as string, /Make the card wider/);
+        assert.equal(result.writtenPromptPath, undefined);
+        assert.match(String(result.output), /in the novel project/);
+    });
+});
+
+test('without a matching project the link keeps the current project and says so', async () => {
+    await withRequest('hi', async ({ projectRoot, request, context }) => {
+        const host = desktopHost(null);
+        const result = await createAntigravityAdapter({}, host.deps).send(request, context);
+        assert.equal(result.ok, true, String(result.error));
+        assert.equal(new URL(host.opened[0]).searchParams.has('project'), false);
+        assert.match(String(result.output), new RegExp(`No Antigravity project contains ${projectRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    });
+});
+
+test('a link longer than promptUrlLimit becomes a file pointer, and promptMode file always does', async () => {
+    await withRequest('long '.repeat(400), async ({ request, context }) => {
+        const host = desktopHost(null);
+        const result = await createAntigravityAdapter({ promptUrlLimit: 600 }, host.deps).send(request, context);
+        assert.equal(result.ok, true, String(result.error));
+        assert.ok(host.opened[0].length <= 600);
+        const prompt = new URL(host.opened[0]).searchParams.get('prompt') as string;
+        assert.match(prompt, /\.intent-inspector\/requests\/2026-11-19T04-00-00-r1\.md/);
+        assert.ok(fs.existsSync(String(result.writtenPromptPath)));
+        assert.match(String(result.output), /Full request context was written to/);
+    });
+    await withRequest('short', async ({ request, context }) => {
+        const host = desktopHost(null);
+        const result = await createAntigravityAdapter({ promptMode: 'file' }, host.deps).send(request, context);
+        assert.equal(result.ok, true, String(result.error));
+        assert.ok(fs.existsSync(String(result.writtenPromptPath)));
+    });
+});
+
+test('an opener failure is reported as a failed send', async () => {
+    await withRequest('hi', async ({ request, context }) => {
+        const host = desktopHost(null);
+        const result = await createAntigravityAdapter({}, {
+            ...host.deps,
+            open: async () => {
+                throw new Error('No application knows how to open antigravity://');
+            },
+        }).send(request, context);
+        assert.equal(result.ok, false);
+        assert.match(String(result.error), /No application knows/);
+        assert.equal(result.events.at(-1)?.type, 'failed');
+    });
 });
