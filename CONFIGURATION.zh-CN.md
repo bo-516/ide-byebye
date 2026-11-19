@@ -226,6 +226,10 @@ Antigravity 会停在当前项目；在 Antigravity 里把这个文件夹添加�
 `codebuddy`，依次探测 PATH 上的 `codebuddy`、`~/.local/bin/codebuddy`、
 `~/.codebuddy/bin/codebuddy` 以及 `WorkBuddy AI.app` / `WorkBuddy.app` 内置的 CLI。
 
+WorkBuddy 5.11 起，只有已有分组指向该项目目录时才会保留这个 `cwd`，否则会清空目录、把任务放到临时目录。
+链接无法创建或选择分组，所以需要在 WorkBuddy 里手动建一次（**选择分组 → 选择本地文件夹**，选项目根目录）。
+发送目标切到 `workbuddy-app` 时，对话框会显示提醒卡片，可选 **本次关闭** 或 **不再提示**（按浏览器记住）。
+
 | 选项 | 默认 | 作用 |
 | --- | --- | --- |
 | `appPath` | 各平台安装路径 | 桌面应用路径（同时供 `workbuddyCli` 查找内置 CLI）。 |

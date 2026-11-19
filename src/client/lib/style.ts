@@ -1,6 +1,7 @@
 import { DIALOG_Z_INDEX, PLUGIN_NODE_ATTR } from '../../shared/constants.js';
 import { DEFAULT_THEME } from '../../shared/theme.js';
 import { AGENT_ICONS_STYLE } from './agent-icons.js';
+import { AGENT_NOTICE_STYLE } from './style-agent-notice.js';
 import { isolateUiEvents } from './event-isolation.js';
 import { ICONS_STYLE } from './icons.js';
 import { CAPTURE_STYLE } from './style-capture.js';
@@ -23,7 +24,7 @@ import { TOOLS_STYLE } from './style-tools.js';
  *
  * Boundary: icon masks and design tokens come first because every later fragment reads them (light and dark themes
  * both live in the tokens), then shell defaults precede the page highlight and dependent controls, and the destination
- * menu sections follow the destination picker rules they extend, the brand marks follow the destination picker whose
+ * menu sections and the destination notice follow the destination picker rules they extend, the brand marks follow the destination picker whose
  * kind glyphs they override, the component-state tool follows the
  * capture-tool and recording-pill rules it restyles, and the pick button comes last because it restyles the pin orb
  * from the recording fragment; omitting or reordering fragments can
@@ -32,7 +33,7 @@ import { TOOLS_STYLE } from './style-tools.js';
  * @type {string} Complete base CSS text for consumers that render or inject the plugin UI.
  */
 export const STYLE_TEXT = ICONS_STYLE + TOKENS_STYLE + SHELL_STYLE + OVERLAY_STYLE + PREVIEWS_STYLE + FOOTER_STYLE
-    + TOOLS_STYLE + DESTINATION_STYLE + DESTINATION_MORE_STYLE + AGENT_ICONS_STYLE + RECORDING_STYLE + RECORDING_EDITOR_STYLE + CAPTURE_STYLE
+    + TOOLS_STYLE + DESTINATION_STYLE + DESTINATION_MORE_STYLE + AGENT_NOTICE_STYLE + AGENT_ICONS_STYLE + RECORDING_STYLE + RECORDING_EDITOR_STYLE + CAPTURE_STYLE
     + STATE_STYLE + PICK_STYLE;
 
 /**

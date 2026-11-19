@@ -104,6 +104,18 @@ export const AGENT_STRINGS: Record<string, { zh: string; en: string }> = {
         en: 'Hover a row and click {pin} to pin it. Default: the {option} option',
     },
     'agent.menu.pinTipClose': { zh: '关闭提示', en: 'Dismiss tip' },
+    // Sticky card shown when WorkBuddy becomes the destination. The quoted labels match WorkBuddy's own zh-CN / en UI
+    // (its composer's group picker) so users can find them; update them if WorkBuddy renames those controls.
+    'agent.notice.workbuddyGroup.title': {
+        zh: 'WorkBuddy 可能需要手动创建分组',
+        en: 'WorkBuddy may need a group first',
+    },
+    'agent.notice.workbuddyGroup.text': {
+        zh: 'WorkBuddy 只会自动选中已有的分组。首次使用请在 WorkBuddy 输入框下方点「选择分组 → 选择本地文件夹」，为本项目根目录建一次分组，否则任务会落到临时目录。',
+        en: 'WorkBuddy only auto-selects an existing group. On first use, click “Select Group → Select Local Folder” under its input and add this project’s root once, or the task runs in a scratch folder.',
+    },
+    'agent.notice.dismissOnce': { zh: '本次关闭', en: 'Dismiss' },
+    'agent.notice.dismissForever': { zh: '不再提示', en: 'Don’t show again' },
     'clipboard.copyFailed': {
         zh: '自动复制失败，请全选下方内容并手动复制（⌘/Ctrl+C）。',
         en: 'Copy failed — select the text below and copy it manually (⌘/Ctrl+C).',

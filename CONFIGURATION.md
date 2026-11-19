@@ -241,6 +241,13 @@ the composer. `workbuddyCli` runs interactive `codebuddy` in Terminal, probing
 `codebuddy` on PATH, `~/.local/bin/codebuddy`, `~/.codebuddy/bin/codebuddy`, and
 the CLI bundled inside `WorkBuddy AI.app` / `WorkBuddy.app`.
 
+WorkBuddy 5.11+ only keeps that `cwd` when one of its groups already points at
+the project folder; otherwise it clears the folder and the task runs in a
+scratch folder. The link cannot create or pick a group, so create one once in
+WorkBuddy (**Select Group → Select Local Folder**, pick the project root). When
+`workbuddy-app` becomes the destination, the dialog shows a reminder card with
+**Dismiss** (this time) and **Don't show again** (remembered per browser).
+
 | Option | Default | What it does |
 | --- | --- | --- |
 | `appPath` | platform install paths | Desktop bundle path (`workbuddyApp` and `workbuddyCli` bundled fallback). |

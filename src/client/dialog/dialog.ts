@@ -35,6 +35,8 @@ export class Dialog extends DialogShell {
         this.componentState.reset();
         this.editor.reset();
         this.lastAgent = loadLastAgent(this.config);
+        // A new dialog shows the current destination's notice again, even if it was dismissed once last time.
+        this.picker.notice.rearm();
         this.enableFocusGuard();
         this.render(selection);
         // Show the clicked element immediately as a non-removable pinned chip; resolve(undefined) upgrades the label.

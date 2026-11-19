@@ -75,6 +75,8 @@ export abstract class DialogShell extends DialogPins {
         this.componentState.attachPreview(statePreviewEl);
         body.append(statePreviewEl);
         dialog.append(body);
+        // Destination caveat (e.g. WorkBuddy groups): sticky card above the action bar, filled by the picker's repaint.
+        dialog.append(this.picker.renderNotice());
         // --- action bar: capture tools on the left; Copy, the destination picker, and Send on the right ---
         const footer = el('div', 'cii-footer');
         const tools = el('div', 'cii-footer-tools');

@@ -109,6 +109,7 @@ export abstract class DialogLayout {
             getLastAgent: () => this.lastAgent,
             rememberAgent: (name: string) => this.rememberAgent(name),
             onPicked: () => this.restoreIntentFocus(),
+            onLayout: () => this.repositionForContent(),
         });
         this.editor = createDialogEditor({
             placeholder: t('intent.placeholder'),

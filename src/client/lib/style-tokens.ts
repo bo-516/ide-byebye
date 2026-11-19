@@ -57,6 +57,8 @@ export const DARK_TOKENS = `
   --cii-success-soft: rgba(61, 214, 140, 0.12);
   --cii-success-line: rgba(61, 214, 140, 0.34);
   --cii-warning: #f5a524;
+  --cii-warning-soft: rgba(245, 165, 36, 0.10);
+  --cii-warning-line: rgba(245, 165, 36, 0.32);
 
   --cii-scrim: rgba(0, 0, 0, 0.40);
   --cii-scrim-strong: rgba(0, 0, 0, 0.64);
@@ -155,6 +157,8 @@ export const TOKENS_STYLE = `
   --cii-success-soft: rgba(19, 138, 85, 0.09);
   --cii-success-line: rgba(19, 138, 85, 0.32);
   --cii-warning: #c26d00;
+  --cii-warning-soft: rgba(194, 109, 0, 0.08);
+  --cii-warning-line: rgba(194, 109, 0, 0.28);
 
   --cii-scrim: rgba(12, 12, 16, 0.22);
   --cii-scrim-strong: rgba(12, 12, 16, 0.56);

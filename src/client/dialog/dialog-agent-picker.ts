@@ -4,12 +4,14 @@ import { createAgentPickerDom, paintAgentTrigger } from './dialog-agent-menu.js'
 import { fillAgentMenu, setAgentMenuExpanded, type AgentMenuEntry, type AgentMenuParts } from './dialog-agent-menu-list.js';
 import { AGENT_MENU_DOWN_CLASS, fitAgentMenu } from './dialog-agent-fit.js';
 import { dismissPinTip, isPinTipDismissed, loadPinnedAgents, setAgentPinned } from './dialog-agent-pins.js';
+import { DialogAgentNotice } from './dialog-agent-notice.js';
 import { type DialogSessionController } from './dialog-session-picker.js';
 
 /**
  * Dialog hooks. `sessions` is the session controller when the dialog has one; omitting it hides every session
  * affordance. `config` only needs `enabledAgents` and `pinnedAgents` — the live config object has more keys and still
- * fits; a missing `pinnedAgents` (older server) pins the built-in default.
+ * fits; a missing `pinnedAgents` (older server) pins the built-in default. `onLayout` runs when the destination notice
+ * shows or hides on an open dialog; omitting it leaves the panel unmeasured after that change.
  */
 interface AgentPickerDeps {
     config: () => { enabledAgents?: string[]; pinnedAgents?: unknown };
@@ -17,6 +19,7 @@ interface AgentPickerDeps {
     getLastAgent: () => string;
     rememberAgent: (name: string) => void;
     onPicked?: () => void;
+    onLayout?: () => void;
 }
 
 /** Nodes from {@link createAgentPickerDom}. Kept so refresh can repaint without querying the DOM. */
@@ -48,12 +51,15 @@ const NO_PARTS: AgentMenuParts = { entries: [], region: null, inner: null, list:
  * folded. Rows that list sessions hand off to the session controller's menu, anchored at the same trigger, which can
  * come back here. Keyboard navigation and the resize refit listen only while the menu is open (like the session menu);
  * Escape is left to the dialog through {@link consumeEscape}. One instance lives across dialog opens and `render()`
- * rebuilds its DOM each time; methods called before the first render are no-ops.
+ * rebuilds its DOM each time; methods called before the first render are no-ops. It also drives the destination
+ * notice ({@link DialogAgentNotice}): every repaint syncs it to the Enter target, and choosing a row re-arms it, so
+ * picking a destination with a caveat (WorkBuddy) always shows the caveat again.
  */
 export class DialogAgentPicker {
     deps: AgentPickerDeps;
     onKey: (event: KeyboardEvent) => void;
     onResize: () => void;
+    notice: DialogAgentNotice;
     dom: AgentPickerDom | null = null;
     rootEl: HTMLElement | null = null;
     triggerEl: HTMLButtonElement | null = null;
@@ -73,6 +79,15 @@ export class DialogAgentPicker {
         this.deps = deps;
         this.onKey = (event: KeyboardEvent) => this.onMenuKey(event);
         this.onResize = () => this.place();
+        this.notice = new DialogAgentNotice(() => this.deps.onLayout?.());
+    }
+
+    /**
+     * Build the destination notice card for a fresh dialog; call before {@link render} so its first repaint fills it.
+     * @returns {HTMLElement} Hidden card for the dialog to place above its action bar.
+     */
+    renderNotice(): HTMLElement {
+        return this.notice.render();
     }
 
     /** Build the trigger + menu for a fresh dialog. @returns {HTMLElement} Wrapper; hidden with no destination. */
@@ -119,6 +134,8 @@ export class DialogAgentPicker {
             targets: sessions?.targets,
             supports: (name: string) => sessions?.supports(name) === true,
         });
+        const current = this.current();
+        this.notice.sync(current?.name ?? null, current?.unavailable === true);
         if (!this.dom)
             return;
         // render() sets rootEl with dom; this return already handled the pre-render call.
@@ -288,9 +305,10 @@ export class DialogAgentPicker {
         this.refresh();
     }
 
-    /** Make `row` the Enter target. @param {AgentMenuRow} row Chosen row. @returns {void} */
+    /** Make `row` the Enter target and re-show its notice, if any. @param {AgentMenuRow} row Chosen row. @returns {void} */
     select(row: AgentMenuRow): void {
         this.close();
+        this.notice.rearm();
         this.deps.rememberAgent(row.name);
         this.deps.onPicked?.();
     }
