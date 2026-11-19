@@ -94,6 +94,16 @@ export const AGENT_STRINGS: Record<string, { zh: string; en: string }> = {
     // Shown right after the destination label; the leading space (en) / full-width bracket (zh) is the gap.
     'agent.menu.unavailable': { zh: '（不可用）', en: ' (unavailable)' },
     'agent.menu.sessions': { zh: '选择已有会话', en: 'Choose an existing session' },
+    // Toggle for the destinations that are not pinned; the count is drawn next to it.
+    'agent.menu.more': { zh: '更多 Agent', en: 'More agents' },
+    'agent.menu.pin': { zh: '加入常用', en: 'Pin to top' },
+    'agent.menu.unpin': { zh: '移出常用', en: 'Unpin' },
+    // {pin} becomes the pin glyph and {option} the literal option name; keep both tokens in every locale.
+    'agent.menu.pinTip': {
+        zh: '悬停行点 {pin} 调整常用，默认值见配置 {option}',
+        en: 'Hover a row and click {pin} to pin it. Default: the {option} option',
+    },
+    'agent.menu.pinTipClose': { zh: '关闭提示', en: 'Dismiss tip' },
     'clipboard.copyFailed': {
         zh: '自动复制失败，请全选下方内容并手动复制（⌘/Ctrl+C）。',
         en: 'Copy failed — select the text below and copy it manually (⌘/Ctrl+C).',

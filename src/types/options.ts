@@ -91,6 +91,12 @@ export interface IdeByebyeOptions {
    * first enabled footer agent; once the user clicks a footer agent, Enter follows that remembered choice instead.
    */
   defaultAgent?: AgentId;
+  /**
+   * Destinations listed at the top of the "Send to" menu; every other offered destination folds under "More agents".
+   * Default `['codex-app', 'claude-app', 'antigravity']`. `[]` folds everything. This is only the default: once the
+   * user pins or unpins a row, that browser's choice (localStorage) wins. Ids the page does not offer are ignored.
+   */
+  pinnedAgents?: AgentId[];
   /** Handoff hint: plan only vs allow edits. Default `'prompt-only'`. */
   applyMode?: ApplyMode;
   /** Project-relative dir for handoff files. Default `'.intent-inspector'`. */

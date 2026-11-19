@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { agentMenuRows } from './dialog-agent-model.js';
+import { agentMenuRows, splitAgentRows } from './dialog-agent-model.js';
 
 const ACTIONS = [
     { name: 'codex-app', label: 'Codex App', title: 'Open Codex', kind: 'app' },
@@ -51,4 +51,13 @@ test('agentMenuRows exposes a stored session only for agents that currently list
 
 test('agentMenuRows returns no rows for a missing action list', () => {
     assert.deepEqual(agentMenuRows(undefined, {}), []);
+});
+
+test('agentMenuRows marks pinned rows and splitAgentRows keeps catalog order in both sections', () => {
+    const rows = agentMenuRows(ACTIONS, { enabledAgents: ENABLED, pinned: ['my-client', 'codex-app', 'not-offered'] });
+    assert.deepEqual(rows.map((row) => [row.name, row.pinned]), [['codex-app', true], ['grok-build', false], ['my-client', true]]);
+    const { pinned, more } = splitAgentRows(rows);
+    assert.deepEqual(pinned.map((row) => row.name), ['codex-app', 'my-client']);
+    assert.deepEqual(more.map((row) => row.name), ['grok-build']);
+    assert.equal(agentMenuRows(ACTIONS, { enabledAgents: ENABLED }).some((row) => row.pinned), false);
 });

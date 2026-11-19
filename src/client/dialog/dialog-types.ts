@@ -14,13 +14,18 @@ import type { ImageDelivery } from '../../shared/constants.js';
 /**
  * Fields this dialog reads from the injected page config.
  *
- * Boundary: the live config object has more keys (`token`, `apiOrigin`, …). This class only indexes `enabledAgents`;
- * omitting it makes `send` throw when it checks whether the chosen agent is allowed. Other keys are forwarded as-is
- * to controllers that own them.
+ * Boundary: the live config object has more keys (`token`, `apiOrigin`, …). This class indexes `enabledAgents` and
+ * the destination menu's `pinnedAgents`; omitting `enabledAgents` makes `send` throw when it checks whether the chosen
+ * agent is allowed. Other keys are forwarded as-is to controllers that own them.
  */
 export interface BrowserClientConfig {
     /** Agent ids the server will accept. An id outside this list is never offered and is rejected on send. */
     enabledAgents: string[];
+    /**
+     * Server-resolved `pinnedAgents`: the default split of the destination menu. `unknown` because an older server
+     * omits it; the picker normalizes it and lets the browser's own pins win.
+     */
+    pinnedAgents?: unknown;
 }
 
 /** One row of `GET /agents`: whether that adapter can take a prompt right now. */

@@ -159,3 +159,14 @@ export const ALL_AGENT_NAMES = [
     'devin-ide',
     'windsurf-ide',
 ];
+/**
+ * Destinations listed above "More agents" in the destination menu when neither the browser nor the plugin config says
+ * otherwise.
+ *
+ * Purpose: the server resolves `pinnedAgents` to this list when the option is unset or malformed, and the client falls
+ * back to it when the injected config carries no usable list. Boundary: ids only; an id the page does not offer (not
+ * registered, disabled in config) is simply not shown, so this list never adds a destination.
+ *
+ * @type {string[]} Agent ids, in no particular order (the menu keeps catalog order).
+ */
+export const DEFAULT_PINNED_AGENTS = ['codex-app', 'claude-app', 'antigravity'];

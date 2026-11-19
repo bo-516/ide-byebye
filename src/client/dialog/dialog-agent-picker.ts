@@ -1,14 +1,18 @@
 import { agentLabel, revealDropdownPanel, visibleAgentActions } from './dialog-utils.js';
 import { agentMenuRows, type AgentMenuRow } from './dialog-agent-model.js';
-import { createAgentPickerDom, fillAgentMenu, paintAgentTrigger } from './dialog-agent-menu.js';
+import { createAgentPickerDom, paintAgentTrigger } from './dialog-agent-menu.js';
+import { fillAgentMenu, setAgentMenuExpanded, type AgentMenuEntry, type AgentMenuParts } from './dialog-agent-menu-list.js';
+import { AGENT_MENU_DOWN_CLASS, fitAgentMenu } from './dialog-agent-fit.js';
+import { dismissPinTip, isPinTipDismissed, loadPinnedAgents, setAgentPinned } from './dialog-agent-pins.js';
 import { type DialogSessionController } from './dialog-session-picker.js';
 
 /**
  * Dialog hooks. `sessions` is the session controller when the dialog has one; omitting it hides every session
- * affordance. `config` only needs `enabledAgents` — the live config object has more keys and still fits.
+ * affordance. `config` only needs `enabledAgents` and `pinnedAgents` — the live config object has more keys and still
+ * fits; a missing `pinnedAgents` (older server) pins the built-in default.
  */
 interface AgentPickerDeps {
-    config: () => { enabledAgents?: string[] };
+    config: () => { enabledAgents?: string[]; pinnedAgents?: unknown };
     sessions?: DialogSessionController | null;
     getLastAgent: () => string;
     rememberAgent: (name: string) => void;
@@ -32,27 +36,34 @@ interface PickerAvailability {
     reason?: string;
 }
 
+/** Empty menu parts, used before the first paint. */
+const NO_PARTS: AgentMenuParts = { entries: [], region: null, inner: null, list: null, toggle: null };
+
 /**
  * Destination picker: the compact trigger beside Send that shows where the prompt goes, and the menu that changes it.
  *
  * Boundary: choosing a row only changes the Enter target (`deps.rememberAgent`); sending stays with the dialog, so a
- * rarely-changed destination costs no space. Rows that list sessions hand off to the session controller's menu,
- * anchored at the same trigger, which can come back here. Keyboard navigation listens on the document only while the
- * menu is open (like the session menu); Escape is left to the dialog through {@link consumeEscape}. One instance lives
- * across dialog opens and `render()` rebuilds its DOM each time; methods called before the first render are no-ops.
+ * rarely-changed destination costs no space. Pinned rows sit on top and the rest fold under "More agents"; pinning and
+ * the open state never change the Enter target. The open state is per open: it starts closed unless the Enter target is
+ * folded. Rows that list sessions hand off to the session controller's menu, anchored at the same trigger, which can
+ * come back here. Keyboard navigation and the resize refit listen only while the menu is open (like the session menu);
+ * Escape is left to the dialog through {@link consumeEscape}. One instance lives across dialog opens and `render()`
+ * rebuilds its DOM each time; methods called before the first render are no-ops.
  */
 export class DialogAgentPicker {
     deps: AgentPickerDeps;
     onKey: (event: KeyboardEvent) => void;
+    onResize: () => void;
     dom: AgentPickerDom | null = null;
     rootEl: HTMLElement | null = null;
     triggerEl: HTMLButtonElement | null = null;
     menuEl: HTMLElement | null = null;
     rows: AgentMenuRow[] = [];
-    buttons: HTMLButtonElement[] = [];
+    parts: AgentMenuParts = NO_PARTS;
     activeIndex = 0;
     availability: PickerAvailability[] = [];
     disabled = false;
+    expanded = false;
 
     /**
      * @param {AgentPickerDeps} deps Dialog hooks; `onPicked` runs after a row is chosen (the dialog returns focus to the
@@ -61,6 +72,7 @@ export class DialogAgentPicker {
     constructor(deps: AgentPickerDeps) {
         this.deps = deps;
         this.onKey = (event: KeyboardEvent) => this.onMenuKey(event);
+        this.onResize = () => this.place();
     }
 
     /** Build the trigger + menu for a fresh dialog. @returns {HTMLElement} Wrapper; hidden with no destination. */
@@ -91,8 +103,8 @@ export class DialogAgentPicker {
     }
 
     /**
-     * Recompute rows from config, availability, the Enter target, and stored sessions; repaint the trigger (and the
-     * menu when open). Safe to call at any time.
+     * Recompute rows from config, pins, availability, the Enter target, and stored sessions; repaint the trigger (and
+     * the menu when open). Safe to call at any time.
      * @returns {void}
      */
     refresh(): void {
@@ -102,6 +114,7 @@ export class DialogAgentPicker {
         this.rows = agentMenuRows(visibleAgentActions(config), {
             lastAgent,
             enabledAgents: config.enabledAgents,
+            pinned: loadPinnedAgents(config.pinnedAgents),
             availability: this.availability,
             targets: sessions?.targets,
             supports: (name: string) => sessions?.supports(name) === true,
@@ -111,8 +124,10 @@ export class DialogAgentPicker {
         // render() sets rootEl with dom; this return already handled the pre-render call.
         (this.rootEl as HTMLElement).hidden = this.rows.length === 0;
         paintAgentTrigger(this.dom, this.current(), agentLabel(lastAgent));
-        if (this.isOpen())
+        if (this.isOpen()) {
             this.paint();
+            this.fit();
+        }
     }
 
     /** Open, or close whichever destination menu is showing. @returns {void} */
@@ -127,19 +142,24 @@ export class DialogAgentPicker {
             this.open();
     }
 
-    /** Show the menu with the Enter target highlighted. @returns {void} */
+    /** Show the menu with the Enter target highlighted, folded section open only if that target is in it. @returns {void} */
     open(): void {
         if (!this.menuEl || this.disabled || !this.rows.length)
             return;
-        this.activeIndex = Math.max(0, this.rows.findIndex((row) => row.selected));
+        this.expanded = this.current()?.pinned === false;
         this.paint();
-        revealDropdownPanel(this.triggerEl, this.menuEl);
+        this.place();
+        // After placing: the side it opened on decides the keyboard order (see navEntries).
+        this.activeIndex = Math.max(0, this.navEntries().findIndex((entry) => entry.row?.selected));
+        this.paintActive();
         document.addEventListener('keydown', this.onKey, true);
+        window.addEventListener('resize', this.onResize);
     }
 
-    /** Hide the menu and stop listening for its keys; safe when already closed. @returns {void} */
+    /** Hide the menu and stop listening for its keys and resizes; safe when already closed. @returns {void} */
     close(): void {
         document.removeEventListener('keydown', this.onKey, true);
+        window.removeEventListener('resize', this.onResize);
         if (this.menuEl)
             this.menuEl.hidden = true;
     }
@@ -149,44 +169,123 @@ export class DialogAgentPicker {
         return Boolean(this.menuEl && !this.menuEl.hidden);
     }
 
-    /** Rebuild the menu rows. @returns {void} */
+    /** Rebuild the menu rows in the current open state, keeping the keyboard row on the same item. @returns {void} */
     paint(): void {
+        const activeName = this.navEntries()[this.activeIndex]?.row?.name;
         // Callers open or refresh an existing menu; a missing element still throws inside fill, as before.
-        this.buttons = fillAgentMenu(this.menuEl as HTMLElement, this.rows, {
+        this.parts = fillAgentMenu(this.menuEl as HTMLElement, this.rows, {
             onSelect: (row) => this.select(row),
             onSessions: (row) => this.openSessions(row),
-        });
+            onTogglePin: (row) => this.togglePin(row),
+            onToggleMore: () => this.setExpanded(!this.expanded),
+            onDismissTip: () => this.dismissTip(),
+        }, { expanded: this.expanded, tip: !isPinTipDismissed() });
+        if (activeName)
+            this.activeIndex = Math.max(0, this.navEntries().findIndex((entry) => entry.row?.name === activeName));
         this.paintActive();
     }
 
-    /** Highlight the keyboard row. @returns {void} */
-    paintActive(): void {
-        this.buttons.forEach((button, index) => {
-            button.parentElement?.classList.toggle('cii-agent-row-active', index === this.activeIndex);
-        });
+    /**
+     * Show the menu by its trigger (re-measuring the side and edges), then cap it to the viewport. Used on open and on
+     * window resize while open.
+     * @returns {void}
+     */
+    place(): void {
+        if (!this.menuEl)
+            return;
+        revealDropdownPanel(this.triggerEl, this.menuEl);
+        this.fit();
+    }
+
+    /** Cap the open menu to the room on its side (see `fitAgentMenu`). @returns {void} */
+    fit(): void {
+        if (this.isOpen() && this.triggerEl && this.menuEl)
+            fitAgentMenu(this.triggerEl, this.menuEl, this.parts);
     }
 
     /**
-     * While open: ArrowUp/ArrowDown move, Enter chooses, ArrowRight opens sessions; handled keys never reach the editor.
+     * Keyboard stops in visual order: folded rows count only while open, and the toggle sits above them when the menu
+     * opened downward (the stylesheet moves the region below it there).
+     * @returns {AgentMenuEntry[]} Reachable entries.
+     */
+    navEntries(): AgentMenuEntry[] {
+        const entries = this.parts.entries;
+        const folded = this.expanded ? entries.filter((entry) => entry.folded) : [];
+        const head = entries.filter((entry) => !entry.folded && entry.row);
+        const toggle = entries.filter((entry) => !entry.row);
+        const down = this.menuEl?.classList.contains(AGENT_MENU_DOWN_CLASS) === true;
+        return down ? [...head, ...toggle, ...folded] : [...head, ...folded, ...toggle];
+    }
+
+    /** Highlight the keyboard row and keep it scrolled into the folded list's view. @returns {void} */
+    paintActive(): void {
+        const active = this.navEntries()[this.activeIndex];
+        this.parts.entries.forEach((entry) => {
+            entry.button.parentElement?.classList.toggle('cii-agent-row-active', entry === active);
+        });
+        if (active?.folded)
+            active.button.parentElement?.scrollIntoView?.({ block: 'nearest' });
+    }
+
+    /**
+     * While open: ArrowUp/ArrowDown move, Enter chooses (or opens/closes "More agents" on its toggle), ArrowRight opens
+     * sessions; handled keys never reach the editor.
      * @param {KeyboardEvent} event Keydown in the capture phase. @returns {void}
      */
     onMenuKey(event: KeyboardEvent): void {
-        if (!this.isOpen() || !this.rows.length)
+        const entries = this.navEntries();
+        if (!this.isOpen() || !entries.length)
             return;
-        const row = this.rows[this.activeIndex];
+        const entry = entries[this.activeIndex];
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             const step = event.key === 'ArrowDown' ? 1 : -1;
-            this.activeIndex = (this.activeIndex + step + this.rows.length) % this.rows.length;
+            this.activeIndex = (this.activeIndex + step + entries.length) % entries.length;
             this.paintActive();
         }
-        else if (event.key === 'Enter' && row)
-            this.select(row);
-        else if (event.key === 'ArrowRight' && row?.sessions)
-            this.openSessions(row);
+        else if (event.key === 'Enter' && entry?.row)
+            this.select(entry.row);
+        else if (event.key === 'Enter' && entry)
+            this.setExpanded(!this.expanded);
+        else if (event.key === 'ArrowRight' && entry?.row?.sessions)
+            this.openSessions(entry.row);
         else
             return;
         event.preventDefault();
         event.stopPropagation();
+    }
+
+    /**
+     * Open or close "More agents" in place (animated by the stylesheet), keeping the keyboard row on the same item.
+     * @param {boolean} expanded New state. @returns {void}
+     */
+    setExpanded(expanded: boolean): void {
+        const active = this.navEntries()[this.activeIndex];
+        this.expanded = expanded;
+        setAgentMenuExpanded(this.menuEl as HTMLElement, this.parts, expanded);
+        const next = this.navEntries().indexOf(active);
+        this.activeIndex = Math.max(0, next);
+        this.paintActive();
+    }
+
+    /**
+     * Pin or unpin `row` and repaint. Unpinning opens "More agents" (animated) so the row stays in sight.
+     * @param {AgentMenuRow} row Row whose pin was pressed. @returns {void}
+     */
+    togglePin(row: AgentMenuRow): void {
+        setAgentPinned(row.name, !row.pinned, this.deps.config()?.pinnedAgents);
+        const reveal = row.pinned && !this.expanded;
+        this.refresh();
+        if (!reveal || !this.parts.region)
+            return;
+        // Commit the closed layout first, or the class flip lands in the same style pass and nothing animates.
+        void this.parts.region.offsetHeight;
+        this.setExpanded(true);
+    }
+
+    /** Hide the pin tip for good and refit the menu. @returns {void} */
+    dismissTip(): void {
+        dismissPinTip();
+        this.refresh();
     }
 
     /** Make `row` the Enter target. @param {AgentMenuRow} row Chosen row. @returns {void} */

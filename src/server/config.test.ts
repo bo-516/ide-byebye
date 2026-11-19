@@ -12,6 +12,7 @@ import {
     DEFAULT_MAX_HTML_SNIPPET,
     DEFAULT_MAX_SOURCE_CONTEXT_LINES,
     DEFAULT_OUTPUT_DIR,
+    DEFAULT_PINNED_AGENTS,
 } from '../shared/constants.js';
 
 test('normalizePathStyle only accepts absolute; everything else is relative', () => {
@@ -111,6 +112,13 @@ test('resolveOptions keeps an unknown theme as not configured', () => {
     assert.equal(resolveOptions({ theme: 'system' }).theme, null);
     assert.equal(resolveOptions({ theme: ' Light ' }).theme, 'light');
     assert.equal(resolveOptions({ theme: 'auto' }).theme, 'auto');
+});
+
+test('resolveOptions defaults pinnedAgents and keeps an explicit list clean', () => {
+    assert.deepEqual(resolveOptions({}).pinnedAgents, DEFAULT_PINNED_AGENTS);
+    assert.deepEqual(resolveOptions({ pinnedAgents: 'codex-app' }).pinnedAgents, DEFAULT_PINNED_AGENTS);
+    assert.deepEqual(resolveOptions({ pinnedAgents: [] }).pinnedAgents, []);
+    assert.deepEqual(resolveOptions({ pinnedAgents: [' cursor-app ', 'cursor-app', 7, '', 'opencode'] }).pinnedAgents, ['cursor-app', 'opencode']);
 });
 
 test('resolveOptions normalizes apiOrigin and recording edges', () => {

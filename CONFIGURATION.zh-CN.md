@@ -23,6 +23,7 @@
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` | `false` 完全关闭：不启服务、不注入。 |
 | `defaultAgent` | `string` | `'claude-app'` | Enter 目标：`'codex-app'`、`'claude-app'`、`'cursor-app'`、`'grok-build'`、`'claude-cli'`、`'opencode'`、`'devin-cli'`、`'antigravity-ide'`、`'antigravity'`、`'devin-ide'`、`'windsurf-ide'`，或 [`agents.custom`](#agentscustom) 里的名字。未知或已禁用的值、`'clipboard'`、`'file'` 都回退到第一个已启用的页脚 Agent。在弹窗里换过 Agent 后，Enter 沿用那次的选择（记在当前浏览器里）。 |
+| `pinnedAgents` | `string[]` | `['codex-app', 'claude-app', 'antigravity']` | 「发送到」菜单顶部的常用目标；其余已启用的目标折叠在 **更多 Agent** 里。`[]` 表示全部折叠。这只是默认值：悬停某一行点图钉即可加入 / 移出常用，之后以当前浏览器的选择（localStorage）为准。页面没有提供的 id 会被忽略。 |
 | `theme` | `'light' \| 'auto' \| 'dark'` | `'light'` | 弹窗主题。`'auto'` 跟随系统。未设置时，页面会在控制台打印一条提示，说明这个选项。 |
 | `locale` | `'zh' \| 'en'` | 自动 | 界面语言：本选项 → `navigator.language` → `zh`。以 `zh` 开头即中文。prompt 永远不做本地化。 |
 | `hotkey` | `string` | `'Alt+Shift+I'` | 切换选取器。用 `+` 连接，大小写不敏感。修饰键：`alt`/`option`、`shift`、`ctrl`/`control`、`meta`/`cmd`/`command`；最后一段是主键。 |

@@ -1,4 +1,5 @@
-import { DEFAULT_HOTKEY, DEFAULT_MAX_HTML_SNIPPET, DEFAULT_MAX_SOURCE_CONTEXT_LINES, DEFAULT_OUTPUT_DIR, } from '../shared/constants.js';
+import { DEFAULT_HOTKEY, DEFAULT_MAX_HTML_SNIPPET, DEFAULT_MAX_SOURCE_CONTEXT_LINES, DEFAULT_OUTPUT_DIR, DEFAULT_PINNED_AGENTS, } from '../shared/constants.js';
+import { normalizePinnedAgents } from '../shared/pinned-agents.js';
 import { normalizeLocale } from '../shared/locale.js';
 import { normalizeLongPress, normalizePickButton } from '../shared/pick-trigger.js';
 import { normalizeTheme } from '../shared/theme.js';
@@ -132,6 +133,8 @@ export function resolvePromptPathStyleOptions(options: { pathStyle?: unknown, ar
  * the current Vite dev-server loopback origin. `pathStyle` / `artifactPathStyle` only affect plain `@` prompts
  * (clipboard / file / Grok Build); Codex/Claude markdown or deeplink attachments keep their own formats. `theme` stays
  * `null` when unset or invalid, so the browser can tell "not configured" apart from an explicit `'light'`.
+ * `pinnedAgents` becomes a clean id list (an explicit `[]` stays empty); a non-array falls back to
+ * `DEFAULT_PINNED_AGENTS`.
  *
  * @param {Record<string, unknown>} options Raw plugin options supplied from Vite config.
  * @returns {Record<string, unknown>} Fully resolved inspector options used by server and browser config generation.
@@ -145,6 +148,7 @@ export function resolveOptions(options: {
     pickButton?: unknown;
     longPress?: unknown;
     defaultAgent?: unknown;
+    pinnedAgents?: unknown;
     outputDir?: unknown;
     applyMode?: unknown;
     maxSourceContextLines?: unknown;
@@ -169,6 +173,8 @@ export function resolveOptions(options: {
         pickButton: normalizePickButton(options.pickButton),
         longPress: normalizeLongPress(options.longPress),
         defaultAgent: options.defaultAgent ?? 'claude-app',
+        // Menu default only: the browser's own pin choices (localStorage) win once the user changes them.
+        pinnedAgents: normalizePinnedAgents(options.pinnedAgents) ?? [...DEFAULT_PINNED_AGENTS],
         // Callers pass this to `path.resolve`, which requires a string. Non-strings still flow through unchanged.
         outputDir: options.outputDir as string ?? DEFAULT_OUTPUT_DIR,
         // prompt-only is the safer default: the agent proposes a plan rather than

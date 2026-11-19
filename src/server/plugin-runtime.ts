@@ -37,7 +37,8 @@ function customAgentActions(resolved: ReturnType<typeof resolveOptions>, registr
  * Creates the browser-facing inspector configuration injected into the page.
  *
  * Boundary: `theme` is forwarded as resolved, `null` included, because the browser both picks the default theme and
- * decides whether to print the "theme not configured" console hint from it.
+ * decides whether to print the "theme not configured" console hint from it. `pinnedAgents` is forwarded unfiltered:
+ * it is only the menu's default split, and the page drops ids it does not offer.
  *
  * @param {ReturnType<typeof resolveOptions>} resolved Resolved plugin options.
  * @param {ReturnType<typeof buildRegistry>} registry Enabled agent registry.
@@ -60,6 +61,7 @@ function makeClientConfig(resolved: ReturnType<typeof resolveOptions>, registry:
         pickButton: resolved.pickButton,
         longPress: resolved.longPress,
         defaultAgent,
+        pinnedAgents: resolved.pinnedAgents,
         applyMode: resolved.applyMode,
         apiOrigin: resolved.apiOrigin || origin,
         recording: resolved.recording,
