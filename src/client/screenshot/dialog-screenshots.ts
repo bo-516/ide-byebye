@@ -1,17 +1,18 @@
 import { captureScreenshot, type ScreenshotPayload, type ScreenshotScope } from './screenshot.js';
 import { SCREENSHOT_SCOPE_ORDER } from '../dialog/dialog-utils.js';
 import { t } from '../lib/i18n.js';
-import { ScreenshotPreviewLayer } from './dialog-screenshot-preview.js';
+import { PastedImageLayer } from './dialog-pasted-images.js';
 
 /**
  * Local screenshot controller for the intent dialog.
  *
  * Boundary: screenshot choices, captures, pending state, and preview DOM are local to one dialog open cycle. The
  * screenshot anchor is read lazily through callbacks because the dialog owns both the primary source selection and the
- * real clicked element used for visual capture. Picker/menu rendering lives on {@link ScreenshotMenuLayer} and
- * thumbnails/lightbox on {@link ScreenshotPreviewLayer}.
+ * real clicked element used for visual capture. Picker/menu rendering lives on {@link ScreenshotMenuLayer},
+ * thumbnails/lightbox on {@link ScreenshotPreviewLayer}, and clipboard images on {@link PastedImageLayer}; both captures
+ * and pasted images leave through {@link buildPayloadScreenshots}.
  */
-export class DialogScreenshotController extends ScreenshotPreviewLayer {
+export class DialogScreenshotController extends PastedImageLayer {
     /**
      * Capture all persisted screenshot choices for the current selected element.
      *
@@ -33,20 +34,23 @@ export class DialogScreenshotController extends ScreenshotPreviewLayer {
     }
 
     /**
-     * Build screenshot payload entries for the send request.
+     * Build screenshot payload entries for the send request: captures in scope order, then pasted images.
      *
-     * Boundary: if no screenshot scopes are selected, this returns undefined. A missing selected element rejects because
-     * selection screenshots cannot be recaptured safely.
+     * Boundary: returns undefined when there is neither a selected scope nor a pasted image. Pending pasted images are
+     * awaited. A missing selected element rejects only when capture scopes are selected, because those cannot be
+     * recaptured safely; pasted images do not depend on the element.
      *
-     * @returns {Promise<ScreenshotPayload[] | undefined>} Captured screenshot payloads, if any.
+     * @returns {Promise<ScreenshotPayload[] | undefined>} Screenshot payloads, if any.
      */
     async buildPayloadScreenshots(): Promise<ScreenshotPayload[] | undefined> {
+        const pasted = await this.buildPastedPayloads();
         if (this.choices.size === 0)
-            return undefined;
+            return pasted.length ? pasted : undefined;
         if (!this.host.selectedElement())
             throw new Error(t('screenshot.error.elementGone'));
         const scopes = SCREENSHOT_SCOPE_ORDER.filter((scope) => this.choices.has(scope));
-        return Promise.all(scopes.map((scope) => this.ensureCapture(scope)));
+        const captures = await Promise.all(scopes.map((scope) => this.ensureCapture(scope)));
+        return [...captures, ...pasted];
     }
 
     /**

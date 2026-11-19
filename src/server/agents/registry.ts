@@ -1,11 +1,15 @@
+import type { ImageDelivery } from '../../shared/constants.js';
+
 /**
  * Adapter handle stored by name. `send` stays on the concrete object; this shape is only what the registry reads.
  *
- * Boundary: a missing `sessionsEnabled` means the session menu is off. `isAvailable` rejects are caught by `listAvailable`.
+ * Boundary: a missing `sessionsEnabled` means the session menu is off. A missing `imageInput` means `path` (images
+ * reach the agent as prompt paths). `isAvailable` rejects are caught by `listAvailable`.
  */
 interface RegisteredAdapter {
     name: string;
     sessionsEnabled?: boolean;
+    imageInput?: ImageDelivery;
     isAvailable: () => Promise<{ available: boolean, reason?: string }>;
 }
 
@@ -51,19 +55,31 @@ export class AgentRegistry {
         const adapter = this.adapters.get(name);
         return adapter?.sessionsEnabled === true;
     }
+    /**
+     * One `GET /agents` row per adapter: availability, session support, and how images reach it.
+     *
+     * Boundary: an `isAvailable` that throws becomes `available: false` with the error as `reason`; the other fields
+     * are still reported. `images` falls back to `path` for adapters that do not declare `imageInput`.
+     *
+     * @returns {Promise<Array<{ name: string, available: boolean, reason?: string, sessions: boolean, images: ImageDelivery }>>}
+     */
     async listAvailable() {
         const entries = [...this.adapters.values()];
         const results = await Promise.all(entries.map(async (adapter) => {
+            const capabilities = {
+                sessions: adapter.sessionsEnabled === true,
+                images: adapter.imageInput ?? 'path',
+            };
             try {
                 const availability = await adapter.isAvailable();
-                return { name: adapter.name, ...availability, sessions: adapter.sessionsEnabled === true };
+                return { name: adapter.name, ...availability, ...capabilities };
             }
             catch (err) {
                 return {
                     name: adapter.name,
                     available: false,
                     reason: err instanceof Error ? err.message : String(err),
-                    sessions: adapter.sessionsEnabled === true,
+                    ...capabilities,
                 };
             }
         }));

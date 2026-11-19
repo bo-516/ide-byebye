@@ -3,7 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { saveRecordingPayloads } from './screenshot.js';
+import { MAX_SCREENSHOTS_PER_SEND, saveRecordingPayloads, saveScreenshotPayloads } from './screenshot.js';
 import { buildPromptReferenceLines } from './prompt.js';
 import { buildPromptMarkdownReferenceLines } from './prompt-markdown.js';
 
@@ -78,4 +78,30 @@ test('prompt references include the recording still frame but never the event JS
         '[.intent-inspector/recordings/abc1234.webp](.intent-inspector/recordings/abc1234.webp)',
     ]);
     assert.ok(!markdown.some((ref) => ref.includes('.rrweb.json')), 'markdown prompt never references the event JSON');
+});
+
+test('saveScreenshotPayloads stores pasted images like captures', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cii-paste-'));
+    const outputDir = path.join(root, '.intent-inspector');
+    const saved = saveScreenshotPayloads([
+        { scope: 'viewport', dataUrl: PNG_DATA_URL, width: 1, height: 1 },
+        { scope: 'pasted', dataUrl: PNG_DATA_URL, width: 1, height: 1 },
+    ], { projectRoot: root }, outputDir);
+
+    assert.equal(saved!.length, 2);
+    assert.equal(saved![1].scope, 'pasted');
+    assert.equal(path.dirname(saved![1].filePath), path.join(outputDir, 'screenshots'));
+    assert.ok(saved![1].filePath.endsWith('.png'));
+    assert.deepEqual(fs.readFileSync(saved![1].filePath), Buffer.from(PNG_DATA_URL.split(',')[1], 'base64'));
+    assert.equal(buildPromptReferenceLines({ projectRoot: root, screenshots: saved })[1], `@${saved![1].filePath}`);
+});
+
+test('saveScreenshotPayloads rejects more screenshots than captures plus pasted images, writing nothing', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cii-paste-cap-'));
+    const outputDir = path.join(root, '.intent-inspector');
+    const payload = { scope: 'pasted', dataUrl: PNG_DATA_URL };
+    assert.equal(saveScreenshotPayloads(Array(MAX_SCREENSHOTS_PER_SEND).fill(payload), { projectRoot: root }, outputDir)!.length, MAX_SCREENSHOTS_PER_SEND);
+    const before = fs.readdirSync(path.join(outputDir, 'screenshots')).length;
+    assert.throws(() => saveScreenshotPayloads(Array(MAX_SCREENSHOTS_PER_SEND + 1).fill(payload), { projectRoot: root }, outputDir), /Too many screenshots/);
+    assert.equal(fs.readdirSync(path.join(outputDir, 'screenshots')).length, before);
 });

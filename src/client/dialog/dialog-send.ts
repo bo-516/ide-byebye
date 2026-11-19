@@ -192,6 +192,21 @@ export abstract class DialogSend extends DialogClipboard {
         }
     }
     /**
+     * Hover text for pasted-image thumbnails: how the agent Enter sends to will receive the images.
+     *
+     * Boundary: reads `images` from the last `GET /agents` reply. An agent missing from it, an older server without the
+     * field, and a send into an existing session (text only) all count as `path`.
+     *
+     * @returns {string} Localized hint naming the agent.
+     */
+    describePastedImageDelivery() {
+        const label = agentLabel(this.lastAgent);
+        const images = this.sessions?.targetFor(this.lastAgent)
+            ? 'path'
+            : this.availability.find((info) => info.name === this.lastAgent)?.images;
+        return t(images === 'attachment' ? 'image.delivery.attachment' : 'image.delivery.path', { label });
+    }
+    /**
      * Send the current intent to the selected app agent.
      *
      * Boundary: disabled and unavailable agents are rejected before screenshots or references are sent. Empty intent is

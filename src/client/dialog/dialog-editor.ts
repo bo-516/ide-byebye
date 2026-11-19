@@ -3,6 +3,7 @@ import { createMentionElement } from './dialog-editor-mention.js';
 import { createEditorCaret } from './dialog-editor-caret.js';
 import { renderPinnedRow } from './dialog-render-chain.js';
 import { t } from '../lib/i18n.js';
+import { pickClipboardImages } from '../screenshot/pasted-image-rules.js';
 import { appendEditorTokens, serializeEditorNode } from './dialog-editor-serialize.js';
 import type { EditorSelection, EditorToken } from './dialog-editor-serialize.js';
 
@@ -18,14 +19,21 @@ export { displayMentionLabel } from './dialog-editor-mention.js';
  * Boundary: the editor only holds this dialog's local DOM and selection cache; source resolution stays on the server.
  * Every dialog render rebuilds the DOM, so after reset() you must render() before setPrimary().
  *
- * @param {{ placeholder?: string, onChange?: () => void, onSwitchPrimary?: (inspPath: string) => void }} [options]
- *        Placeholder copy, a structure-change callback (fired when a reference is inserted/removed), and the handler
- *        for choosing another entry of a portal pick's mount chain. Omitted means an empty placeholder, a no-op
- *        callback, and no mount chain beside the primary chip.
+ * @param {{ placeholder?: string, onChange?: () => void, onSwitchPrimary?: (inspPath: string) => void,
+ *        onPasteImages?: (files: File[]) => void }} [options]
+ *        Placeholder copy, a structure-change callback (fired when a reference is inserted/removed), the handler
+ *        for choosing another entry of a portal pick's mount chain, and the receiver of images pasted into the editor.
+ *        Omitted means an empty placeholder, a no-op callback, no mount chain beside the primary chip, and pasted
+ *        images being ignored (only the clipboard's plain text is inserted).
  * @returns {object} Editor controls (`render`, `setPrimary`, `insertReference`, `serialize`, …). Method types stay on
  *          the returned object; widening them to `Function` would hide the argument and return types callers use.
  */
-export function createDialogEditor(options: { placeholder?: string; onChange?: () => void; onSwitchPrimary?: (inspPath: string) => void } = {}) {
+export function createDialogEditor(options: {
+    placeholder?: string;
+    onChange?: () => void;
+    onSwitchPrimary?: (inspPath: string) => void;
+    onPasteImages?: (files: File[]) => void;
+} = {}) {
     const placeholder = String(options.placeholder || '');
     const onChange = typeof options.onChange === 'function' ? options.onChange : () => {};
 
@@ -91,6 +99,12 @@ export function createDialogEditor(options: { placeholder?: string; onChange?: (
             editor.addEventListener('paste', (event) => {
                 // Accept plain text only, so external rich text cannot pollute the contenteditable structure.
                 event.preventDefault();
+                // Images go to the attachment strip instead (rich-text copies with a rendered picture stay text).
+                const images = options.onPasteImages ? pickClipboardImages(event.clipboardData) : [];
+                if (images.length) {
+                    options.onPasteImages?.(images);
+                    return;
+                }
                 const text = event.clipboardData?.getData('text/plain') ?? '';
                 const range = caret.readRange() ?? caret.savedRange ?? caret.endRange();
                 range.deleteContents();

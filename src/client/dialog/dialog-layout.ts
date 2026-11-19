@@ -75,6 +75,7 @@ export abstract class DialogLayout {
 
     // Implemented by higher layers; declared here so constructor wiring and shared helpers compile.
     abstract switchPrimary(inspPath: string): void;
+    abstract describePastedImageDelivery(): string;
     abstract resolveReferenceText(selection: ElementSelection): Promise<string | undefined>;
     abstract handleOrbRestore(): void;
     abstract closeFromEscape(event: KeyboardEvent): boolean;
@@ -113,6 +114,7 @@ export abstract class DialogLayout {
             placeholder: t('intent.placeholder'),
             onChange: () => this.repositionForContent(),
             onSwitchPrimary: (inspPath: string) => this.switchPrimary(inspPath),
+            onPasteImages: (files: File[]) => void this.screenshots.addPasted(files),
         });
         this.references = new DialogReferenceController(config, overlay, {
             captureIntentCursor: () => this.editor.captureCursor(),
@@ -134,6 +136,7 @@ export abstract class DialogLayout {
             backdrop: () => this.backdrop,
             reposition: () => this.repositionForContent(),
             showError: (text: string) => this.showError(text),
+            pastedImageHint: () => this.describePastedImageDelivery(),
         });
         // Recording and state watching both hide the dialog and make the host click-through so the page can be used.
         const setDialogHidden = (hidden: boolean) => {

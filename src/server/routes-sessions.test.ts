@@ -275,3 +275,13 @@ test('/agents sessions flags follow sessions: false and experimentalSessions', a
     assert.equal(enabled.find((agent) => agent.name === 'antigravity-ide').sessions, true);
     assert.equal(enabled.find((agent) => agent.name === 'codex-app').sessions, true);
 });
+
+test('/agents rows report how images reach each agent', async () => {
+    const registry = buildRegistry({ claudeApp: false, cursorApp: false, antigravityIde: true });
+    const listed = await registry.listAvailable();
+    assert.equal(listed.find((agent) => agent.name === 'antigravity-ide')?.images, 'attachment');
+    for (const row of listed.filter((agent) => agent.name !== 'antigravity-ide'))
+        assert.equal(row.images, 'path', row.name);
+    const noFiles = await buildRegistry({ claudeApp: false, cursorApp: false, antigravityIde: { addFiles: false } }).listAvailable();
+    assert.equal(noFiles.find((agent) => agent.name === 'antigravity-ide')?.images, 'path');
+});

@@ -370,6 +370,33 @@ button. Still frames and screenshots share one rasterizer: cross-origin assets
 without CORS may come out blank, web fonts must be loadable, and `canvas` /
 WebGL isn't captured.
 
+## Pasted images
+
+Paste images (⌘V / Ctrl+V) into the dialog's input, up to 5 per send. Each one
+shows as a thumbnail next to the screenshots: click it to preview, × to remove.
+Copies from Excel, Numbers or Word, which put a picture of the selection next to
+the text, still paste as text.
+
+PNG, JPEG and WebP up to 2000 px and about 1.5 MB are sent unchanged. Larger
+images, and other formats (GIF keeps its first frame), are scaled down and
+re-encoded in the browser first.
+
+On send, each image is saved under `screenshots/` and its absolute path goes
+into the prompt, like a screenshot. No agent's deeplink or CLI can carry the
+image itself into its input box, so the agent opens the file with its own tools.
+The selected model has to accept images. Hover a pasted thumbnail to see how
+the current agent will receive it.
+
+| Agent | How the image arrives |
+| --- | --- |
+| Claude App, Claude Code CLI, Cursor, Grok Build, OpenCode, Devin CLI, Antigravity, Devin / Windsurf IDE | `@/abs/path` in the prompt |
+| Codex App | Markdown link in the prompt; the `codex://` deeplink has no image parameter |
+| Antigravity IDE | `@/abs/path`, plus a file chip in the agent input (new conversations, unless `addFiles: false`) |
+| Custom clients | listed in the payload's `screenshots` |
+| Copy (⧉) | the path in the copied text |
+
+Sending to an existing session works the same way, as paths only.
+
 ## Output files
 
 Everything goes under `outputDir` (default `.intent-inspector/`). It's per-machine,
@@ -384,7 +411,7 @@ text. Keep it out of git:
 | --- | --- |
 | `requests/` | Full request + prompt as Markdown (`file` agent, `promptMode: 'file'`, or an over-long prompt). |
 | `launches/` | Terminal launcher scripts and prompt text for CLI and IDE agents. |
-| `screenshots/` | Screenshots referenced by the prompt. |
+| `screenshots/` | Screenshots and pasted images referenced by the prompt. |
 | `recordings/` | rrweb event streams and still frames. |
 | `next/bootstrap.js` | Generated client bootstrap for `next dev`. |
 

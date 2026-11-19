@@ -4,6 +4,8 @@ import { t } from '../lib/i18n.js';
 /**
  * Dialog callbacks for one screenshot picker.
  * Boundary: `onChange` may be omitted; captures then skip the dialog refresh. `selectedElement` is read at capture time.
+ * `pastedImageHint` (hover text saying how the selected agent will receive pasted images) may be omitted; pasted
+ * thumbnails then have no tooltip.
  */
 export interface ScreenshotDialogHost {
     selectedElement: () => Element | null;
@@ -11,6 +13,7 @@ export interface ScreenshotDialogHost {
     reposition: () => void;
     showError: (message: string) => void;
     onChange?: () => void;
+    pastedImageHint?: () => string;
 }
 
 /**

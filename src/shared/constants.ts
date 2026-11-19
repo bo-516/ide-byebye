@@ -96,6 +96,32 @@ export const MAX_RENDER_CHAIN_ENTRIES = 5;
  * @type {number}
  */
 export const MAX_RENDER_CHAIN_ENTRY_LENGTH = 1024;
+/**
+ * Most images one dialog accepts from the clipboard. They travel as extra `screenshots` entries.
+ *
+ * Boundary: the client refuses a paste past this count. The server rejects a send whose `screenshots` list is longer
+ * than this plus {@link MAX_CAPTURE_SCREENSHOTS}, so raising one side alone makes larger sends fail.
+ *
+ * @type {number}
+ */
+export const MAX_PASTED_IMAGES = 5;
+/**
+ * Most screenshots the dialog captures itself in one send: one per scope (selection, parent, viewport).
+ *
+ * @type {number}
+ */
+export const MAX_CAPTURE_SCREENSHOTS = 3;
+/**
+ * How an agent receives images (dialog captures and pasted images), reported per row by `GET /agents` as `images`.
+ *
+ * - `path`: the image is saved under `<outputDir>/screenshots/` and its absolute path is written into the prompt; the
+ *   agent opens it with its own image-capable read tool. Every built-in adapter does at least this.
+ * - `attachment`: as `path`, and the file is also handed to the client as a file attachment (Antigravity IDE's file
+ *   chips on a new conversation).
+ *
+ * Boundary: neither value says the agent's model accepts images; the plugin cannot tell.
+ */
+export type ImageDelivery = 'path' | 'attachment';
 export const DEFAULT_HOTKEY = 'Alt+Shift+I';
 export const DEFAULT_OUTPUT_DIR = '.intent-inspector';
 export const DEFAULT_MAX_SOURCE_CONTEXT_LINES = 60;

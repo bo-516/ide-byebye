@@ -344,6 +344,29 @@ ideByebye({
 `recording: true` 使用上面的默认值；`{ enabled: false }` 隐藏录制按钮。静帧和截图共用同一套
 栅格化：没有 CORS 的跨域资源可能是空白，web 字体必须能加载，`canvas` / WebGL 不会被捕获。
 
+## 粘贴图片
+
+在对话框输入框里直接粘贴图片（⌘V / Ctrl+V），每次发送最多 5 张。图片以缩略图显示在截图旁：
+点击预览，× 移除。从 Excel、Numbers、Word 复制的内容会在文字旁附一张选区截图，这种情况仍按
+文字粘贴。
+
+2000 px 以内、约 1.5 MB 以内的 PNG、JPEG、WebP 原样发送。更大的图片和其他格式（GIF 只保留
+第一帧）会先在浏览器里缩小并重新编码。
+
+发送时每张图片都存到 `screenshots/`，绝对路径和截图一样写进 prompt。所有 Agent 的 deeplink
+和 CLI 都没法把图片本身放进它的输入框，所以由 Agent 用自己的工具打开文件，所选模型需要支持
+图片输入。把鼠标悬停在粘贴的缩略图上，可以看到当前 Agent 会怎样收到它。
+
+| Agent | 图片怎么送到 |
+| --- | --- |
+| Claude App、Claude Code CLI、Cursor、Grok Build、OpenCode、Devin CLI、Antigravity、Devin / Windsurf IDE | prompt 里的 `@/绝对路径` |
+| Codex App | prompt 里的 Markdown 链接；`codex://` deeplink 没有图片参数 |
+| Antigravity IDE | `@/绝对路径`，另外在 Agent 输入框里附一个文件 chip（新对话，除非 `addFiles: false`） |
+| 自定义客户端 | 列在载荷的 `screenshots` 里 |
+| 复制（⧉） | 复制的文字里带路径 |
+
+发送到已有会话时同样只带路径。
+
 ## 输出文件
 
 所有文件都写在 `outputDir`（默认 `.intent-inspector/`）下。这些内容和本机绑定、每次发送都会
@@ -357,7 +380,7 @@ ideByebye({
 | --- | --- |
 | `requests/` | Markdown 格式的完整请求 + prompt（`file` Agent、`promptMode: 'file'`，或 prompt 过长时）。 |
 | `launches/` | CLI 和 IDE 类 Agent 的 Terminal launcher 脚本与 prompt 文本。 |
-| `screenshots/` | prompt 引用的截图。 |
+| `screenshots/` | prompt 引用的截图和粘贴的图片。 |
 | `recordings/` | rrweb 事件流和静帧。 |
 | `next/bootstrap.js` | 为 `next dev` 生成的客户端 bootstrap。 |
 

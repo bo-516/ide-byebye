@@ -3,6 +3,7 @@ import { randomInt } from 'node:crypto';
 import path from 'node:path';
 import { assertPathInsideRoot } from './security.js';
 import { ARTIFACT_MAX_AGE_MS } from './output-cleanup.js';
+import { MAX_CAPTURE_SCREENSHOTS, MAX_PASTED_IMAGES } from '../shared/constants.js';
 const SUPPORTED_MIME_TYPES = new Map([
     ['image/png', 'png'],
     ['image/jpeg', 'jpg'],
@@ -13,6 +14,13 @@ const SCREENSHOT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const RECORDINGS_SUBDIR = 'recordings';
 const RECORDING_EXTENSIONS = new Set(['.json', '.png', '.jpg', '.jpeg', '.webp']);
 const SCREENSHOT_FILE_ID_LENGTH = 7;
+/**
+ * Most screenshot payloads one send may carry: one capture per scope plus the dialog's pasted images. The page is
+ * untrusted, so a longer list is rejected before anything is written.
+ *
+ * @type {number}
+ */
+export const MAX_SCREENSHOTS_PER_SEND = MAX_CAPTURE_SCREENSHOTS + MAX_PASTED_IMAGES;
 const SCREENSHOT_FILE_ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
 /**
@@ -177,10 +185,11 @@ export function saveScreenshotPayload(payload: ScreenshotWritePayload | null | u
 }
 
 /**
- * Save all screenshot payloads for a request.
+ * Save all screenshot payloads for a request: dialog captures and images pasted into the dialog (`scope: 'pasted'`).
  *
- * Boundary: empty or missing arrays return undefined after cleanup. Each payload is written independently with a short
- * random filename, so multiple scopes from one request no longer share the long request id in their names.
+ * Boundary: empty or missing arrays return undefined after cleanup. A list longer than {@link MAX_SCREENSHOTS_PER_SEND}
+ * throws before any file is written. Each payload is written independently with a short random filename, so multiple
+ * scopes from one request no longer share the long request id in their names.
  *
  * @param {readonly ScreenshotWritePayload[] | null | undefined} payloads Optional screenshot payload list.
  * @param {{ projectRoot: string }} request Intent request carrying the trusted project root.
@@ -191,6 +200,8 @@ export function saveScreenshotPayloads(payloads: readonly ScreenshotWritePayload
     cleanupExpiredScreenshots(outputDir, request.projectRoot);
     if (!payloads?.length)
         return undefined;
+    if (payloads.length > MAX_SCREENSHOTS_PER_SEND)
+        throw new Error(`Too many screenshots (${payloads.length}); at most ${MAX_SCREENSHOTS_PER_SEND} are accepted`);
     return payloads.map((payload) => writeScreenshotPayload(payload, request, outputDir));
 }
 

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+import type { ImageDelivery } from '../../shared/constants.js';
 import { resolveFirstCommand, writeLaunchFiles } from './launch-files.js';
 import { quoteWindowsCmdArg } from './opener.js';
 import { createAntigravitySessionBridge } from '../sessions/antigravity-sessions.js';
@@ -93,16 +94,20 @@ function runLauncher(launchPath: string) {
  * Boundary: registered by default in `buildRegistry` unless `agents.antigravityIde` is `false` or
  * `{ enabled: false }`. The CLI opens the project folder. A local bridge extension then places the prompt in the
  * agent input and does not submit it. `openCommand` / `openArgs` are ignored. Availability requires a working CLI
- * binary.
+ * binary. `imageInput` is `attachment` because a new conversation also receives screenshots and pasted images as
+ * file chips; `addFiles: false` turns that off and leaves `path`.
  *
  * @param {Record<string, unknown>} config Antigravity IDE adapter options from plugin config.
  * @returns {{ name: string, isAvailable: Function, send: Function }} Agent adapter.
  */
 export function createAntigravityIdeAdapter(config: Record<string, unknown> = {}) {
     const sessions = createAntigravitySessionBridge(config);
+    // New conversations also get screenshots and pasted images as file chips (`sendToAgentPanel` files).
+    const imageInput: ImageDelivery = config.addFiles === false ? 'path' : 'attachment';
     return {
         name: 'antigravity-ide',
         sessionsEnabled: sessions.enabled,
+        imageInput,
         async isAvailable() {
             const command = await resolveAntigravityIdeCommand(config);
             if (!command)

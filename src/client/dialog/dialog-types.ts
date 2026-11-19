@@ -9,6 +9,8 @@
  * through untouched; each interface documents exactly which keys this side relies on.
  */
 
+import type { ImageDelivery } from '../../shared/constants.js';
+
 /**
  * Fields this dialog reads from the injected page config.
  *
@@ -27,6 +29,8 @@ export interface AgentAvailability {
     available?: boolean;
     /** Server explanation when `available` is false; the dialog shows it verbatim. */
     reason?: string;
+    /** How images reach this agent. Missing (older server) means `path`. */
+    images?: ImageDelivery;
 }
 
 /** `POST /resolve` JSON. `reference` is whatever the server sends until the dialog checks it is a string. */

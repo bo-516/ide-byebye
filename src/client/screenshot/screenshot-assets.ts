@@ -26,7 +26,14 @@ export function absoluteAssetUrl(raw: string | null | undefined): string | null 
     }
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
+/**
+ * Read a blob as a base64 data URL.
+ * Boundary: the MIME type in the result is the blob's own `type`; an untyped blob yields
+ * `data:application/octet-stream`. Rejects when the reader fails.
+ * @param {Blob} blob Image asset or pasted clipboard file.
+ * @returns {Promise<string>} Data URL of the blob's bytes.
+ */
+export function blobToDataUrl(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result ?? ''));

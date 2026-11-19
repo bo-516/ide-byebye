@@ -37,7 +37,7 @@ function svgDataUrl(node: Node, width: number, height: number): string {
  * @param {string} src Image source URL (typically an SVG data URL).
  * @returns {Promise<HTMLImageElement>} The decoded image.
  */
-function loadImage(src: string): Promise<HTMLImageElement> {
+export function loadImage(src: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
         const img = new Image();
         const timer = window.setTimeout(() => reject(new Error(t('screenshot.error.renderTimeout'))), 10000);
@@ -56,7 +56,13 @@ function renderScale(width: number, height: number): number {
     const maxScale = Math.min(window.devicePixelRatio || 1, 2, MAX_RENDER_DIMENSION / Math.max(1, width), MAX_RENDER_DIMENSION / Math.max(1, height));
     return Math.max(0.25, maxScale);
 }
-function encodeCanvas(canvas: HTMLCanvasElement): string {
+/**
+ * Encode a canvas as WebP, falling back to PNG where the browser cannot encode WebP (older Safari).
+ * Boundary: both formats keep alpha. The result is always a data URL the server's `parseDataUrl` accepts.
+ * @param {HTMLCanvasElement} canvas Rendered canvas.
+ * @returns {string} `data:image/webp` or `data:image/png` URL.
+ */
+export function encodeCanvas(canvas: HTMLCanvasElement): string {
     const webp = canvas.toDataURL('image/webp', 0.86);
     if (webp.startsWith('data:image/webp'))
         return webp;
